@@ -1,15 +1,26 @@
+import {
+  getPlanAuthoringInstruction,
+  getPlanRequestParagraph,
+  type PlanPublishingOptions,
+} from './plan-authoring-guidance';
 import { handoffCommand } from '../cli/handoff/command';
 import type { HandoffTemplateQuery } from '../cli/handoff-templates/contracts';
 
 /** Body for an entry-point role (planner, solo, or coordinator) delegating a product specification to the product manager. */
-export function getEntryPointToProductManagerHandoffTemplate(query: HandoffTemplateQuery): string {
+export function getEntryPointToProductManagerHandoffTemplate(
+  query: HandoffTemplateQuery,
+  options: PlanPublishingOptions = {}
+): string {
   const entryPoint = query.fromRole;
+  const planParagraph = options.planPublishing
+    ? `\n\n${getPlanRequestParagraph('specification')}`
+    : '';
 
   return `The automatically injected \`<user-message>\` is the authoritative request. Pass the feature request in the user's words, the problem it solves and who it is for, any constraints or decisions already made, and the areas of the app it likely touches. List the domain nouns the product manager must check for existing equivalents in the repository. Ask the product manager for a specification only: do not edit files, implement code, or design the technical architecture.
 
 Use this for a new, ambiguous feature request whose scope is not yet decided. Skip it for small bug fixes and for requests whose scope is already unambiguous, unless a bug fix needs a scope decision.
 
-After completing the specification, the product manager must return it to \`${entryPoint}\` with the normal handoff command.
+After completing the specification, the product manager must return it to \`${entryPoint}\` with the normal handoff command.${planParagraph}
 
 \`\`\`bash
 ${handoffCommand({
@@ -22,10 +33,16 @@ ${handoffCommand({
 }
 
 /** Body for the product manager returning its specification to the entry-point role. */
-export function getProductManagerToEntryPointHandoffTemplate(query: HandoffTemplateQuery): string {
+export function getProductManagerToEntryPointHandoffTemplate(
+  query: HandoffTemplateQuery,
+  options: PlanPublishingOptions = {}
+): string {
   const entryPoint = query.toRole;
+  const planInstruction = options.planPublishing
+    ? `\n\n${getPlanAuthoringInstruction('product-manager', query)}`
+    : '';
 
-  return `Instructions (not part of the message): Return a complete product specification for the authoritative feature request. The product manager is advisory and read-only: do not edit files, build, or implement. Base every consistency claim on the existing app behavior you inspected, citing concrete repository paths and symbols, docs, or decision records under \`memory/\`. Decide every development-scope product decision yourself with a recommended default and rationale; return non-development product questions (copy, pricing, opinions, general product talk) to \`${entryPoint}\` in \`## Summary\`; list a question for the user only if it meets the escalation criteria. Begin with the \`## Summary\` section, then use the remaining sections below in order. Use \`###\` for sub-items within a section.
+  return `Instructions (not part of the message): Return a complete product specification for the authoritative feature request. The product manager is advisory and read-only: do not edit files, build, or implement. Base every consistency claim on the existing app behavior you inspected, citing concrete repository paths and symbols, docs, or decision records under \`memory/\`. Decide every development-scope product decision yourself with a recommended default and rationale; return non-development product questions (copy, pricing, opinions, general product talk) to \`${entryPoint}\` in \`## Summary\`; list a question for the user only if it meets the escalation criteria. Begin with the \`## Summary\` section, then use the remaining sections below in order. Use \`###\` for sub-items within a section.${planInstruction}
 
 ## Summary
 <state the feature, the recommended scope in two to four sentences, and whether any escalation item blocks planning>

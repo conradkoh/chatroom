@@ -6,5 +6,5 @@ import type { HandoffTemplateQuery } from '../../../cli/handoff-templates/contra
 import { getEntryPointToArchitectHandoffTemplate } from '../../architect-handoff-templates';
 
 export function getCoordinatorArchitectCodeTemplate(query: HandoffTemplateQuery): string {
-  return getEntryPointToArchitectHandoffTemplate(query);
+  return getEntryPointToArchitectHandoffTemplate(query, { planPublishing: true });
 }

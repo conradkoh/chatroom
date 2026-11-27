@@ -1,3 +1,8 @@
+import {
+  getPlanAuthoringInstruction,
+  getPlanRequestParagraph,
+  type PlanPublishingOptions,
+} from './plan-authoring-guidance';
 import { handoffCommand } from '../cli/handoff/command';
 import type { HandoffTemplateQuery } from '../cli/handoff-templates/contracts';
 import { getFileReferenceGuidanceComment } from '../utils/file-reference-guidance';
@@ -19,8 +24,12 @@ function getArchitectRequirements(): string {
 }
 
 /** Body for the entry role delegating design work to the architect. */
-export function getEntryPointToArchitectHandoffTemplate(query: HandoffTemplateQuery): string {
+export function getEntryPointToArchitectHandoffTemplate(
+  query: HandoffTemplateQuery,
+  options: PlanPublishingOptions = {}
+): string {
   const entryPoint = query.fromRole;
+  const planParagraph = options.planPublishing ? `\n\n${getPlanRequestParagraph()}` : '';
 
   return `The automatically injected \`<user-message>\` is the authoritative request. Add only concise context that the Architect needs to design within the existing repository and team scope.
 
@@ -28,7 +37,7 @@ Use this before any backend contract, API, or schema/persistence change.
 
 Provide the request, relevant constraints, and the files or product surfaces that need inspection. Name any prior decision in \`memory/\` or \`docs/\` the design must respect, and name the known test constraints (for example, an existing fake, or a rule that tests run against a real database). Ask for one evidence-backed design focused on ${getArchitectFocus()}.
 
-After completing the design, the \`architect\` must hand it back to \`${entryPoint}\` with the normal handoff command, then stop; it must not implement the design or delegate further work.
+After completing the design, the \`architect\` must hand it back to \`${entryPoint}\` with the normal handoff command, then stop; it must not implement the design or delegate further work.${planParagraph}
 
 \`\`\`bash
 ${handoffCommand({
@@ -41,11 +50,17 @@ ${handoffCommand({
 }
 
 /** Body for the architect returning one recommended design to the entry role. */
-export function getArchitectToEntryPointHandoffTemplate(query: HandoffTemplateQuery): string {
+export function getArchitectToEntryPointHandoffTemplate(
+  query: HandoffTemplateQuery,
+  options: PlanPublishingOptions = {}
+): string {
   const entryPoint = query.toRole;
   const sharedContractsHeading = `## Shared contracts (${entryPoint}-owned)`;
+  const planInstruction = options.planPublishing
+    ? `\n\n${getPlanAuthoringInstruction('architect', query)}`
+    : '';
 
-  return `Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to \`${entryPoint}\`. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. Decide every open repository technical-design decision for the development work yourself inside the one design; do not return open technical questions. List an item for the user only if it meets the escalation criteria. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
+  return `Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to \`${entryPoint}\`. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. Decide every open repository technical-design decision for the development work yourself inside the one design; do not return open technical questions. List an item for the user only if it meets the escalation criteria. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.${planInstruction}
 
 ## Summary
 <describe the design problem being solved, the repository/product surface where it fits, and the evidence-backed context; do not refer to hidden session text>

@@ -99,7 +99,7 @@ exports[`trio handoff template snapshots > trio non-specialist pairs (chat) > co
 
 Handoff template \`coordinator\` → \`specifier\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
-Instructions (not part of the message): Delegate one work package to the \`specifier\`. State the outcome, the user's requirements and constraints, the specialist decisions, the delivery expectations, and what the plan has already delivered. The specifier plans the slices, decides which phases it delegates in this round, drives the builder through them, and reports back. Builder rounds are slow — it may be a while before you hear back. Do not size its rounds or write file-level code instructions. Clear every required gate first (researcher, triage, architect, uiux-engineer, game-asset-designer) and include the decisions from their briefs, citing message ids — the specifier cannot contact those roles. Each package starts the specifier in a fresh session: include everything it needs, or name the message ids it must read with \`chatroom messages download\`.
+Instructions (not part of the message): Delegate one work package to the \`specifier\`. A package is a group of requirements one builder pass can deliver and verify: the specifier writes ONE builder brief, makes one builder handoff, reviews, and reports. It cannot run more passes or plan phases; you own grouping, sequencing and rework. State the outcome, the grouped requirements, specialist decisions, delivery expectations and what earlier packages delivered. Builder passes are slow — it may be a while before you hear back. Do not size passes or write file-level code instructions. Clear every required gate first (researcher, triage, architect, uiux-engineer, game-asset-designer) and include the decisions from their briefs, citing message ids — the specifier cannot contact those roles. Each package starts the specifier in a fresh session: include everything it needs, or name the message ids it must read with \`chatroom messages download\`.
 
 **Delegation Brief** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
 
@@ -111,22 +111,25 @@ Instructions (not part of the message): Delegate one work package to the \`speci
 <one sentence: the outcome this work package delivers>
 
 ## User requirements
-<the user's requirements and constraints, quoted or paraphrased, each with its source message id>
+<the requirements grouped into THIS package, quoted or paraphrased, each with its source message id>
 
 ## Inputs from specialists
-<for each architect / researcher / triage / uiux-engineer / game-asset-designer brief this package depends on: message id and the decisions to adopt; or \`None.\`>
+<for each architect / researcher / triage / uiux-engineer / game-asset-designer brief this package depends on, including a plan author's design or plan message id: message id and the decisions to adopt; or \`None.\`>
 <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
 
 ## Scope
 - In scope: <surfaces and behaviors>
-- Out of scope: <surfaces the specifier and builder must not touch>
+- Out of scope: <later packages, surfaces, and behaviors the specifier and builder must not touch>
 
-## Plan reference
-Plan ID: <planId>, or \`None — first pass: publish the plan\`
-Delivered so far: <phases the plan already landed and anything left open; or \`Nothing yet.\`>
-Read the plan when useful: \`chatroom plan read --chatroom-id="test-chatroom-id" --role="specifier" --plan-id="<planId>"\`
+## Plan phases
+Plan ID: <planId>, or \`None — no plan for this task\`
+Phases in this package: <planId>#Pn, … ; or \`None.\`
+Read a cited phase: \`chatroom plan read --chatroom-id="test-chatroom-id" --role="specifier" --plan-id="<planId>" --phase="<Pn>"\`
 
-## Rework findings (prior round)
+## Prior deliveries
+<earlier packages in this task: report message ids, what landed, and open items; or \`Nothing yet.\`>
+
+## Rework findings (prior delivery)
 <message id of the specifier, reviewer, or verifier report and the blocking findings to fix (paste each with file and line where known); or \`None.\`>
 
 ## Acceptance criteria
@@ -136,7 +139,7 @@ Read the plan when useful: \`chatroom plan read --chatroom-id="test-chatroom-id"
 <commit, branch, push, and PR expectations from the user; or \`None stated.\`>
 
 ## History pointers
-<message ids or a \`--page-id\` the specifier should download (page ids come from \`chatroom messages pages\`), including the prior round report when this package continues a plan; or \`None.\`>
+<message ids or a \`--page-id\` the specifier should download (page ids come from \`chatroom messages pages\`), including the latest package report when this package continues a task; or \`None.\`>
 \`\`\`
 
 ### Grounding reference
@@ -176,16 +179,16 @@ Handoff template \`specifier\` → \`builder\` (copy only the body sections belo
 
 **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
-**Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
+**Test seams:** Fill \`## Test seams\` in the brief body for each behavior the work package changes. See the \`test-seam\` glossary term for what a seam is.
 
-Guidance for you (not part of the message): A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping. In the brief body, set the \`## Verification flags\` scope to \`round-final\` for the round's final brief and \`focused\` for the others.
+Guidance for you (not part of the message): This is the work package's only builder brief — the specifier makes one builder pass and cannot send rework. Cover the whole package: order the ### file blocks by dependency, and set the \`## Verification flags\` scope to \`full\`.
 
 \`\`\`\`markdown
 ## Summary
-<brief context for this delegation slice — what problem it solves and where it fits in the larger task>
+<brief context for this delegation work package — what problem it solves and where it fits in the larger task>
 
 ## Goal
-<one sentence: the outcome this slice delivers>
+<one sentence: the outcome this work package delivers>
 
 ## Key Knowledge for High Quality Bar
 <details that would move the implementation from good to excellent and delightful — domain context, user expectations, edge cases, naming, UX polish, invariants the builder must preserve>
@@ -195,7 +198,7 @@ Guidance for you (not part of the message): A builder round trip is slow — imp
 - Each builder delegation starts a fresh session automatically — the builder does not continue prior context.
 
 ## Files to implement (exhaustive, file-level)
-List **every** file in this slice. Mark each file **(Required)** or **(Optional)** — all Required files must land before PR. For each file, state the exact change and paste the code the builder should match (no guessing).
+List **every** file in this work package. Mark each file **(Required)** or **(Optional)** — all Required files must land before PR. For each file, state the exact change and paste the code the builder should match (no guessing).
 <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
 
 ### \`apps/webapp/src/path/to/file.ts\`
@@ -213,7 +216,7 @@ List **every** file in this slice. Mark each file **(Required)** or **(Optional)
 // ...
 \`\`\`
 
-(Add one ### block per file. If this slice touches only one file, still use the ### header.)
+(Add one ### block per file. If this work package touches only one file, still use the ### header.)
 
 ## Shared contracts (specifier-owned)
 Cross-file types, interfaces, or patterns that apply beyond a single file. Omit if everything is already specified per-file above.
@@ -230,7 +233,7 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 
 ## Requirements (acceptance criteria)
 - <verifiable outcome the builder can self-check>
-- Name at least one end-to-end evidence for the feature on the round's final brief: a CLI run, an API call, a UI action, or the template render. Earlier briefs need focused evidence only; the round as a whole must be end-to-end verified. When the brief marks \`e2e\` \`not applicable\`, the Requirements must name which of these alternatives is the end-to-end evidence.
+- Name at least one end-to-end evidence that the feature works: a CLI run, an API call, a UI action, or the template render. Unit tests alone are insufficient for new features. When the brief marks \`e2e\` \`not applicable\`, the Requirements must name which of these alternatives is the end-to-end evidence.
 
 ## Test seams
 - <behavior>: seam <public interface or port>; catches <what>; misses <what>
@@ -239,9 +242,7 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 
 ## Verification flags
 Mark each kind \`required\` or \`not applicable: <reason>\`. The builder runs every \`required\` kind with the command shown, always runs typecheck and lint, and records each \`not applicable\` kind in its hand-back.
-Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this brief's scope and keep only that definition below.
-- \`focused\` — each run covers only the test files and workspaces that touch this brief's files.
-- \`round-final\` — each run covers the full scope: the full unit suite and full integration suite of every workspace the round changed, typecheck and lint of those workspaces (\`pnpm lint\` for the whole repository), and every e2e spec the round affects.
+Scope: \`full\` — each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed, typecheck and lint of those workspaces (\`pnpm lint\` for the whole repository), and every e2e spec this brief affects.
 - \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm turbo run typecheck --filter=<package>\`
 - \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm exec eslint <files in scope>\`
 - \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <test files in scope>\`
@@ -250,7 +251,7 @@ Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this bri
 \`<workspace>\` is a directory: \`services/backend\`, \`apps/webapp\`, \`packages/cli\`, or \`packages/shared\`. \`--filter\` takes the package name: \`@workspace/backend\`, \`@workspace/webapp\`, \`chatroom-cli\`, or \`@workspace/shared\`.
 
 ## What to avoid
-- <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
+- <anti-patterns, recurring mistakes, or scope creep for this work package — be explicit>
 - Do not test private methods or mock internal collaborators. A test that breaks on refactor while behavior is unchanged is wrong.
 - Do not derive expected values by re-running the code's own formula. Take them from a known-good literal, a worked example, or the spec.
 - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs">
@@ -259,7 +260,7 @@ Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this bri
 - e.g. \`chatroom skill activate code-review --chatroom-id=<id> --role=builder\`
 
 ## Out of scope
-- <files or areas the builder must NOT touch in this slice>
+- <files or areas the builder must NOT touch in this work package>
 
 \`\`\`\`
 
@@ -282,12 +283,9 @@ Handoff template \`specifier\` → \`coordinator\` (copy only the body sections 
 
 Instructions (not part of the message): chat response for the coordinator —
 \`\`\`markdown
-<write only the concise status the coordinator needs: what this round delivered, what the plan still has, blockers, and decisions it must make; do not add handoff XML sections, proofs, or report headings>
+<write only the concise status the coordinator needs: what this package delivered, status (delivered | partial | blocked), blockers, and decisions it must make; do not add handoff XML sections, proofs, or report headings>
 
-Plan reference:
-Plan ID: <planId> (newly published | unchanged | superseded by <planId>)
-Phases delivered so far: <P1, …, Pn>
-What remains: <phases not yet delivered, or None — plan complete>
+Plan phases: <Plan ID or None>; met <Pn…>; not met <Pn…>
 \`\`\`"
 `;
 
@@ -390,7 +388,7 @@ exports[`trio handoff template snapshots > trio non-specialist pairs (code) > co
 
 Handoff template \`coordinator\` → \`specifier\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
-Instructions (not part of the message): Delegate one work package to the \`specifier\`. State the outcome, the user's requirements and constraints, the specialist decisions, the delivery expectations, and what the plan has already delivered. The specifier plans the slices, decides which phases it delegates in this round, drives the builder through them, and reports back. Builder rounds are slow — it may be a while before you hear back. Do not size its rounds or write file-level code instructions. Clear every required gate first (researcher, triage, architect, uiux-engineer, game-asset-designer) and include the decisions from their briefs, citing message ids — the specifier cannot contact those roles. Each package starts the specifier in a fresh session: include everything it needs, or name the message ids it must read with \`chatroom messages download\`.
+Instructions (not part of the message): Delegate one work package to the \`specifier\`. A package is a group of requirements one builder pass can deliver and verify: the specifier writes ONE builder brief, makes one builder handoff, reviews, and reports. It cannot run more passes or plan phases; you own grouping, sequencing and rework. State the outcome, the grouped requirements, specialist decisions, delivery expectations and what earlier packages delivered. Builder passes are slow — it may be a while before you hear back. Do not size passes or write file-level code instructions. Clear every required gate first (researcher, triage, architect, uiux-engineer, game-asset-designer) and include the decisions from their briefs, citing message ids — the specifier cannot contact those roles. Each package starts the specifier in a fresh session: include everything it needs, or name the message ids it must read with \`chatroom messages download\`.
 
 **Delegation Brief** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
 
@@ -402,22 +400,25 @@ Instructions (not part of the message): Delegate one work package to the \`speci
 <one sentence: the outcome this work package delivers>
 
 ## User requirements
-<the user's requirements and constraints, quoted or paraphrased, each with its source message id>
+<the requirements grouped into THIS package, quoted or paraphrased, each with its source message id>
 
 ## Inputs from specialists
-<for each architect / researcher / triage / uiux-engineer / game-asset-designer brief this package depends on: message id and the decisions to adopt; or \`None.\`>
+<for each architect / researcher / triage / uiux-engineer / game-asset-designer brief this package depends on, including a plan author's design or plan message id: message id and the decisions to adopt; or \`None.\`>
 <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
 
 ## Scope
 - In scope: <surfaces and behaviors>
-- Out of scope: <surfaces the specifier and builder must not touch>
+- Out of scope: <later packages, surfaces, and behaviors the specifier and builder must not touch>
 
-## Plan reference
-Plan ID: <planId>, or \`None — first pass: publish the plan\`
-Delivered so far: <phases the plan already landed and anything left open; or \`Nothing yet.\`>
-Read the plan when useful: \`chatroom plan read --chatroom-id="test-chatroom-id" --role="specifier" --plan-id="<planId>"\`
+## Plan phases
+Plan ID: <planId>, or \`None — no plan for this task\`
+Phases in this package: <planId>#Pn, … ; or \`None.\`
+Read a cited phase: \`chatroom plan read --chatroom-id="test-chatroom-id" --role="specifier" --plan-id="<planId>" --phase="<Pn>"\`
 
-## Rework findings (prior round)
+## Prior deliveries
+<earlier packages in this task: report message ids, what landed, and open items; or \`Nothing yet.\`>
+
+## Rework findings (prior delivery)
 <message id of the specifier, reviewer, or verifier report and the blocking findings to fix (paste each with file and line where known); or \`None.\`>
 
 ## Acceptance criteria
@@ -427,7 +428,7 @@ Read the plan when useful: \`chatroom plan read --chatroom-id="test-chatroom-id"
 <commit, branch, push, and PR expectations from the user; or \`None stated.\`>
 
 ## History pointers
-<message ids or a \`--page-id\` the specifier should download (page ids come from \`chatroom messages pages\`), including the prior round report when this package continues a plan; or \`None.\`>
+<message ids or a \`--page-id\` the specifier should download (page ids come from \`chatroom messages pages\`), including the latest package report when this package continues a task; or \`None.\`>
 \`\`\`
 
 ### Grounding reference
@@ -592,16 +593,16 @@ Handoff template \`specifier\` → \`builder\` (copy only the body sections belo
 
 **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
-**Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
+**Test seams:** Fill \`## Test seams\` in the brief body for each behavior the work package changes. See the \`test-seam\` glossary term for what a seam is.
 
-Guidance for you (not part of the message): A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping. In the brief body, set the \`## Verification flags\` scope to \`round-final\` for the round's final brief and \`focused\` for the others.
+Guidance for you (not part of the message): This is the work package's only builder brief — the specifier makes one builder pass and cannot send rework. Cover the whole package: order the ### file blocks by dependency, and set the \`## Verification flags\` scope to \`full\`.
 
 \`\`\`\`markdown
 ## Summary
-<brief context for this delegation slice — what problem it solves and where it fits in the larger task>
+<brief context for this delegation work package — what problem it solves and where it fits in the larger task>
 
 ## Goal
-<one sentence: the outcome this slice delivers>
+<one sentence: the outcome this work package delivers>
 
 ## Key Knowledge for High Quality Bar
 <details that would move the implementation from good to excellent and delightful — domain context, user expectations, edge cases, naming, UX polish, invariants the builder must preserve>
@@ -611,7 +612,7 @@ Guidance for you (not part of the message): A builder round trip is slow — imp
 - Each builder delegation starts a fresh session automatically — the builder does not continue prior context.
 
 ## Files to implement (exhaustive, file-level)
-List **every** file in this slice. Mark each file **(Required)** or **(Optional)** — all Required files must land before PR. For each file, state the exact change and paste the code the builder should match (no guessing).
+List **every** file in this work package. Mark each file **(Required)** or **(Optional)** — all Required files must land before PR. For each file, state the exact change and paste the code the builder should match (no guessing).
 <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
 
 ### \`apps/webapp/src/path/to/file.ts\`
@@ -629,7 +630,7 @@ List **every** file in this slice. Mark each file **(Required)** or **(Optional)
 // ...
 \`\`\`
 
-(Add one ### block per file. If this slice touches only one file, still use the ### header.)
+(Add one ### block per file. If this work package touches only one file, still use the ### header.)
 
 ## Shared contracts (specifier-owned)
 Cross-file types, interfaces, or patterns that apply beyond a single file. Omit if everything is already specified per-file above.
@@ -646,7 +647,7 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 
 ## Requirements (acceptance criteria)
 - <verifiable outcome the builder can self-check>
-- Name at least one end-to-end evidence for the feature on the round's final brief: a CLI run, an API call, a UI action, or the template render. Earlier briefs need focused evidence only; the round as a whole must be end-to-end verified. When the brief marks \`e2e\` \`not applicable\`, the Requirements must name which of these alternatives is the end-to-end evidence.
+- Name at least one end-to-end evidence that the feature works: a CLI run, an API call, a UI action, or the template render. Unit tests alone are insufficient for new features. When the brief marks \`e2e\` \`not applicable\`, the Requirements must name which of these alternatives is the end-to-end evidence.
 
 ## Test seams
 - <behavior>: seam <public interface or port>; catches <what>; misses <what>
@@ -655,9 +656,7 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 
 ## Verification flags
 Mark each kind \`required\` or \`not applicable: <reason>\`. The builder runs every \`required\` kind with the command shown, always runs typecheck and lint, and records each \`not applicable\` kind in its hand-back.
-Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this brief's scope and keep only that definition below.
-- \`focused\` — each run covers only the test files and workspaces that touch this brief's files.
-- \`round-final\` — each run covers the full scope: the full unit suite and full integration suite of every workspace the round changed, typecheck and lint of those workspaces (\`pnpm lint\` for the whole repository), and every e2e spec the round affects.
+Scope: \`full\` — each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed, typecheck and lint of those workspaces (\`pnpm lint\` for the whole repository), and every e2e spec this brief affects.
 - \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm turbo run typecheck --filter=<package>\`
 - \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm exec eslint <files in scope>\`
 - \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <test files in scope>\`
@@ -666,7 +665,7 @@ Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this bri
 \`<workspace>\` is a directory: \`services/backend\`, \`apps/webapp\`, \`packages/cli\`, or \`packages/shared\`. \`--filter\` takes the package name: \`@workspace/backend\`, \`@workspace/webapp\`, \`chatroom-cli\`, or \`@workspace/shared\`.
 
 ## What to avoid
-- <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
+- <anti-patterns, recurring mistakes, or scope creep for this work package — be explicit>
 - Do not test private methods or mock internal collaborators. A test that breaks on refactor while behavior is unchanged is wrong.
 - Do not derive expected values by re-running the code's own formula. Take them from a known-good literal, a worked example, or the spec.
 - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs">
@@ -675,7 +674,7 @@ Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this bri
 - e.g. \`chatroom skill activate code-review --chatroom-id=<id> --role=builder\`
 
 ## Out of scope
-- <files or areas the builder must NOT touch in this slice>
+- <files or areas the builder must NOT touch in this work package>
 
 \`\`\`\`
 
@@ -702,30 +701,31 @@ When a section has no content, write exactly \`Not Applicable.\` — no explanat
 
 \`\`\`markdown
 ## Summary
-<what this round delivered, and why the round ended where it did, in plain terms>
+<what this package delivered, and why it ended where it did, in plain terms>
+
+## Delivery status
+<delivered | partial | blocked — one line reason>
 
 ## Template Disclosure Confirmation
-- [ ] I confirm that I have seen this template at the start of this work package, before driving the builder
+- [ ] I confirm that I have seen this template at the start of this work package, before briefing the builder
 - [ ] I confirm that I've read and followed the role guidance before starting any work
 <!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`chatroom get-role-guidance --chatroom-id="test-chatroom-id" --role="specifier"\`. You do not need to re-read it on every task if you have already read it once. -->
 
 ## What exists today
-<!-- REQUIRED. Describe current state after this round, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
-<current state after this round: what the user can now do, what is in place, how the system behaves>
+<!-- REQUIRED. Describe current state after this package, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<current state after this package: what the user can now do, what is in place, how the system behaves>
 
-## What this round delivered
-<one line per phase: phase id and title, builder handoff message id, commits, files changed, rework rounds>
+## What this package delivered
+<builder handoff message id, commits, and files changed; for a partial or blocked report, state what did land>
+
+## Not delivered
+<requirements not met or not run, each with the file, the line where known, and the failing requirement, and what you recommend the coordinator re-package; or \`None.\`>
 
 ## Verification run
-<what ran at which stage: focused tests per phase, full suite / typecheck / lint / e2e at the round's end, with the command and result; and anything that did not run, and why (blocked or early stop)>
+<the builder's reported results per verification kind, with command and result, plus your review; anything that did not run and why (blocked or early stop)>
 
-## What the plan still has
-<a reminder for the next round, not an assignment: the phases not yet delivered, in plan order, each with its title; or \`None — the plan is complete.\`>
-
-## Plan reference
-Plan ID: <planId> (newly published | unchanged | superseded by <planId>)
-Phases delivered so far: <P1, …, Pn>
-What remains: <the phases not yet delivered, or \`None — plan complete\`>
+## Plan phases
+Plan ID: <planId, or \`None\`>; Phases met: <Pn…>; Phases not met: <Pn…>
 
 ## Proof of Principles
 <!-- REQUIRED: Complete every principle below. Write an explanation for each, or write exactly "Not Applicable." with no explanation when the principle does not apply — do not omit this section or skip any principle bullet. -->
@@ -753,7 +753,7 @@ What remains: <the phases not yet delivered, or \`None — plan complete\`>
 ## Proof of Completion
 <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
 - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
-<for each acceptance criterion in the work package: met / not met / left to a later round, with evidence (test names and output, commands run, commits)>
+<for each acceptance criterion in the work package: met / not met / left to a later package, with evidence (test names and output, commands run, commits)>
 
 ## Code Change Verification
 - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
