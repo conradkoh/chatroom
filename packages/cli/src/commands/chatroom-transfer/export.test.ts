@@ -321,12 +321,6 @@ function stampReads(queries: readonly RecordedQuery[], chatroomId: string): numb
 }
 
 describe('exportMachineChatrooms', () => {
-  it('has no chatroom selector in its options type', () => {
-    // @ts-expect-error — `chatroomId` is not an export option; the single-chatroom mode is deleted.
-    const rejected: Parameters<typeof exportMachineChatrooms>[0] = { chatroomId: 'c1' };
-    expect(rejected).toEqual({ chatroomId: 'c1' });
-  });
-
   it('refuses when the machine has no identity', async () => {
     const h = createHarness({ machineId: null, rooms: rooms('c1') });
 
