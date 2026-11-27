@@ -153,7 +153,7 @@ export async function sha256Hex(text: string): Promise<string> {
  */
 export const CHATROOM_EXPORT_BUNDLE_KIND = 'chatroom-export-bundle' as const;
 export const CHATROOM_EXPORT_BUNDLE_FORMAT_VERSION = 1 as const;
-/** One retry per failed chatroom in a bundle (`export --all`). `EXPORT_TOO_LARGE` is never retried. */
+/** One retry per failed chatroom in a bundle (`chatroom export`). `EXPORT_TOO_LARGE` is never retried. */
 export const BUNDLE_RETRIES_PER_CHATROOM = 1;
 
 /** Printed once by every command that writes a file with conversation content. */
