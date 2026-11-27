@@ -1,9 +1,14 @@
 /**
- * machines.sendCommand start-agent / restart-agent — one-workspace binding guard.
+ * machines.sendCommand start-agent / restart-agent — workspace guards.
  *
- * Mirrors agents.requestStart / agents.requestRestart: a chatroom with an active workspace may
- * only start or restart agents on that workspace's machine and folder. Driven through public
- * mutations; `t.run` is used only to count rows.
+ * Two orthogonal policies are covered:
+ *   1. One-workspace binding (PR #1855): a chatroom with an active workspace may only start or
+ *      restart agents on that workspace's machine and folder.
+ *   2. Workspace-id ownership: a supplied `payload.workspaceId` must exist, belong to the
+ *      chatroom, still be active, and match the target machine and normalized working directory.
+ *
+ * Driven through public mutations; `t.run` counts rows and seeds workspaces the one-workspace
+ * cap refuses.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -12,6 +17,7 @@ import { describe, expect, test } from 'vitest';
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import { registerWorkspace as registerWorkspaceUseCase } from '../src/domain/usecase/workspace/register-workspace';
 import {
   createDuoTeamChatroom,
   createTestSession,
@@ -21,6 +27,7 @@ import { getInboxCommandsForMachine } from '../tests/helpers/machine-command-inb
 import { TEST_MODEL_OPENCODE_LEGACY } from '../tests/helpers/test-models';
 
 type ChatroomId = Id<'chatroom_rooms'>;
+type WorkspaceId = Id<'chatroom_workspaces'>;
 
 async function setup(
   sessionKey: string
@@ -31,7 +38,12 @@ async function setup(
 }
 
 /** Binds the chatroom's workspace through the public mutation (the cap allows one). */
-function bind(sessionId: SessionId, chatroomId: ChatroomId, machineId: string, workingDir: string) {
+function bind(
+  sessionId: SessionId,
+  chatroomId: ChatroomId,
+  machineId: string,
+  workingDir: string
+): Promise<WorkspaceId> {
   return t.mutation(api.workspaces.registerWorkspace, {
     sessionId,
     chatroomId,
@@ -42,11 +54,40 @@ function bind(sessionId: SessionId, chatroomId: ChatroomId, machineId: string, w
   });
 }
 
+/**
+ * Seeds an ACTIVE workspace the public mutation refuses (the chatroom cap allows one).
+ * Reproduces stale or duplicate workspace rows that the ownership rule must reject.
+ */
+function seedWorkspace(
+  chatroomId: ChatroomId,
+  machineId: string,
+  workingDir: string
+): Promise<WorkspaceId> {
+  return t.run((ctx) =>
+    registerWorkspaceUseCase(ctx, {
+      chatroomId,
+      machineId,
+      workingDir,
+      hostname: 'test-host',
+      registeredBy: 'test',
+    })
+  );
+}
+
+function setPrimary(sessionId: SessionId, chatroomId: ChatroomId, workspaceId: WorkspaceId) {
+  return t.mutation(api.workspaces.setPrimaryWorkspaceForChatroom, {
+    sessionId,
+    chatroomId,
+    workspaceId,
+  });
+}
+
 function sendStart(
   sessionId: SessionId,
   chatroomId: ChatroomId,
   machineId: string,
-  workingDir: string
+  workingDir: string,
+  workspaceId?: WorkspaceId
 ) {
   return t.mutation(api.machines.sendCommand, {
     sessionId,
@@ -58,6 +99,7 @@ function sendStart(
       model: TEST_MODEL_OPENCODE_LEGACY,
       agentHarness: 'opencode-sdk',
       workingDir,
+      ...(workspaceId ? { workspaceId } : {}),
     },
   });
 }
@@ -66,7 +108,8 @@ function sendRestart(
   sessionId: SessionId,
   chatroomId: ChatroomId,
   machineId: string,
-  workingDir: string
+  workingDir: string,
+  workspaceId?: WorkspaceId
 ) {
   return t.mutation(api.machines.sendCommand, {
     sessionId,
@@ -78,6 +121,7 @@ function sendRestart(
       model: TEST_MODEL_OPENCODE_LEGACY,
       agentHarness: 'opencode-sdk',
       workingDir,
+      ...(workspaceId ? { workspaceId } : {}),
     },
   });
 }
@@ -92,6 +136,19 @@ async function launchRequestCount(chatroomId: ChatroomId): Promise<number> {
           .collect()
       ).length
   );
+}
+
+/** Asserts no launch command of `commandType` sits on any listed machine and no launch row was written. */
+async function expectNoLaunchWrites(
+  chatroomId: ChatroomId,
+  machineIds: readonly string[],
+  commandType: 'agent.requestStart' | 'agent.restart',
+  launchesBefore: number
+): Promise<void> {
+  for (const machineId of machineIds) {
+    expect(await getInboxCommandsForMachine(machineId, commandType)).toHaveLength(0);
+  }
+  expect(await launchRequestCount(chatroomId)).toBe(launchesBefore);
 }
 
 /** Resolves with the refusal's `data.message` after asserting the code; fails if the call succeeds. */
@@ -233,5 +290,193 @@ describe('machines.sendCommand restart-agent — one-workspace binding guard', (
       await getInboxCommandsForMachine('machine-mcmd-restart-a', 'agent.restart')
     ).toHaveLength(0);
     expect(await launchRequestCount(chatroomId)).toBe(launchesBefore);
+  });
+});
+
+describe('machines.sendCommand start-agent — workspaceId ownership guard', () => {
+  test('workspace from another chatroom is refused; nothing is enqueued or written', async () => {
+    const { sessionId, chatroomId } = await setup('mcmd-ws-start-chatroom');
+    const machineId = 'machine-ws-start-chatroom';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await bind(sessionId, chatroomId, machineId, '/work/a');
+    const foreignChatroomId = await createDuoTeamChatroom(sessionId);
+    const foreignWorkspaceId = await bind(sessionId, foreignChatroomId, machineId, '/work/a');
+    const launchesBefore = await launchRequestCount(chatroomId);
+
+    await expect(
+      sendStart(sessionId, chatroomId, machineId, '/work/a', foreignWorkspaceId)
+    ).rejects.toThrow('Workspace does not belong to this agent start request');
+
+    await expectNoLaunchWrites(chatroomId, [machineId], 'agent.requestStart', launchesBefore);
+  });
+
+  test('workspace on another machine is refused; nothing is enqueued or written', async () => {
+    const { sessionId, chatroomId } = await setup('mcmd-ws-start-machine');
+    const activeMachine = 'machine-ws-start-active';
+    const otherMachine = 'machine-ws-start-other';
+    await registerMachineWithDaemon(sessionId, activeMachine);
+    await registerMachineWithDaemon(sessionId, otherMachine);
+    const activeWorkspaceId = await bind(sessionId, chatroomId, activeMachine, '/work/a');
+    // A second ACTIVE workspace on another machine is unreachable through the public mutation.
+    const foreignWorkspaceId = await seedWorkspace(chatroomId, otherMachine, '/work/a');
+    await setPrimary(sessionId, chatroomId, activeWorkspaceId);
+    const launchesBefore = await launchRequestCount(chatroomId);
+
+    await expect(
+      sendStart(sessionId, chatroomId, activeMachine, '/work/a', foreignWorkspaceId)
+    ).rejects.toThrow('Workspace does not belong to this agent start request');
+
+    await expectNoLaunchWrites(
+      chatroomId,
+      [activeMachine, otherMachine],
+      'agent.requestStart',
+      launchesBefore
+    );
+  });
+
+  test('removed workspace is refused; nothing is enqueued or written', async () => {
+    const { sessionId, chatroomId } = await setup('mcmd-ws-start-removed');
+    const machineId = 'machine-ws-start-removed';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const removedWorkspaceId = await bind(sessionId, chatroomId, machineId, '/work/old');
+    // Switching away soft-deletes the old row: the id still resolves, but is no longer active.
+    await t.mutation(api.workspaces.switchWorkspace, {
+      sessionId,
+      chatroomId,
+      machineId,
+      workingDir: '/work/a',
+    });
+    const launchesBefore = await launchRequestCount(chatroomId);
+
+    await expect(
+      sendStart(sessionId, chatroomId, machineId, '/work/a', removedWorkspaceId)
+    ).rejects.toThrow('Workspace does not belong to this agent start request');
+
+    await expectNoLaunchWrites(chatroomId, [machineId], 'agent.requestStart', launchesBefore);
+  });
+
+  test('workspace whose working directory differs is refused; nothing is enqueued or written', async () => {
+    const { sessionId, chatroomId } = await setup('mcmd-ws-start-dir');
+    const machineId = 'machine-ws-start-dir';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const activeWorkspaceId = await bind(sessionId, chatroomId, machineId, '/work/a');
+    const otherFolderWorkspaceId = await seedWorkspace(chatroomId, machineId, '/work/b');
+    await setPrimary(sessionId, chatroomId, activeWorkspaceId);
+    const launchesBefore = await launchRequestCount(chatroomId);
+
+    await expect(
+      sendStart(sessionId, chatroomId, machineId, '/work/a', otherFolderWorkspaceId)
+    ).rejects.toThrow('Workspace does not belong to this agent start request');
+
+    await expectNoLaunchWrites(chatroomId, [machineId], 'agent.requestStart', launchesBefore);
+  });
+
+  test('matching workspace with a trailing slash starts normally', async () => {
+    const { sessionId, chatroomId } = await setup('mcmd-ws-start-ok');
+    const machineId = 'machine-ws-start-ok';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const workspaceId = await bind(sessionId, chatroomId, machineId, '/work/a');
+    const launchesBefore = await launchRequestCount(chatroomId);
+
+    await sendStart(sessionId, chatroomId, machineId, '/work/a/', workspaceId);
+
+    expect(await getInboxCommandsForMachine(machineId, 'agent.requestStart')).toHaveLength(1);
+    expect(await launchRequestCount(chatroomId)).toBe(launchesBefore + 1);
+  });
+});
+
+describe('machines.sendCommand restart-agent — workspaceId ownership guard', () => {
+  test('matching workspace restarts normally; trailing slash is ignored', async () => {
+    const { sessionId, chatroomId } = await setup('mcmd-ws-restart-ok');
+    const machineId = 'machine-ws-restart-ok';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await sendStart(sessionId, chatroomId, machineId, '/work/a');
+    const workspaceId = await bind(sessionId, chatroomId, machineId, '/work/a');
+    const launchesBefore = await launchRequestCount(chatroomId);
+
+    await sendRestart(sessionId, chatroomId, machineId, '/work/a/', workspaceId);
+
+    expect(await getInboxCommandsForMachine(machineId, 'agent.restart')).toHaveLength(1);
+    expect(await launchRequestCount(chatroomId)).toBe(launchesBefore + 1);
+  });
+
+  test('workspace from another chatroom is refused; no restart is enqueued and no launch row is written', async () => {
+    const { sessionId, chatroomId } = await setup('mcmd-ws-restart-chatroom');
+    const machineId = 'machine-ws-restart-chatroom';
+    await registerMachineWithDaemon(sessionId, machineId);
+    // Legacy snapshot first: it is what the unfixed path resolves across the chatroom boundary.
+    await sendStart(sessionId, chatroomId, machineId, '/work/a');
+    await bind(sessionId, chatroomId, machineId, '/work/a');
+    const foreignChatroomId = await createDuoTeamChatroom(sessionId);
+    const foreignWorkspaceId = await bind(sessionId, foreignChatroomId, machineId, '/work/a');
+    const launchesBefore = await launchRequestCount(chatroomId);
+
+    await expect(
+      sendRestart(sessionId, chatroomId, machineId, '/work/a', foreignWorkspaceId)
+    ).rejects.toThrow('Workspace does not belong to this agent restart request');
+
+    await expectNoLaunchWrites(chatroomId, [machineId], 'agent.restart', launchesBefore);
+  });
+
+  test('workspace on another machine is refused; no restart is enqueued and no launch row is written', async () => {
+    const { sessionId, chatroomId } = await setup('mcmd-ws-restart-machine');
+    const activeMachine = 'machine-ws-restart-active';
+    const otherMachine = 'machine-ws-restart-other';
+    await registerMachineWithDaemon(sessionId, activeMachine);
+    await registerMachineWithDaemon(sessionId, otherMachine);
+    await sendStart(sessionId, chatroomId, activeMachine, '/work/a');
+    const activeWorkspaceId = await bind(sessionId, chatroomId, activeMachine, '/work/a');
+    const foreignWorkspaceId = await seedWorkspace(chatroomId, otherMachine, '/work/a');
+    await setPrimary(sessionId, chatroomId, activeWorkspaceId);
+    const launchesBefore = await launchRequestCount(chatroomId);
+
+    await expect(
+      sendRestart(sessionId, chatroomId, activeMachine, '/work/a', foreignWorkspaceId)
+    ).rejects.toThrow('Workspace does not belong to this agent restart request');
+
+    await expectNoLaunchWrites(
+      chatroomId,
+      [activeMachine, otherMachine],
+      'agent.restart',
+      launchesBefore
+    );
+  });
+
+  test('removed workspace is refused; no restart is enqueued and no launch row is written', async () => {
+    const { sessionId, chatroomId } = await setup('mcmd-ws-restart-removed');
+    const machineId = 'machine-ws-restart-removed';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const removedWorkspaceId = await bind(sessionId, chatroomId, machineId, '/work/old');
+    await t.mutation(api.workspaces.switchWorkspace, {
+      sessionId,
+      chatroomId,
+      machineId,
+      workingDir: '/work/a',
+    });
+    await sendStart(sessionId, chatroomId, machineId, '/work/a');
+    const launchesBefore = await launchRequestCount(chatroomId);
+
+    await expect(
+      sendRestart(sessionId, chatroomId, machineId, '/work/a', removedWorkspaceId)
+    ).rejects.toThrow('Workspace does not belong to this agent restart request');
+
+    await expectNoLaunchWrites(chatroomId, [machineId], 'agent.restart', launchesBefore);
+  });
+
+  test('workspace whose working directory differs is refused; no restart is enqueued and no launch row is written', async () => {
+    const { sessionId, chatroomId } = await setup('mcmd-ws-restart-dir');
+    const machineId = 'machine-ws-restart-dir';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await sendStart(sessionId, chatroomId, machineId, '/work/a');
+    const activeWorkspaceId = await bind(sessionId, chatroomId, machineId, '/work/a');
+    const otherFolderWorkspaceId = await seedWorkspace(chatroomId, machineId, '/work/b');
+    await setPrimary(sessionId, chatroomId, activeWorkspaceId);
+    const launchesBefore = await launchRequestCount(chatroomId);
+
+    await expect(
+      sendRestart(sessionId, chatroomId, machineId, '/work/a', otherFolderWorkspaceId)
+    ).rejects.toThrow('Workspace does not belong to this agent restart request');
+
+    await expectNoLaunchWrites(chatroomId, [machineId], 'agent.restart', launchesBefore);
   });
 });
