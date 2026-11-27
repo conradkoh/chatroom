@@ -49,7 +49,7 @@ describe('trio role guidance', () => {
     expect(guidance).toContain('`coordinator` → `specifier` is always a new session');
     expect(guidance).toContain('before any specifier delegation');
     expect(guidance).not.toContain('before any builder delegation');
-    expect(guidance).toContain('`## Rework findings (prior round)`');
+    expect(guidance).toContain('`## Rework findings (prior delivery)`');
     expect(guidance).toContain('**Product manager before scoping a new ambiguous feature:**');
     expect(guidance).toContain('Only the entry point (`coordinator`) activates it.');
     expect(guidance).toContain('Skip it for small bug fixes, for unambiguous requests');
@@ -57,20 +57,20 @@ describe('trio role guidance', () => {
     expect(guidance.indexOf('**Product manager before scoping')).toBeLessThan(
       guidance.indexOf('**Bug reports go to triage first:**')
     );
-    expect(guidance).toContain('Record the plan id from its first report.');
-    expect(guidance).toContain('remind it what the plan already delivered and what remains');
-    expect(guidance).toContain('`Plan ID: None — first pass: publish the plan`');
-    expect(guidance).toContain('`--supersedes` on the old plan ID');
-    expect(guidance).not.toContain('copy the remaining slice plan');
-    expect(guidance).toContain('**The specifier decides the work.**');
-    expect(guidance).toContain('**You hold the plan.**');
-    expect(guidance).toContain('after 2 failed rework rounds on a round');
+    expect(guidance).toContain('**Group requirements into work packages.**');
+    expect(guidance).toContain('**No plan by default.**');
+    expect(guidance).toContain('Plan: required');
+    expect(guidance).toContain('exactly one builder pass');
+    expect(guidance).toContain('`## Plan phases`');
+    expect(guidance).toContain('`--supersedes` on the old id');
+    expect(guidance).toContain('after 2 failed rework deliveries on a package');
+    expect(guidance).not.toContain('first pass');
+    expect(guidance).not.toContain('You hold the plan');
+    expect(guidance).not.toContain('The specifier decides the work');
     expect(guidance).not.toMatch(
       /Size each work package|Send one package at a time|One slice per specifier session/i
     );
-    expect(guidance).toContain(
-      'You may raise a concern about a grouping; you do not resize the round.'
-    );
+    expect(guidance).not.toContain('copy the remaining slice plan');
   });
 
   test.each(GUIDANCE_VARIANTS)('specifier guidance (%s)', (variant, nativeIntegration) => {
@@ -91,7 +91,7 @@ describe('trio role guidance', () => {
     expect(guidance).not.toContain('(including to `user`)');
     if (!nativeIntegration) {
       expect(guidance).toContain(
-        'rebuild context from the package and the thread, including `## Rework findings (prior round)`'
+        'rebuild context from the package and the thread, including `## Rework findings (prior delivery)`'
       );
       expect(guidance).toContain('after any handoff, run `get-next-task`');
       expect(guidance).toContain(getHandoffContinuityRule(false, { includeUser: false }));
@@ -100,7 +100,7 @@ describe('trio role guidance', () => {
       `chatroom skill activate code-review --chatroom-id="${CHATROOM_ID}" --role="specifier"`
     );
     expect(guidance).toContain(
-      'Rework feedback to the builder must name the file, the line where known, and the failing requirement.'
+      'Findings in the report name the file, the line where known, and the failing requirement.'
     );
     expect(guidance).toContain(
       '**Scope gaps go to `coordinator`; you never activate `product-manager`.**'
@@ -108,34 +108,19 @@ describe('trio role guidance', () => {
     expect(guidance).toContain('do not try to contact `product-manager`');
     expect(guidance).not.toContain('**Product manager before scoping a new ambiguous feature:**');
     expect(guidance).not.toContain('hand off to `product-manager`');
-    expect(guidance).toContain('Decide your round.');
-    expect(guidance).toContain('chatroom plan view-template');
-    expect(guidance).toContain('does not commit you to delivering it one phase at a time');
-    expect(guidance).toContain('Delegation cost and batching');
-    expect(guidance).not.toMatch(/one slice per|build one|Build \*\*P1 only\*\*/i);
-    const bulletLines = guidance.split('\n');
-    const finishedBullet = bulletLines.find((line) =>
-      line.includes('**When the round is finished**')
-    );
-    const blockedBullet = bulletLines.find((line) =>
-      line.includes('**When you are blocked or stopping early**')
-    );
-    expect(finishedBullet).toContain('round-final');
-    expect(blockedBullet).toBeDefined();
-    expect(blockedBullet).not.toContain('round-final');
+    expect(guidance).toContain('**There is no second builder pass.**');
+    expect(guidance).toContain('exactly once per package');
+    expect(guidance).toContain('Report `delivered` only when');
+    expect(guidance).toContain('Never split a package yourself');
     expect(guidance).toContain(
-      'land that phase as its own round, run its `round-final` verification, and report; the later phases follow in the next round.'
+      `chatroom plan read --chatroom-id="${CHATROOM_ID}" --role="specifier" --plan-id="<planId>" --phase="<Pn>"`
     );
-    expect(guidance).toContain('Put the plan ID from the publish output');
-    expect(guidance).toContain('Never reconstruct the plan from memory or from earlier reports.');
-    expect(guidance).toContain(
-      `chatroom plan read --chatroom-id="${CHATROOM_ID}" --role="specifier" --plan-id="<planId>"`
-    );
-    expect(guidance).toContain('read the whole plan once with `');
-    expect(guidance).toContain('Choose the phases this round takes from it');
-    expect(guidance).not.toContain('Once you have chosen a phase');
-    expect(guidance).toContain('**Broken reference → hand back to `coordinator`:**');
-    expect(guidance).toContain('`--supersedes="<old planId>"`');
+    expect(guidance).not.toContain('chatroom plan publish');
+    expect(guidance).not.toContain('plan view-template');
+    expect(guidance).not.toContain('--supersedes');
+    expect(guidance).not.toContain('round-final');
+    expect(guidance).not.toContain('Delegation cost and batching');
+    expect(guidance).not.toMatch(/hand off back to `builder`|For rework/i);
   });
 
   test('specifier guidance names only plan errors the CLI prints', () => {

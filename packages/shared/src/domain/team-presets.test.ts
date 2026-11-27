@@ -89,7 +89,7 @@ describe('team presets', () => {
       name: 'Trio',
       structureId: 'trio@1',
       description:
-        'A coordinator, specifier, and builder: the coordinator owns the user conversation and routes all work, the specifier turns plans into code-level builder briefs, with optional ephemeral architect, product-manager, researcher, triage, reviewer, uiux-engineer, game-asset-designer, and verifier roles',
+        'A coordinator, specifier, and builder: the coordinator owns the user conversation and routes all work, the specifier turns each work package into one code-level builder brief, with optional ephemeral architect, product-manager, researcher, triage, reviewer, uiux-engineer, game-asset-designer, and verifier roles',
       roles: [
         'coordinator',
         'product-manager',

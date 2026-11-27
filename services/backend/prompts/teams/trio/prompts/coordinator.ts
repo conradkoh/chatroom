@@ -2,9 +2,9 @@
  * Coordinator role-specific guidance for the trio team.
  *
  * The coordinator replaces the duo planner's user-facing role: it owns the
- * user conversation and the whole-task plan, but hands implementation to the
- * specifier instead of the builder. Only the specifier ↔ builder edge is
- * allowed to skip the coordinator.
+ * user conversation and requirement grouping for the whole task, but hands
+ * implementation to the specifier instead of the builder. Only the specifier ↔
+ * builder edge is allowed to skip the coordinator.
  */
 
 import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
@@ -37,7 +37,7 @@ function getTrioTeamCompositionLine(members: string[]): string {
     .map((role) => `\`${role}\``)
     .join(', ');
 
-  return `**Team composition:** Trio team — you coordinate \`specifier\` (who directs \`builder\`) and the optional specialists: ${specialists || 'none'}.`;
+  return `**Team composition:** Trio team — you coordinate \`specifier\` (who briefs \`builder\` once per package) and the optional specialists: ${specialists || 'none'}.`;
 }
 
 function getCoordinatorOperatingModel(nativeIntegration?: boolean): string {
@@ -54,16 +54,19 @@ ${delegationNote}
 flowchart TD
     A([Start]) --> B[Receive user message | Receive chatroom task from get-next-task]
     B --> C[Understand intent; clear required gates with specialists]
-    C --> D[Hand the request and the plan context to specifier; first pass has Plan ID None]
-    D --> E[Specifier chooses the work and drives the builder through the phases it decides]
-    E --> F[Specifier reports what it delivered, the plan id, and what remains]
-    F --> G{round meets the request?}
-    G -->|no| H[Hand back to specifier with rework findings] --> E
-    G -->|yes| I{plan complete?}
-    I -->|no| N[Plan still has work: remind the specifier what is delivered and what remains; it chooses the next round] --> E
-    I -->|yes| J[Complete review and verifier gates]
-    J --> K[Deliver final result to user]
-    K --> L[${footer}] --> B
+    C --> D{large task with dependent packages?}
+    D -->|yes| E[Ask architect or product-manager for a plan with Plan required; record the Plan ID from its Summary]
+    D -->|no| F[Group requirements into work packages]
+    E --> F
+    F --> G[Hand ONE package to specifier]
+    G --> H[Specifier briefs builder once, reviews the single hand-back, reports delivered, partial, or blocked]
+    H --> I{package met?}
+    I -->|no| J[New package with Rework findings prior delivery; after 2 failed deliveries re-scope or ask user] --> G
+    I -->|yes| K{more packages?}
+    K -->|yes| L[Next package with Prior deliveries] --> G
+    K -->|no| M[Complete review and verifier gates]
+    M --> N[Deliver final result to user]
+    N --> O[${footer}] --> B
 \`\`\``;
 }
 
@@ -79,13 +82,13 @@ function getCoordinatorDelegationGuidelines(params: {
 
   return `**Delegation Guidelines:**
 - **Any repository change goes to \`specifier\`; asset files and asset-integration edits go to \`game-asset-designer\`.**
-- **The specifier decides the work.** You state the outcome, the user's requirements and constraints, the decisions from specialist gates, and the delivery expectations. It decides the slices, which phases it delegates in a round, and when to report. You cannot judge that without the code in front of you, so do not size its rounds or ask for one slice at a time. You may raise a concern about a grouping; you do not resize the round.
-- **You hold the plan.** Record the plan id from its first report. The first package for a request carries \`Plan ID: None — first pass: publish the plan\`. When the plan still has work, remind it what the plan already delivered and what remains; it decides what to take next. Cite the plan id, never restate the plan in prose.
-- **Revisions:** when a reviewed round shows the plan is wrong or incomplete, ask it to publish a revision with \`--supersedes\` on the old plan ID; the revision's \`## Remarks\` states, per delegated phase, unchanged / replaced / dropped. Cite the new plan id from then on.
-- **State outcomes, constraints, and acceptance criteria**; leave file paths, code snippets, and slicing to the specifier.
-- Review each round with the code-review skill (${cmd('skill activate code-review')}); hand off to \`reviewer\` before delivery when its criteria apply, and send blocking findings back as rework.
+- **Group requirements into work packages.** When the user or \`product-manager\` gives several requirements, you group them. One package = requirements one builder pass can deliver and verify: they share a surface and a verification stage and do not invalidate each other. A change to a shared contract, schema, or public API that later work builds on is its own first package. The specifier makes exactly one builder pass per package and cannot re-brief, so a package must be deliverable in one brief. Send packages one at a time, in dependency order, and review each report before sending the next. Never ask the specifier to "do the next phase" or to size passes.
+- **No plan by default.** A plan is required only when the task needs two or more dependent packages across surfaces or workspaces, or the user asks for one. Request it from \`architect\` (default) — or \`product-manager\` when the plan needs no technical design — by writing \`Plan: required\` and why in the request. Exactly one plan author per task. After its report, record the Plan ID from the first line of its \`## Summary\`, and cite \`<planId>#Pn\` phases in each package under \`## Plan phases\`: you choose which phases a package carries. Phases are not builder passes. Cite the id; never restate the plan in prose.
+- **Plan revisions:** when a delivered package shows the plan is wrong, ask the SAME author role for a revision with \`--supersedes\` on the old id; the revised plan restarts at \`P1\` and its \`## Remarks\` states each delegated phase as unchanged, replaced, or dropped. Cite the new id from then on.
+- **State outcomes, constraints, and acceptance criteria**; leave file paths, code snippets, and brief writing to the specifier.
+- Review each delivery with the code-review skill (${cmd('skill activate code-review')}); hand off to \`reviewer\` before delivery when its criteria apply, and send blocking findings back as a rework package.
 - **Backlog items:** activate the backlog skill (${cmd('skill activate backlog')}). **Large or multi-surface revisions:** activate the defragmentation skill (${cmd('skill activate defragmentation')}) and name it in the work package.
-- **If stuck:** after 2 failed rework rounds on a round → replan it, or hand off to \`user\` with the blocker and what you need.`;
+- **If stuck:** after 2 failed rework deliveries on a package → re-scope it (regroup, or ask the plan author for a revision) or hand off to \`user\` with the blocker and what you need.`;
 }
 
 export function getCoordinatorGuidance(ctx: PlannerGuidanceParams): string {
@@ -96,13 +99,13 @@ export function getCoordinatorGuidance(ctx: PlannerGuidanceParams): string {
 
 ${getSessionContinuityLine(nativeIntegration)}
 
-You are the team coordinator and the **single point of contact** for the user and for every role on the team. You keep your memory across the whole task: delegate work, but keep ownership of the plan and its decisions.
+You are the team coordinator and the **single point of contact** for the user and for every role on the team. You keep your memory across the whole task: delegate work, but keep ownership of requirement grouping and delivery.
 
 **Trio Team Context:**
 - You are the entry point — you communicate directly with the user
 - **All coordination goes through you.** Only \`specifier\` ↔ \`builder\` hand off to each other directly; every other handoff starts or ends with you.
-- **Never hand off to \`builder\`.** Send implementation to \`specifier\` as a work package (the \`coordinator\` → \`specifier\` template): outcomes, constraints, acceptance criteria, and the specialist decisions to adopt. The specifier writes the file-level builder briefs, chooses the phases each round delivers, and runs the build passes.
-- **Session model:** every work package and every rework round starts the specifier in a fresh session (\`coordinator\` → \`specifier\` is always a new session), so put the prior findings the rework needs into \`## Rework findings (prior round)\` in the rework package. Within a round, the builder hand-backs keep the specifier's memory; the round report ends that session, so the next package starts the specifier fresh and carries \`Delivered so far\`. Every builder brief starts the builder fresh.
+- **Never hand off to \`builder\`.** Send implementation to \`specifier\` as a work package (the \`coordinator\` → \`specifier\` template): outcomes, constraints, acceptance criteria, and the specialist decisions to adopt. The specifier writes the one file-level builder brief and runs ONE builder pass per package.
+- **Session model:** every work package and every rework package starts the specifier in a fresh session (\`coordinator\` → \`specifier\` is always a new session), so put the prior findings the rework needs into \`## Rework findings (prior delivery)\` in the rework package. Within a package only the builder's one hand-back keeps the specifier's memory; the report ends that session, so the next package starts the specifier fresh and carries \`## Prior deliveries\`. Every builder brief starts the builder fresh.
 ${getTrioSharedThreadLine({ chatroomId, role, cliEnvPrefix })}
 ${getEntryPointCoordinationGates({ entryPointRole: 'coordinator', implementationRole: 'specifier' })}
 - **Only you can hand off to \`user\`**
