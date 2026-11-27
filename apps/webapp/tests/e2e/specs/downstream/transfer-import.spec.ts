@@ -8,8 +8,9 @@ import { openWorkspaceStep, readSessionId, seedConnectedMachine } from '../../su
 
 /**
  * Import runs entirely in the browser: the dialog reads the exported file locally, validates it and
- * writes through `chatroomImport.*`. This spec proves the whole loop — export a chatroom, re-import
- * that file onto the seeded machine from the sidebar header, and land on a new chatroom link.
+ * writes through `chatroomImport.*`. This spec proves the whole loop — export a chatroom,
+ * re-import that file onto the seeded machine from the machine card's Import chatrooms… menu item,
+ * and land on a new chatroom link.
  */
 
 interface SeededChatroom {
@@ -52,7 +53,7 @@ async function dismissSetupChecklist(page: Page): Promise<void> {
 test.describe('Chatroom import', { tag: [TAG_DOWNSTREAM] }, () => {
   test.use({ viewport: { width: 1440, height: 1000 } });
 
-  test('imports an exported chatroom from the sidebar dialog', async ({
+  test('imports an exported chatroom from the machine card menu', async ({
     authenticatedPage: page,
   }) => {
     // A full export + import loop: create, export, import, assert.
@@ -73,18 +74,29 @@ test.describe('Chatroom import', { tag: [TAG_DOWNSTREAM] }, () => {
     const filePath = await download.path();
     expect(filePath).toBeTruthy();
 
-    // Import it back through the sidebar header entry point. The sidebar mounts
-    // once the chatroom route has compiled and rendered.
-    const importButton = page.getByTestId('import-open-sidebar');
-    await expect(importButton).toBeVisible({ timeout: 60_000 });
-    await importButton.click();
+    // The chatroom page has no import entry point: the sidebar header holds only the label.
+    // The row is already visible above, so the sidebar has mounted and this is not a false pass.
+    await expect(page.getByTestId('import-open-sidebar')).toHaveCount(0);
+
+    // The landing page has no import entry point either.
+    await page.goto('/app');
+    await expect(page.getByTestId('import-open-header')).toHaveCount(0);
+
+    // Import from the machine that owns the new chatrooms.
+    await page.goto('/app/machines');
+    const card = page.getByTestId('machine-card').filter({ hasText: hostname });
+    await expect(card).toBeVisible({ timeout: 60_000 });
+    await card.getByTestId('machine-actions-trigger').click();
+    await page.getByTestId('machine-action-import').click();
+
     const dialog = page.getByTestId('import-dialog');
     await expect(dialog).toBeVisible();
+    await expect(page.getByTestId('import-target')).toContainText(hostname);
     await page.getByTestId('import-file-input').setInputFiles(filePath as string);
 
     await expect(page.getByTestId('import-entry-list')).toBeVisible({ timeout: 15_000 });
     await page.getByRole('checkbox', { name: /Select all/ }).click();
-    await dialog.getByRole('radio', { name: new RegExp(hostname) }).click();
+    // No machine radio: the target is the card's machine.
     await page.getByTestId('import-start').click();
 
     await expect(page.getByTestId('import-summary')).toHaveText(/Imported 1 of 1 selected/, {
