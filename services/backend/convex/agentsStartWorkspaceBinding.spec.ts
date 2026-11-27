@@ -2,8 +2,9 @@
  * agents.requestStart / agents.requestRestart — one-workspace binding guard.
  *
  * A chatroom with an active workspace may only start or restart agents on that
- * workspace's machine and folder. Driven through public mutations; `t.run` is
- * used only to count rows.
+ * workspace's machine and folder. Also covers chatroom ownership: owning the
+ * machine is not enough to start/restart into someone else's chatroom. Driven
+ * through public mutations; `t.run` is used only to count rows.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -17,7 +18,10 @@ import {
   createTestSession,
   registerMachineWithDaemon,
 } from '../tests/helpers/integration';
-import { getInboxCommandsForMachine } from '../tests/helpers/machine-command-inbox';
+import {
+  getInboxCommandsForChatroom,
+  getInboxCommandsForMachine,
+} from '../tests/helpers/machine-command-inbox';
 import { TEST_MODEL_OPENCODE_LEGACY } from '../tests/helpers/test-models';
 
 type ChatroomId = Id<'chatroom_rooms'>;
@@ -195,5 +199,57 @@ describe('agents.requestRestart — one-workspace binding guard', () => {
       0
     );
     expect(await launchRequestCount(chatroomId)).toBe(launchesBefore);
+  });
+});
+
+/** Full launch-request rows for the chatroom; a restart may update a row in place, so compare snapshots, not counts. */
+async function launchRequestRows(chatroomId: ChatroomId) {
+  return t.run((ctx) =>
+    ctx.db
+      .query('chatroom_agentLastSentLaunchRequests')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .collect()
+  );
+}
+
+describe('agents.requestStart / requestRestart — chatroom ownership guard', () => {
+  test('requestStart into a chatroom the caller does not own is refused; nothing is enqueued or written', async () => {
+    const victim = await setup('own-start-victim');
+    const { sessionId: attackerSessionId } = await createTestSession('own-start-attacker');
+    const attackerMachine = 'machine-own-start-attacker';
+    await registerMachineWithDaemon(attackerSessionId, attackerMachine);
+    const rowsBefore = await launchRequestRows(victim.chatroomId);
+
+    await expectRefused(
+      start(attackerSessionId, victim.chatroomId, attackerMachine, '/work/a'),
+      'ACCESS_DENIED'
+    );
+
+    expect(await getInboxCommandsForMachine(attackerMachine, 'agent.requestStart')).toHaveLength(0);
+    expect(await getInboxCommandsForChatroom(victim.chatroomId, 'agent.requestStart')).toHaveLength(
+      0
+    );
+    expect(await launchRequestRows(victim.chatroomId)).toEqual(rowsBefore);
+  });
+
+  test('requestRestart into a chatroom the caller does not own is refused; nothing is enqueued or written', async () => {
+    const victim = await setup('own-restart-victim');
+    const victimMachine = 'machine-own-restart-victim';
+    await registerMachineWithDaemon(victim.sessionId, victimMachine);
+    await start(victim.sessionId, victim.chatroomId, victimMachine, '/work/a');
+    const { sessionId: attackerSessionId } = await createTestSession('own-restart-attacker');
+    const attackerMachine = 'machine-own-restart-attacker';
+    await registerMachineWithDaemon(attackerSessionId, attackerMachine);
+    const rowsBefore = await launchRequestRows(victim.chatroomId);
+
+    // allowNewMachine defaults to true on agents.requestRestart.
+    await expectRefused(
+      restart(attackerSessionId, victim.chatroomId, attackerMachine, '/work/a'),
+      'ACCESS_DENIED'
+    );
+
+    expect(await getInboxCommandsForMachine(attackerMachine, 'agent.restart')).toHaveLength(0);
+    expect(await getInboxCommandsForChatroom(victim.chatroomId, 'agent.restart')).toHaveLength(0);
+    expect(await launchRequestRows(victim.chatroomId)).toEqual(rowsBefore);
   });
 });

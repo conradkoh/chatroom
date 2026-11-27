@@ -76,6 +76,7 @@ export const requestStart = mutation({
     if (!session) throw new Error('Authentication required');
     if (args.workingDir !== undefined) validateWorkingDir(args.workingDir);
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     const machine = await ctx.db
       .query('chatroom_machines')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
@@ -254,6 +255,7 @@ export const requestRestart = mutation({
     if (!session) throw new Error('Authentication required');
     validateWorkingDir(args.workingDir);
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     const machine = await ctx.db
       .query('chatroom_machines')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))

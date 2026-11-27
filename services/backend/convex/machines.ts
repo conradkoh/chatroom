@@ -7,6 +7,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
+import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
 import { recordFolderPickerResult, reportResultArgs } from './folderPickerRequests';
 import { str } from './utils/types';
@@ -1106,7 +1107,10 @@ export const reportFolderPickerResult = mutation({
   handler: recordFolderPickerResult,
 });
 
-/** Dispatches a start-agent, stop-agent, or ping command to a machine on behalf of the user. */
+/**
+ * Dispatches a start-agent, stop-agent, or ping command to a machine on behalf of the user.
+ * Start and restart require ownership of both the machine and the target chatroom.
+ */
 export const sendCommand = mutation({
   args: {
     ...SessionIdArg,
@@ -1143,6 +1147,9 @@ export const sendCommand = mutation({
 
     // ── start-agent: resolve defaults then delegate to use case ────────
     if (args.type === 'start-agent' && args.payload?.chatroomId && args.payload?.role) {
+      // Machine ownership alone is not enough: the caller must own the target chatroom.
+      await requireChatroomAccess(ctx, args.sessionId, args.payload.chatroomId);
+
       // Read the latest submitted request for fallback values when payload is incomplete.
       const existingConfig = await getCurrentLastSentLaunchRequest(
         ctx,
@@ -1212,6 +1219,9 @@ export const sendCommand = mutation({
 
     // ── restart-agent: delegate to use case ─────────────────────────────
     if (args.type === 'restart-agent' && args.payload?.chatroomId && args.payload?.role) {
+      // Machine ownership alone is not enough: the caller must own the target chatroom.
+      await requireChatroomAccess(ctx, args.sessionId, args.payload.chatroomId);
+
       const { model, agentHarness, workingDir } = args.payload;
       if (!model || !agentHarness || !workingDir) {
         throw new Error(

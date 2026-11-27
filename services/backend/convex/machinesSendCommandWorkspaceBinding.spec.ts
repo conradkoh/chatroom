@@ -1,11 +1,12 @@
 /**
  * machines.sendCommand start-agent / restart-agent — workspace guards.
  *
- * Two orthogonal policies are covered:
+ * Three orthogonal policies are covered:
  *   1. One-workspace binding (PR #1855): a chatroom with an active workspace may only start or
  *      restart agents on that workspace's machine and folder.
  *   2. Workspace-id ownership: a supplied `payload.workspaceId` must exist, belong to the
  *      chatroom, still be active, and match the target machine and normalized working directory.
+ *   3. Chatroom ownership: the caller must own `payload.chatroomId`, not just the machine.
  *
  * Driven through public mutations; `t.run` counts rows and seeds workspaces the one-workspace
  * cap refuses.
@@ -23,7 +24,10 @@ import {
   createTestSession,
   registerMachineWithDaemon,
 } from '../tests/helpers/integration';
-import { getInboxCommandsForMachine } from '../tests/helpers/machine-command-inbox';
+import {
+  getInboxCommandsForChatroom,
+  getInboxCommandsForMachine,
+} from '../tests/helpers/machine-command-inbox';
 import { TEST_MODEL_OPENCODE_LEGACY } from '../tests/helpers/test-models';
 
 type ChatroomId = Id<'chatroom_rooms'>;
@@ -478,5 +482,69 @@ describe('machines.sendCommand restart-agent — workspaceId ownership guard', (
     ).rejects.toThrow('Workspace does not belong to this agent restart request');
 
     await expectNoLaunchWrites(chatroomId, [machineId], 'agent.restart', launchesBefore);
+  });
+});
+
+/** Full launch-request rows for the chatroom; a restart may update a row in place, so compare snapshots, not counts. */
+async function launchRequestRows(chatroomId: ChatroomId) {
+  return t.run((ctx) =>
+    ctx.db
+      .query('chatroom_agentLastSentLaunchRequests')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .collect()
+  );
+}
+
+describe('machines.sendCommand — chatroom ownership guard', () => {
+  test('start-agent into a chatroom the caller does not own is refused; nothing is enqueued or written', async () => {
+    const victim = await setup('mcmd-own-start-victim');
+    const { sessionId: attackerSessionId } = await createTestSession('mcmd-own-start-attacker');
+    const attackerMachine = 'machine-own-start-attacker';
+    await registerMachineWithDaemon(attackerSessionId, attackerMachine);
+    const rowsBefore = await launchRequestRows(victim.chatroomId);
+
+    await expectRefused(
+      sendStart(attackerSessionId, victim.chatroomId, attackerMachine, '/work/a'),
+      'ACCESS_DENIED'
+    );
+
+    expect(await getInboxCommandsForMachine(attackerMachine, 'agent.requestStart')).toHaveLength(0);
+    expect(await getInboxCommandsForChatroom(victim.chatroomId, 'agent.requestStart')).toHaveLength(
+      0
+    );
+    expect(await launchRequestRows(victim.chatroomId)).toEqual(rowsBefore);
+  });
+
+  test('restart-agent into a chatroom the caller does not own is refused; nothing is enqueued or written', async () => {
+    const victim = await setup('mcmd-own-restart-victim');
+    const victimMachine = 'machine-own-restart-victim';
+    await registerMachineWithDaemon(victim.sessionId, victimMachine);
+    // The victim's own start records the remote config a restart needs.
+    await sendStart(victim.sessionId, victim.chatroomId, victimMachine, '/work/a');
+    const { sessionId: attackerSessionId } = await createTestSession('mcmd-own-restart-attacker');
+    const attackerMachine = 'machine-own-restart-attacker';
+    await registerMachineWithDaemon(attackerSessionId, attackerMachine);
+    const rowsBefore = await launchRequestRows(victim.chatroomId);
+
+    await expectRefused(
+      t.mutation(api.machines.sendCommand, {
+        sessionId: attackerSessionId,
+        machineId: attackerMachine,
+        type: 'restart-agent',
+        payload: {
+          chatroomId: victim.chatroomId,
+          role: 'builder',
+          model: TEST_MODEL_OPENCODE_LEGACY,
+          agentHarness: 'opencode-sdk',
+          workingDir: '/work/a',
+          allowNewMachine: true,
+        },
+      }),
+      'ACCESS_DENIED'
+    );
+
+    expect(await getInboxCommandsForMachine(attackerMachine, 'agent.restart')).toHaveLength(0);
+    expect(await getInboxCommandsForChatroom(victim.chatroomId, 'agent.restart')).toHaveLength(0);
+    expect(await launchRequestRows(victim.chatroomId)).toEqual(rowsBefore);
   });
 });
