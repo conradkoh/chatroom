@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -77,11 +77,34 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   },
 }));
 
+const fixedModal = vi.hoisted(() => ({ onClose: undefined as undefined | (() => void) }));
+
 vi.mock('@/components/ui/fixed-modal', () => ({
-  FixedModal: ({ children, isOpen }: { children: React.ReactNode; isOpen: boolean }) =>
-    isOpen ? <div data-testid="fixed-modal">{children}</div> : null,
+  FixedModal: ({
+    children,
+    isOpen,
+    onClose,
+  }: {
+    children: React.ReactNode;
+    isOpen: boolean;
+    onClose: () => void;
+  }) => {
+    fixedModal.onClose = onClose;
+    return isOpen ? <div data-testid="fixed-modal">{children}</div> : null;
+  },
   FixedModalContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  FixedModalHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  FixedModalHeader: ({
+    children,
+    onClose,
+  }: {
+    children: React.ReactNode;
+    onClose?: () => void;
+  }) => (
+    <div>
+      {children}
+      {onClose && <button type="button" aria-label="Close modal" onClick={onClose} />}
+    </div>
+  ),
   FixedModalTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
   FixedModalBody: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
@@ -106,6 +129,44 @@ function modalElement(overrides?: Partial<React.ComponentProps<typeof SetupCheck
 function renderModal(overrides?: Partial<React.ComponentProps<typeof SetupChecklistModal>>) {
   return render(modalElement(overrides));
 }
+
+interface ResumeWorkspace {
+  id: string;
+  machineId: string | null;
+  workingDir: string;
+  hostname: string;
+  agentRoles: string[];
+  registeredAt: number;
+}
+
+const wsA: ResumeWorkspace = {
+  id: 'm1::/code',
+  machineId: 'm1',
+  workingDir: '/code',
+  hostname: 'dev',
+  agentRoles: [],
+  registeredAt: 100,
+};
+const wsB: ResumeWorkspace = {
+  id: 'm2::/srv',
+  machineId: 'm2',
+  workingDir: '/srv',
+  hostname: 'dev2',
+  agentRoles: [],
+  registeredAt: 200,
+};
+const liveOf = (ws: ResumeWorkspace, registryId: string) => ({
+  activeWorkspace: {
+    ...ws,
+    machineAlias: undefined,
+    fileTreeSyncEnabled: true,
+    _registryId: registryId,
+  },
+  chatroomId: CHATROOM_ID,
+  isLoading: false,
+  workspaces: [ws],
+  switchWorkspace: vi.fn(),
+});
 
 describe('SetupChecklistModal resume', () => {
   beforeEach(() => {
@@ -359,5 +420,94 @@ describe('SetupChecklistModal resume', () => {
 
     expect(screen.getByTestId('switch-workspace-flow')).toBeInTheDocument();
     expect(screen.queryByTestId('setup-agent-team-step')).not.toBeInTheDocument();
+  });
+
+  it('live workspace change during review shows the conflict and does not navigate to agents', () => {
+    mockUseChatroomWorkspaces.mockReturnValue({ workspaces: [wsA], isLoading: false });
+    mockUseChatroomWorkspace.mockReturnValue(liveOf(wsA, 'ws_1'));
+    const { rerender } = renderModal();
+    fireEvent.click(screen.getByRole('button', { name: 'back' }));
+
+    mockUseSwitchWorkspaceFlow.mockReturnValue({
+      stage: 'review',
+      busy: false,
+      stale: true,
+      error: null,
+      result: null,
+      reset: vi.fn(),
+    });
+    mockUseChatroomWorkspace.mockReturnValue(liveOf(wsB, 'ws_2'));
+    mockUseChatroomWorkspaces.mockReturnValue({ workspaces: [wsB], isLoading: false });
+    rerender(modalElement());
+
+    expect(screen.getByTestId('switch-workspace-flow')).toBeInTheDocument();
+    expect(screen.queryByTestId('setup-agent-team-step')).not.toBeInTheDocument();
+    expect(mockSwitchFlowStub.mock.calls.at(-1)?.[0].flow.stale).toBe(true);
+    expect(mockRegisterWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('Cancel with no resolvable target is hidden and the Choose body stays', () => {
+    const blank = { ...wsA, machineId: null };
+    mockUseChatroomWorkspaces.mockReturnValue({ workspaces: [blank], isLoading: false });
+    mockUseChatroomWorkspace.mockReturnValue(liveOf(blank, 'ws_1'));
+
+    renderModal();
+
+    expect(screen.getByTestId('switch-workspace-flow')).toBeInTheDocument();
+    expect(screen.queryByTestId('setup-agent-team-step')).not.toBeInTheDocument();
+    expect(mockSwitchFlowStub.mock.calls.at(-1)?.[0].onCancel).toBeUndefined();
+  });
+
+  it('Cancel on Choose returns to the agents step bound to the live workspace', () => {
+    mockUseChatroomWorkspaces.mockReturnValue({ workspaces: [wsA], isLoading: false });
+    mockUseChatroomWorkspace.mockReturnValue(liveOf(wsA, 'ws_1'));
+    renderModal();
+    fireEvent.click(screen.getByRole('button', { name: 'back' }));
+
+    const onCancel = mockSwitchFlowStub.mock.calls.at(-1)?.[0].onCancel as () => void;
+    expect(onCancel).toBeDefined();
+    act(() => onCancel());
+
+    expect(screen.getByTestId('setup-agent-team-step')).toBeInTheDocument();
+  });
+
+  it('the close X is hidden and close is ignored while a switch is submitting', () => {
+    const onClose = vi.fn();
+    mockUseChatroomWorkspaces.mockReturnValue({ workspaces: [wsA], isLoading: false });
+    mockUseChatroomWorkspace.mockReturnValue(liveOf(wsA, 'ws_1'));
+    const { rerender } = renderModal({ onClose });
+    fireEvent.click(screen.getByRole('button', { name: 'back' }));
+    expect(screen.getByRole('button', { name: 'Close modal' })).toBeInTheDocument();
+
+    mockUseSwitchWorkspaceFlow.mockReturnValue({
+      stage: 'submitting',
+      busy: true,
+      stale: false,
+      error: null,
+      result: null,
+      reset: vi.fn(),
+    });
+    rerender(modalElement({ onClose }));
+
+    expect(screen.queryByRole('button', { name: 'Close modal' })).not.toBeInTheDocument();
+    act(() => fixedModal.onClose?.());
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('routes to agents even when the chatroom rename fails after registration', async () => {
+    const onRenameChatroom = vi.fn().mockRejectedValue(new Error('rename failed'));
+    mockUseChatroomWorkspaces.mockReturnValue({ workspaces: [], isLoading: false });
+    renderModal({ onRenameChatroom, chatroomName: 'Other' });
+
+    const onConfirm = mockSetupWorkspaceStep.mock.calls.at(-1)?.[0].onConfirm as (
+      machineId: string,
+      workingDir: string
+    ) => Promise<void>;
+    await act(async () => {
+      await onConfirm('m1', '/code').catch(() => undefined);
+    });
+
+    expect(mockRegisterWorkspace).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('setup-agent-team-step')).toBeInTheDocument();
   });
 });

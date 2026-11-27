@@ -30,7 +30,7 @@ export function SwitchWorkspaceChooseStep({
   onCancel,
 }: {
   flow: SwitchWorkspaceFlow;
-  onCancel(): void;
+  onCancel?(): void;
 }) {
   const { activeWorkspace } = useChatroomWorkspace();
   const { machines, connectedMachineIds, isLoading } = useConnectedMachines();
@@ -72,7 +72,7 @@ function ChooseForm({
   current,
 }: {
   flow: SwitchWorkspaceFlow;
-  onCancel(): void;
+  onCancel?(): void;
   machines: UserMachine[];
   connectedMachineIds: ReadonlySet<string>;
   current: Workspace;
@@ -128,9 +128,11 @@ function ChooseForm({
       footer={
         <SetupStepFooter
           secondary={
-            <button type="button" onClick={onCancel} className={setupSecondaryButtonClassName}>
-              Cancel
-            </button>
+            onCancel ? (
+              <button type="button" onClick={onCancel} className={setupSecondaryButtonClassName}>
+                Cancel
+              </button>
+            ) : undefined
           }
           primary={
             <button

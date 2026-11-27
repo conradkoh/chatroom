@@ -118,6 +118,12 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
   // Read inside the effect without making it a dependency: a switch that finishes must not re-route.
   const switchInProgressRef = useRef(false);
   switchInProgressRef.current = switchInProgress;
+  // Mirrors `step` for the routing effect below. Read in the effect, not a dependency, so the effect does not re-run on every step change.
+  const stepRef = useRef<SetupStep>(step);
+  stepRef.current = step;
+  // True once this open session has routed the step. Reset when the modal closes.
+  const routedRef = useRef(false);
+  const hasActiveWorkspace = activeWorkspace !== null;
 
   const existingWorkspace = useMemo(
     () => pickSetupWorkspace(chatroomWorkspaces.map(toSetupCandidate)),
@@ -127,12 +133,20 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
   const existingWorkingDir = existingWorkspace?.workingDir ?? null;
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      routedRef.current = false;
+      return;
+    }
     // Wait for workspace registry before choosing initial step (prevents step-1 flash).
     if (isLoadingWorkspaces) return;
     // A switch that is submitting or showing its Result owns the step.
     if (switchInProgressRef.current) return;
-    if (existingMachineId !== null && existingWorkingDir !== null) {
+    // After the first routing, a live change while Choose or Review is showing on a bound chatroom
+    // stays on the switch flow. Its conflict rule shows the change; re-routing would drop the review.
+    if (routedRef.current && stepRef.current === 'workspace' && hasActiveWorkspace) return;
+    routedRef.current = true;
+    // An empty machine id cannot anchor the agent team, so it routes to the workspace step.
+    if (existingMachineId && existingWorkingDir) {
       setSetupMachineId(existingMachineId);
       setSetupWorkingDir(existingWorkingDir);
       setStep('agents');
@@ -141,7 +155,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
     setStep('workspace');
     setSetupMachineId(null);
     setSetupWorkingDir(null);
-  }, [isOpen, isLoadingWorkspaces, existingMachineId, existingWorkingDir]);
+  }, [isOpen, isLoadingWorkspaces, existingMachineId, existingWorkingDir, hasActiveWorkspace]);
 
   const joinedCount = useMemo(
     () => countJoinedRoles(teamRoles, participants),
@@ -161,14 +175,15 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
         registeredBy: 'user',
       });
 
+      // Route before the rename: a failed rename must not strand the user on the workspace step.
+      setSetupMachineId(machineId);
+      setSetupWorkingDir(workingDir);
+      setStep('agents');
+
       const suggestedName = normalizePastedChatroomName(workingDir);
       if (suggestedName && suggestedName !== chatroomName) {
         await onRenameChatroom(suggestedName);
       }
-
-      setSetupMachineId(machineId);
-      setSetupWorkingDir(workingDir);
-      setStep('agents');
     },
     [registerWorkspace, chatroomId, chatroomName, onRenameChatroom]
   );
@@ -177,7 +192,24 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
     setStep('workspace');
   }, []);
 
-  const handleSwitchCancel = useCallback(() => setStep('agents'), []);
+  // Where Cancel on the Choose stage returns to. Prefers the live workspace, then the routed one.
+  // With no usable target, Cancel is not offered.
+  const cancelTarget = useMemo(() => {
+    if (activeWorkspace?.machineId && activeWorkspace.workingDir) {
+      return { machineId: activeWorkspace.machineId, workingDir: activeWorkspace.workingDir };
+    }
+    if (existingMachineId && existingWorkingDir) {
+      return { machineId: existingMachineId, workingDir: existingWorkingDir };
+    }
+    return null;
+  }, [activeWorkspace, existingMachineId, existingWorkingDir]);
+
+  const handleSwitchCancel = useCallback(() => {
+    if (!cancelTarget) return;
+    setSetupMachineId(cancelTarget.machineId);
+    setSetupWorkingDir(cancelTarget.workingDir);
+    setStep('agents');
+  }, [cancelTarget]);
 
   const { reset: resetSwitchFlow } = switchFlow;
   const handleSwitchDone = useCallback(
@@ -221,7 +253,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
         {/* fallow-ignore-next-line complexity */}
         {(connectedMachines) => (
           <FixedModalContent>
-            <FixedModalHeader onClose={handleRequestClose}>
+            <FixedModalHeader onClose={switchFlow.busy ? undefined : handleRequestClose}>
               <div className="flex items-center gap-3 min-w-0">
                 <Settings2 size={18} className="text-chatroom-status-warning flex-shrink-0" />
                 <div className="min-w-0">
@@ -248,7 +280,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
                   <SwitchWorkspaceFlow
                     flow={switchFlow}
                     doneLabel="Continue to agent team"
-                    onCancel={handleSwitchCancel}
+                    onCancel={cancelTarget ? handleSwitchCancel : undefined}
                     onDone={handleSwitchDone}
                   />
                 ) : (

@@ -22,8 +22,8 @@ export interface SwitchWorkspaceFlowProps {
   flow: Flow;
   /** 'Done' in the dialog, 'Continue to agent team' in the checklist. */
   doneLabel: string;
-  /** Choose-stage Cancel and conflict-panel Cancel. */
-  onCancel(): void;
+  /** Choose-stage and conflict-panel Cancel. Omitted when there is no target to return to; Cancel is then hidden. */
+  onCancel?(): void;
   onDone(result: SwitchWorkspaceResult): void;
 }
 
@@ -66,7 +66,7 @@ function ConflictPanel({
   onReviewCurrent,
 }: {
   message: string;
-  onCancel(): void;
+  onCancel?(): void;
   onReviewCurrent(): void;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -77,9 +77,11 @@ function ConflictPanel({
       footer={
         <SetupStepFooter
           secondary={
-            <button type="button" className={setupSecondaryButtonClassName} onClick={onCancel}>
-              Cancel
-            </button>
+            onCancel ? (
+              <button type="button" className={setupSecondaryButtonClassName} onClick={onCancel}>
+                Cancel
+              </button>
+            ) : undefined
           }
           primary={
             <button type="button" className={setupPrimaryButtonClassName} onClick={onReviewCurrent}>
