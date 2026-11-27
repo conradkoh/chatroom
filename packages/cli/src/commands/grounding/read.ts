@@ -3,7 +3,7 @@
  *
  * Calls Convex directly (no daemon, no CLI gateway). The grounding id is the
  * message id returned by `grounding publish`; the output is the stored markdown
- * with a short header and a verification reminder.
+ * with a short header and a neutral note that it records earlier observations.
  */
 
 import { Effect } from 'effect';
@@ -99,9 +99,7 @@ const readGroundingEffect = (
       console.log('');
       console.log(grounding.content);
       console.log('');
-      console.log(
-        'Preliminary observations: verify against the repository before relying on them.'
-      );
+      console.log('It records factual observations from an earlier pass.');
     });
   });
 
