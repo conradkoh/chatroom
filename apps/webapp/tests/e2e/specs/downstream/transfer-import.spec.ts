@@ -37,8 +37,16 @@ async function createChatroom(page: Page): Promise<SeededChatroom> {
   await expect(page.getByText(folder).first()).toBeVisible({ timeout: 15_000 });
   await page.getByRole('button', { name: 'Open chatroom' }).click();
   await page.waitForURL('**/app/chatroom**', { timeout: 15_000 });
+  await dismissSetupChecklist(page);
 
   return { chatroomName: folder.slice(folder.lastIndexOf('/') + 1), machineId, hostname };
+}
+
+/** The first visit auto-opens the setup checklist; close it so the sidebar is interactive. */
+async function dismissSetupChecklist(page: Page): Promise<void> {
+  const close = page.getByRole('dialog').getByLabel('Close').first();
+  await close.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => undefined);
+  if (await close.isVisible()) await close.click();
 }
 
 test.describe('Chatroom import', { tag: [TAG_DOWNSTREAM] }, () => {
@@ -52,7 +60,10 @@ test.describe('Chatroom import', { tag: [TAG_DOWNSTREAM] }, () => {
     const { chatroomName, hostname } = await createChatroom(page);
 
     // Export the chatroom from its sidebar menu; the file is the import fixture.
-    const row = page.getByRole('button', { name: new RegExp(chatroomName) }).first();
+    const row = page
+      .locator('[data-slot="context-menu-trigger"]')
+      .filter({ hasText: chatroomName })
+      .first();
     await expect(row).toBeVisible({ timeout: 15_000 });
     await row.click({ button: 'right' });
 
