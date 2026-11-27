@@ -208,7 +208,7 @@ function mapOutcome(key: string, outcome: ImportOutcome): EntryImportResult {
     key,
     status: 'failed',
     code: TRANSFER_ERROR_CODES.IMPORT_ROLLBACK_FAILED,
-    message: `Rollback did not finish. Chatroom ${outcome.orphanChatroomId} may still exist and may be active.`,
+    message: `Rollback did not finish. Chatroom ${outcome.orphanChatroomId} may still exist and may be active. Archive or delete it in the webapp.`,
     details: [],
     rolledBack: false,
     orphanChatroomId: outcome.orphanChatroomId,

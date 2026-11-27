@@ -607,6 +607,7 @@ describe('importChatroom (write path)', () => {
     );
     expect(errorLine).toBeDefined();
     expect(errorLine).toContain('may be active');
+    expect(errorLine).toContain('Archive or delete it in the webapp.');
     expect(h.err.some((line) => line.includes('[IMPORT_ROLLBACK_FAILED]'))).toBe(true);
     expect(h.exits).toEqual([1]);
     expect(saysSuccess(h)).toBe(false);
