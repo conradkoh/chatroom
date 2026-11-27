@@ -32,7 +32,12 @@ import { OpenCodeBinaryAgentService, OPENCODE_COMMAND } from './binary-agent-ser
 import { ensureLocation } from './ensure-location.js';
 import { fetchOpencodeProviderModelCatalog } from './opencode-model-catalog.js';
 import { serverAuthHeaders, waitForListeningUrl } from './parse-listening-url.js';
-import { isInfoLine, parseModelId, parseOpencodeSpawnModel } from './pure.js';
+import {
+  isInfoLine,
+  isOpencodeConsoleConfigProbeWarning,
+  parseModelId,
+  parseOpencodeSpawnModel,
+} from './pure.js';
 import { selectAgent } from './select-agent.js';
 import {
   startSessionEventForwarder,
@@ -236,7 +241,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     }
     if (childProcess.stderr) {
       const stderrBuffer = new StderrLineBuffer((line) => {
-        if (!isInfoLine(line)) emitLogLine(line);
+        if (!isInfoLine(line) && !isOpencodeConsoleConfigProbeWarning(line)) emitLogLine(line);
       });
       childProcess.stderr.on('data', (chunk: Buffer | string) => {
         entry.lastOutputAt = Date.now();

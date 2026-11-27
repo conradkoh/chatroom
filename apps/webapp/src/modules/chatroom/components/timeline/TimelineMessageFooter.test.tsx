@@ -70,7 +70,7 @@ describe('TimelineMessageFooter', () => {
 
     const duration = screen.getByTestId('timeline-handoff-duration');
     expect(duration).toHaveTextContent('1m 2s');
-    expect(duration).toHaveAttribute('title', 'Time since previous message: 1m 2s');
+    expect(duration).toHaveAttribute('title', 'Time since last user message or handoff: 1m 2s');
     expect(screen.getByText('TS:1700000000000').compareDocumentPosition(duration)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     );
@@ -204,7 +204,7 @@ describe('TimelineMessageTimestamp', () => {
 
     const duration = screen.getByTestId('timeline-handoff-duration');
     expect(duration).toHaveTextContent('1m 2s');
-    expect(duration).toHaveAttribute('title', 'Time since previous message: 1m 2s');
+    expect(duration).toHaveAttribute('title', 'Time since last user message or handoff: 1m 2s');
     expect(duration).toHaveAttribute('data-duration-tone', 'normal');
     expect(duration).toHaveClass('text-chatroom-text-muted');
     expect(duration).not.toHaveClass('text-chatroom-status-slow');
@@ -229,7 +229,7 @@ describe('TimelineMessageTimestamp', () => {
     expect(duration).toHaveTextContent('7m 0s');
     expect(duration).toHaveAttribute(
       'title',
-      'Time since previous message: 7m 0s (much longer than typical in this view)'
+      'Time since last user message or handoff: 7m 0s (much longer than typical in this view)'
     );
     expect(duration).toHaveAttribute('data-duration-tone', 'slow');
     expect(duration).toHaveClass('text-chatroom-status-slow');

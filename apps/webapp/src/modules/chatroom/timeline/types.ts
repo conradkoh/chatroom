@@ -23,7 +23,7 @@ export interface UserMessageTimelineEvent extends TimelineEventBase {
 export interface TeamMessageTimelineEvent extends TimelineEventBase {
   kind: 'team_message';
   message: Message;
-  /** Elapsed time since the previous message in the timeline. */
+  /** Elapsed time since the last user message or handoff in the loaded window. */
   handoffDurationMs?: number;
   /** True when this duration is much longer than the other durations in the loaded window. */
   handoffDurationSlow?: boolean;

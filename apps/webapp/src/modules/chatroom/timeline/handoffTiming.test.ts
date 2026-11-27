@@ -3,61 +3,103 @@ import { describe, expect, it } from 'vitest';
 import {
   formatHandoffDuration,
   formatHandoffDurationTitle,
-  getHandoffDurationMs,
+  getHandoffDurationsMs,
   getSlowHandoffThresholdMs,
   isSlowHandoffDuration,
 } from './handoffTiming';
 import type { Message } from '../types/message';
 
-const previous: Message = {
-  _id: 'previous',
+const userAt = (creationTime: number): Message => ({
+  _id: `user-${creationTime}`,
   type: 'message',
   senderRole: 'user',
   content: 'Start work',
-  _creationTime: 6_000,
-  acknowledgedAt: 2_000,
-  completedAt: 65_500,
-};
+  _creationTime: creationTime,
+});
 
-const handoff: Message = {
-  _id: 'handoff',
-  type: 'handoff',
-  senderRole: 'builder',
-  content: 'Done',
-  _creationTime: 66_000,
-  taskOriginMessageId: 'origin',
-};
+const rowAt = (type: Message['type'], creationTime: number, senderRole = 'builder'): Message => ({
+  _id: `${type}-${creationTime}`,
+  type,
+  senderRole,
+  content: type,
+  _creationTime: creationTime,
+});
 
 describe('handoff timing', () => {
-  it('measures elapsed time since the immediately preceding message', () => {
-    expect(getHandoffDurationMs(handoff, previous)).toBe(60_000);
+  it('measures a handoff from the user message before it', () => {
+    expect(getHandoffDurationsMs([userAt(0), rowAt('handoff', 60_000)])).toEqual([
+      undefined,
+      60_000,
+    ]);
   });
 
-  it.each([
-    ['notice', { ...previous, type: 'notice' } satisfies Message],
-    ['message', { ...previous, type: 'message' } satisfies Message],
-  ])('counts a %s predecessor', (_label: string, predecessor: Message) => {
-    const earlier = { ...predecessor, _creationTime: 4_000 };
-    expect(getHandoffDurationMs(handoff, earlier)).toBe(62_000);
+  it.each(['grounding', 'notice', 'plan'] as const)(
+    'skips a %s row and measures the handoff from the user message',
+    (type) => {
+      expect(
+        getHandoffDurationsMs([userAt(0), rowAt(type, 50_000), rowAt('handoff', 60_000)])
+      ).toEqual([undefined, undefined, 60_000]);
+    }
+  );
+
+  it('measures a handoff after a non-timed row from the preceding handoff', () => {
+    expect(
+      getHandoffDurationsMs([
+        userAt(0),
+        rowAt('handoff', 10_000),
+        rowAt('grounding', 40_000),
+        rowAt('handoff', 45_000),
+      ])
+    ).toEqual([undefined, 10_000, undefined, 35_000]);
   });
 
-  it('keeps a zero gap between messages created at the same instant', () => {
-    expect(getHandoffDurationMs(handoff, { ...previous, _creationTime: 66_000 })).toBe(0);
+  it('re-anchors on a user message that follows a handoff', () => {
+    expect(
+      getHandoffDurationsMs([
+        userAt(0),
+        rowAt('handoff', 10_000),
+        userAt(20_000),
+        rowAt('handoff', 50_000),
+      ])
+    ).toEqual([undefined, 10_000, undefined, 30_000]);
   });
 
-  it('omits the duration when there is no previous message', () => {
-    expect(getHandoffDurationMs(handoff, undefined)).toBeUndefined();
+  it('does not treat an agent message as a timing anchor', () => {
+    expect(
+      getHandoffDurationsMs([userAt(0), rowAt('message', 30_000), rowAt('handoff', 60_000)])
+    ).toEqual([undefined, undefined, 60_000]);
   });
 
-  it('omits negative durations when the previous message is later', () => {
-    expect(getHandoffDurationMs(handoff, { ...previous, _creationTime: 100_000 })).toBeUndefined();
+  it('omits the duration when no user message or handoff precedes it in the window', () => {
+    expect(getHandoffDurationsMs([rowAt('grounding', 10_000), rowAt('handoff', 60_000)])).toEqual([
+      undefined,
+      undefined,
+    ]);
   });
 
-  it.each([
-    ['message', { ...handoff, type: 'message' } satisfies Message],
-    ['notice', { ...handoff, type: 'notice' } satisfies Message],
-  ])('omits the duration for a non-handoff %s', (_label: string, message: Message) => {
-    expect(getHandoffDurationMs(message, previous)).toBeUndefined();
+  it('measures a handoff from an earlier handoff when the window starts with one', () => {
+    expect(getHandoffDurationsMs([rowAt('handoff', 10_000), rowAt('handoff', 70_000)])).toEqual([
+      undefined,
+      60_000,
+    ]);
+  });
+
+  it('keeps a zero gap between rows created at the same instant', () => {
+    expect(getHandoffDurationsMs([userAt(66_000), rowAt('handoff', 66_000)])).toEqual([
+      undefined,
+      0,
+    ]);
+  });
+
+  it('omits negative gaps', () => {
+    expect(getHandoffDurationsMs([userAt(100_000), rowAt('handoff', 66_000)])).toEqual([
+      undefined,
+      undefined,
+    ]);
+  });
+
+  it.each(['message', 'notice'] as const)('omits the duration for a non-handoff %s row', (type) => {
+    expect(getHandoffDurationsMs([userAt(0), rowAt(type, 60_000)])).toEqual([undefined, undefined]);
   });
 
   it.each([
@@ -139,12 +181,14 @@ describe('isSlowHandoffDuration', () => {
 
 describe('formatHandoffDurationTitle', () => {
   it('states the elapsed time for a normal duration', () => {
-    expect(formatHandoffDurationTitle(62_000, false)).toBe('Time since previous message: 1m 2s');
+    expect(formatHandoffDurationTitle(62_000, false)).toBe(
+      'Time since last user message or handoff: 1m 2s'
+    );
   });
 
   it('adds the relative qualifier for a slow duration', () => {
     expect(formatHandoffDurationTitle(420_000, true)).toBe(
-      'Time since previous message: 7m 0s (much longer than typical in this view)'
+      'Time since last user message or handoff: 7m 0s (much longer than typical in this view)'
     );
   });
 });

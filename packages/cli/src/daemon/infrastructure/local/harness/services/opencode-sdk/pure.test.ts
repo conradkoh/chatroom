@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { isInfoLine, parseModelId, parseOpencodeSpawnModel } from './pure.js';
+import {
+  isInfoLine,
+  isOpencodeConsoleConfigProbeWarning,
+  parseModelId,
+  parseOpencodeSpawnModel,
+} from './pure.js';
 import { TEST_MODEL_OPENCODE } from '../../../../../../testing/test-models.js';
 
 describe('parseModelId', () => {
@@ -89,6 +94,47 @@ describe('isInfoLine', () => {
     expect(
       isInfoLine(
         'timestamp=2026-07-11T08:20:28.536Z level=INFO run=c792c273 message="llm runtime selected"'
+      )
+    ).toBe(false);
+  });
+});
+
+describe('isOpencodeConsoleConfigProbeWarning', () => {
+  const PROBE_WARNING =
+    'failed to load OpenCode provider config cause="HttpClientError: StatusCode: non 2xx status code (401 GET https://opencode.ai/console/api/v2/config)"';
+
+  it('matches the known config-probe warning', () => {
+    expect(isOpencodeConsoleConfigProbeWarning(`WARN  ${PROBE_WARNING}`)).toBe(true);
+  });
+
+  it('matches the logfmt form of the same warning', () => {
+    expect(
+      isOpencodeConsoleConfigProbeWarning(
+        'timestamp=2026-11-04T19:42:41.391Z level=WARN run=53b3ff14 message="failed to load OpenCode provider config" cause="HttpClientError: StatusCode: non 2xx status code (401 GET https://opencode.ai/console/api/v2/config)"'
+      )
+    ).toBe(true);
+  });
+
+  it('does not match a different provider warning', () => {
+    expect(
+      isOpencodeConsoleConfigProbeWarning(
+        'WARN  2026-11-04T19:42:41 service=provider failed to load model opencode-go/gpt-5.6-luna'
+      )
+    ).toBe(false);
+  });
+
+  it('does not match the same message against a different endpoint', () => {
+    expect(
+      isOpencodeConsoleConfigProbeWarning(
+        'WARN  failed to load OpenCode provider config cause="HttpClientError: StatusCode: non 2xx status code (500 GET https://example.test/config)"'
+      )
+    ).toBe(false);
+  });
+
+  it('does not match an ordinary WARN line', () => {
+    expect(
+      isOpencodeConsoleConfigProbeWarning(
+        'WARN  2026-11-04T19:42:41 service=foo something interesting'
       )
     ).toBe(false);
   });

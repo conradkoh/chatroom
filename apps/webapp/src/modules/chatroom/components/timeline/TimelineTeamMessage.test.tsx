@@ -563,7 +563,7 @@ Edge case X
       openDialog();
 
       const dialog = screen.getByRole('dialog', { name: 'Full handoff from planner' });
-      expect(dialog).toHaveAccessibleDescription(/Sent .*Time since previous message/);
+      expect(dialog).toHaveAccessibleDescription(/Sent .*Time since last user message or handoff/);
       expect(within(dialog).getByTestId('timeline-handoff-dialog-body')).toBeInTheDocument();
       expect(within(dialog).getByTestId('timeline-message-footer')).toBeInTheDocument();
       expect(within(dialog).getByTestId('timeline-markdown-body')).toHaveTextContent(
@@ -572,7 +572,7 @@ Edge case X
       expect(within(dialog).getByTestId('timeline-handoff-duration')).toHaveTextContent('1m 2s');
       expect(within(dialog).getByTestId('timeline-handoff-duration')).toHaveAttribute(
         'title',
-        'Time since previous message: 1m 2s'
+        'Time since last user message or handoff: 1m 2s'
       );
     });
 

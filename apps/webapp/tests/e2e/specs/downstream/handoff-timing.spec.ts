@@ -9,7 +9,10 @@ test.describe('Timeline handoff timing', { tag: [TAG_DOWNSTREAM] }, () => {
     const handoff = page.getByTestId('handoff-timing-fixture');
     const duration = handoff.getByTestId('timeline-handoff-duration');
     await expect(duration).toHaveText('1m 2s');
-    await expect(duration).toHaveAttribute('title', 'Time since previous message: 1m 2s');
+    await expect(duration).toHaveAttribute(
+      'title',
+      'Time since last user message or handoff: 1m 2s'
+    );
     await expect(handoff.getByTestId('timeline-message-footer')).toContainText(
       '15th November 2023'
     );

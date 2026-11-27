@@ -1,19 +1,35 @@
 import type { Message } from '../types/message';
 
 /**
- * Returns the time elapsed between a handoff and the message that immediately
- * precedes it in the loaded timeline. Only handoffs carry a duration; a handoff
- * with no predecessor (first row of the window) or a negative/non-finite gap has none.
+ * True for rows that start a handoff's timing: a message the user sent, or a handoff.
+ * Grounding, notice, plan, and every other type carry no timing and never anchor one.
  */
-// fallow-ignore-next-line complexity
-export function getHandoffDurationMs(
-  message: Message,
-  previousMessage: Message | undefined
-): number | undefined {
-  if (message.type !== 'handoff' || !previousMessage) return undefined;
+// fallow-ignore-next-line unused-export
+export function isHandoffTimingAnchor(message: Message): boolean {
+  if (message.type === 'handoff') return true;
+  return message.type === 'message' && message.senderRole === 'user';
+}
 
-  const durationMs = message._creationTime - previousMessage._creationTime;
-  return Number.isFinite(durationMs) && durationMs >= 0 ? durationMs : undefined;
+/**
+ * Handoff durations for a loaded window, in window order (one entry per row).
+ *
+ * A handoff's duration is the time since the nearest preceding timing anchor in the
+ * window (see `isHandoffTimingAnchor`). A handoff with no anchor before it in the window
+ * has no duration; the adjacent row is never used as a fallback. Every non-handoff row
+ * has no duration. A negative or non-finite gap has no duration.
+ */
+export function getHandoffDurationsMs(messages: readonly Message[]): (number | undefined)[] {
+  let anchorCreationTime: number | undefined;
+  // fallow-ignore-next-line complexity
+  return messages.map((message) => {
+    let durationMs: number | undefined;
+    if (message.type === 'handoff' && anchorCreationTime !== undefined) {
+      const gap = message._creationTime - anchorCreationTime;
+      durationMs = Number.isFinite(gap) && gap >= 0 ? gap : undefined;
+    }
+    if (isHandoffTimingAnchor(message)) anchorCreationTime = message._creationTime;
+    return durationMs;
+  });
 }
 
 /** Formats a historical handoff duration using the compact timeline notation. */
@@ -66,6 +82,6 @@ export function isSlowHandoffDuration(
 
 /** Tooltip text for the duration span. */
 export function formatHandoffDurationTitle(durationMs: number, slow: boolean): string {
-  const base = `Time since previous message: ${formatHandoffDuration(durationMs)}`;
+  const base = `Time since last user message or handoff: ${formatHandoffDuration(durationMs)}`;
   return slow ? `${base} (much longer than typical in this view)` : base;
 }

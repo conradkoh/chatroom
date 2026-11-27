@@ -583,11 +583,11 @@ describe('useConversation', () => {
 
     expect(result.current.events[2]).toMatchObject({
       kind: 'team_message',
-      handoffDurationMs: 300,
+      handoffDurationMs: 400, // measured from the user message at 100, not the notice at 200
     });
   });
 
-  it('reports each handoff duration as the gap from the previous message, not the shared origin lifecycle', () => {
+  it('reports each handoff duration as the gap from the last user message or handoff, not the shared origin lifecycle', () => {
     // The bug scenario: one origin task acknowledged at 0 and completed at 67s,
     // with a five-handoff chain that all reference it. The frozen origin lifecycle
     // made every row show 67_000; the true elapsed times differ per row.
@@ -622,6 +622,75 @@ describe('useConversation', () => {
         (event) => (event as { handoffDurationMs?: number }).handoffDurationMs
       )
     ).toEqual([undefined, 72_000, 108_000, 420_000, 60_000, 30_000]);
+  });
+
+  it('measures a handoff that follows a grounding from the last user message', () => {
+    const user = {
+      _id: 'msg-u',
+      type: 'message',
+      senderRole: 'user',
+      content: 'do it',
+      _creationTime: 0,
+    };
+    const grounding = {
+      _id: 'msg-g',
+      type: 'grounding',
+      senderRole: 'builder',
+      content: 'context',
+      _creationTime: 50_000,
+    };
+    const handoff = {
+      _id: 'msg-h',
+      type: 'handoff',
+      senderRole: 'builder',
+      targetRole: 'user',
+      content: 'done',
+      _creationTime: 60_000,
+    };
+    mockUsePaginatedQuery.mockReturnValue({
+      results: [user, grounding, handoff],
+      status: 'Exhausted',
+      loadMore: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useConversation('room-1'));
+
+    expect(
+      result.current.events.map(
+        (event) => (event as { handoffDurationMs?: number }).handoffDurationMs
+      )
+    ).toEqual([undefined, undefined, 60_000]);
+  });
+
+  it('has no handoff duration when no user message or handoff precedes it in the loaded window', () => {
+    const grounding = {
+      _id: 'msg-g',
+      type: 'grounding',
+      senderRole: 'builder',
+      content: 'context',
+      _creationTime: 10_000,
+    };
+    const handoff = {
+      _id: 'msg-h',
+      type: 'handoff',
+      senderRole: 'builder',
+      targetRole: 'user',
+      content: 'done',
+      _creationTime: 60_000,
+    };
+    mockUsePaginatedQuery.mockReturnValue({
+      results: [grounding, handoff],
+      status: 'Exhausted',
+      loadMore: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useConversation('room-1'));
+
+    expect(
+      result.current.events.map(
+        (event) => (event as { handoffDurationMs?: number }).handoffDurationMs
+      )
+    ).toEqual([undefined, undefined]);
   });
 
   it('marks handoffs that are much longer than the window median as slow', () => {

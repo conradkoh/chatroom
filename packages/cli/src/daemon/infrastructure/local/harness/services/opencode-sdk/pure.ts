@@ -35,3 +35,12 @@ export function parseOpencodeSpawnModel(model: string): {
 }
 
 export const isInfoLine = (line: string): boolean => line.trimStart().startsWith('INFO ');
+
+/**
+ * OpenCode's built-in Console provider plugin logs this WARN on every failed config probe
+ * (about once a minute). It is non-fatal: OpenCode falls back to the cached or empty
+ * provider config. Matches only this exact line; every other stderr line is forwarded.
+ */
+export const isOpencodeConsoleConfigProbeWarning = (line: string): boolean =>
+  line.includes('failed to load OpenCode provider config') &&
+  line.includes('opencode.ai/console/api/v2/config');

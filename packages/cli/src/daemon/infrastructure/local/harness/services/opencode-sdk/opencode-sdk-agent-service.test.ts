@@ -1191,6 +1191,44 @@ describe('OpenCodeSdkAgentService', () => {
       expect(logLines.some((line) => line.includes('file.watcher.updated'))).toBe(false);
       expect(logLines.some((line) => line.includes('something interesting'))).toBe(true);
     });
+
+    it('drops the known OpenCode Console config-probe warning and forwards other warnings', async () => {
+      const child = makeFakeChild(4322);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      stubSdkClient();
+      const service = new OpenCodeSdkAgentService(deps);
+      const logLines: string[] = [];
+
+      const spawnPromise = service.spawn(spawnOptions());
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
+      const result = await spawnPromise;
+      result.onLogLine?.((line) => logLines.push(line));
+
+      child.stderr.emit(
+        'data',
+        Buffer.from(
+          'WARN  failed to load OpenCode provider config cause="HttpClientError: StatusCode: non 2xx status code (401 GET https://opencode.ai/console/api/v2/config)"\n'
+        )
+      );
+      child.stderr.emit(
+        'data',
+        Buffer.from(
+          'WARN  2026-11-04T19:42:42 service=provider failed to load model opencode-go/gpt-5.6-luna\n'
+        )
+      );
+      child.stderr.emit(
+        'data',
+        Buffer.from('WARN  2026-11-04T19:42:43 service=foo something interesting\n')
+      );
+
+      expect(
+        logLines.some((line) => line.includes('failed to load OpenCode provider config'))
+      ).toBe(false);
+      expect(
+        logLines.some((line) => line.includes('failed to load model opencode-go/gpt-5.6-luna'))
+      ).toBe(true);
+      expect(logLines.some((line) => line.includes('something interesting'))).toBe(true);
+    });
   });
 
   describe('session event forwarder', () => {
