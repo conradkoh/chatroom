@@ -7,10 +7,9 @@
 
 ## What it does
 
-`chatroom export` writes one chatroom (its content and configuration) to a single JSON file, or
-every chatroom you own on this machine to one bundle file with `--all`.
-`chatroom import` reads either file and creates **new** chatrooms owned by the importing user. A
-bundle can contain several chatrooms, so you choose which ones to import.
+`chatroom export` writes every chatroom you own that has an active workspace on this machine to one
+bundle file. `chatroom import` reads that bundle and creates **new** chatrooms owned by the
+importing user. A bundle can contain several chatrooms, so you choose which ones to import.
 
 The webapp offers the same flows: it builds the same bytes and file names as the CLI, reads an
 import file locally, and never uploads it.
@@ -19,7 +18,8 @@ An export is a portable copy, not a backup: it carries conversation content and 
 never the source deployment's identity, credentials, binary attachments, or runtime state.
 
 Machine backups are a separate flow. The Machines tab can list the local-stack backups that exist
-on a machine and download one through an ephemeral Convex copy; see [Machine backups](#machine-backups).
+on a machine and download one through an ephemeral Convex copy; see
+[Machine backups](#machine-backups).
 
 ## Commands
 
@@ -30,45 +30,34 @@ Both commands live in `packages/cli/src/commands/chatroom-transfer/register.ts`.
 ```
 Usage: chatroom export [options]
 
-Export one chatroom (--chatroom-id) or every chatroom you own on this machine
-(--all) to one JSON bundle. The files are plaintext and contain conversation
-content; keep them private.
+Export every chatroom you own that has an active workspace on this machine into
+ONE bundle JSON file. The file is plaintext and contains conversation content;
+keep it private.
 
 Options:
-  --chatroom-id <id>  Chatroom identifier (exclusive with --all)
-  --all               Export every chatroom you own that has an active workspace
-                      on this machine, into one bundle file
-  --path <dir>        Directory to write to (default: .chatroom/exports/)
-  -h, --help          display help for command
+  --path <dir>  Directory to write to (default: .chatroom/exports/)
+  -h, --help    display help for command
 ```
 
-- Exactly one of `--chatroom-id <id>` or `--all` is required.
 - `--path` is a directory. It defaults to `.chatroom/exports/` under the current working
   directory. The default directory receives a `.gitignore` containing `*` when it has none, so
   exports stay out of version control; an existing `.gitignore` is never replaced. `--path` writes
   no ignore file, so a custom directory is not modified.
-- The single-chatroom file name is `chatroom-<chatroomId>-YYYYMMDDTHHMMSSZ.json` (UTC, no colons).
-- The `--all` bundle name is `chatroom-all-<machineId>-YYYYMMDDTHHMMSSZ.json` (UTC, no colons).
+- The bundle name is `chatroom-all-<machineId>-YYYYMMDDTHHMMSSZ.json` (UTC, no colons).
   Characters outside `[A-Za-z0-9_-]` in the machine id become `_`.
 - An existing file is never overwritten: the publish hard-links the temp file into place and a
   name clash fails with `EXPORT_FILE_EXISTS`.
 - A filesystem without hard links cannot publish an export without overwriting it. The export then
   fails with `EXPORT_PUBLISH_UNSUPPORTED` and leaves no temp or final file.
 
-#### Single chatroom
+#### The bundle
 
-- The file contains one chatroom in the v1 format described below.
-- The command prints `Exported chatroom <id>`, the file path, per-category counts, the omission
-  list, one attachment line when attachments were left out, and the plaintext warning.
-
-#### `--all` bundle
-
-- `--all` exports every chatroom the caller owns that has an active workspace on the current
+- `export` writes every chatroom the caller owns that has an active workspace on the current
   machine. Ownership is the filter, so another user's chatroom on the same machine is never
   exported, even though its workspace row is visible to the machine.
-- `--all` covers the current machine only. It reads the machine's identity, so a machine without
+- `export` covers the current machine only. It reads the machine's identity, so a machine without
   one fails with `EXPORT_NO_MACHINE_IDENTITY`.
-- `--all` writes exactly **one** bundle file, never one file per chatroom. It builds the bundle in
+- `export` writes exactly **one** bundle file, never one file per chatroom. It builds the bundle in
   memory and publishes it once, so a failed run leaves no file and no temp file.
 - The bundle contains one v1 chatroom payload per chatroom, in the machine list's order (most
   recent activity first). `index` and `chatrooms` have the same order.
@@ -85,13 +74,11 @@ Options:
 
 #### Export errors
 
-- `EXPORT_TARGET_REQUIRED` — neither `--chatroom-id` nor `--all` was given.
-- `EXPORT_TARGET_CONFLICT` — both `--chatroom-id` and `--all` were given.
-- `EXPORT_NO_MACHINE_IDENTITY` — `--all` ran on a machine with no identity.
+- `EXPORT_NO_MACHINE_IDENTITY` — the export ran on a machine with no identity.
 - `EXPORT_MACHINE_TOO_LARGE` — the machine has more than 1000 active workspace rows, counting
-  other users' chatrooms. The list is refused rather than truncated; export individual chatrooms
-  with `--chatroom-id`.
-- `EXPORT_ALL_INCOMPLETE` — at least one chatroom failed twice during `--all`; no file was written.
+  other users' chatrooms. The list is refused rather than truncated, so no file is written.
+- `EXPORT_ALL_INCOMPLETE` — at least one chatroom failed twice during the export; no file was
+  written.
 - `EXPORT_TOO_LARGE` — the serialized file or the bundle would exceed 256 MiB.
 - `EXPORT_FILE_EXISTS` — a file with the generated name already exists.
 - `EXPORT_PUBLISH_UNSUPPORTED` — the filesystem cannot hard-link the temp file into place.
@@ -102,20 +89,22 @@ Options:
 ```
 Usage: chatroom import [options]
 
-Import chatrooms from an export file as NEW chatrooms owned by you. Listing the
+Import chatrooms from a machine export bundle
+(chatroom-all-<machine>-<time>.json) as NEW chatrooms owned by you. Listing the
 file needs no login. Importing needs a login and an owned target machine. Never
 merges; importing twice creates two chatrooms. Starts no agents.
 
 Options:
-  --machine-id <id>        Machine to bind workspaces to (default: this machine)
-  --dry-run                Validate and print the plan; write nothing
-  --select <all|id[,id...]> Chatrooms to import from a bundle: all, or
-                           positions/source ids separated by commas. Without
-                           it, a terminal prompts.
-  --list                   Print the chatrooms in the file and exit. Needs no
-                           login and writes nothing.
-  --path <file>            Export file to import
-  -h, --help               display help for command
+  --machine-id <id>          Machine to bind workspaces to (default: this
+                             machine)
+  --dry-run                  Validate and print the plan; write nothing
+  --select <all|id[,id...]>  Chatrooms to import from a bundle: all, or
+                             positions/source ids separated by commas. Without
+                             it, a terminal prompts.
+  --list                     Print the chatrooms in the file and exit. Needs no
+                             login and writes nothing.
+  --path <file>              Export file to import
+  -h, --help                 display help for command
 ```
 
 - `--path` is the export file and is required. A directory, a missing path or an unreadable file is
@@ -131,26 +120,26 @@ Options:
 
 - Listing needs no session, no network call and no machine id (D5). `--list` prints the file's
   chatrooms and exits `0` without writing anything.
-- A bundle import always prints the listing first, so the numbers and ids the prompt accepts are on
-  screen. A single-chatroom import prints its one-entry listing only with `--list`; without it the
-  chatroom imports directly.
+- An import always prints the listing first, so the numbers and ids the prompt accepts are on
+  screen.
 - Each entry prints its 1-based position, name (or `Untitled chatroom`), source chatroom id, team
   structure, status, export time, message/task/backlog counts, working-directory count, and any
   omitted attachments.
 - A bundle entry whose payload fails validation is listed with
   `not importable: <CODE> — <message>` instead of refusing the whole bundle. The other entries stay
   importable. A bundle-level index checksum mismatch still refuses the whole file.
+- A single-chatroom file from an older version is refused with `IMPORT_NOT_AN_EXPORT`; only machine
+  export bundles can be imported.
 
 #### Choosing chatrooms
 
-- A single-chatroom file has nothing to choose; it imports its one chatroom with no prompt.
-- A bundle needs `--select`, or an interactive terminal. `--select all` selects every importable
+- An import needs `--select`, or an interactive terminal. `--select all` selects every importable
   entry. `--select 1,3,<sourceChatroomId>` accepts 1-based positions and source chatroom ids,
   comma-separated.
 - Without `--select` and without a terminal, the command refuses with
   `IMPORT_SELECTION_REQUIRED` instead of guessing.
 - An empty answer or an empty token list prints `Nothing selected; nothing was imported.` and exits
-  `0`. `--select all` on a bundle with no importable entry is `IMPORT_SELECTION_INVALID`.
+  `0`. `--select all` with no importable entry is `IMPORT_SELECTION_INVALID`.
 - An unknown or invalid token is `IMPORT_SELECTION_INVALID`, naming the token.
 
 #### Running the import
@@ -171,9 +160,9 @@ Options:
   entry `skipped: fatal`.
 - `SIGINT` and `SIGTERM` abort the chatroom in progress through its own rollback; the remaining
   entries are marked `skipped: cancelled`.
-- A bundle run ends with `Imported X of Y selected; Failed: Z` and, when any succeeded,
-  `new chatrooms: <ids>`. A single-chatroom run prints `Imported as new chatroom <id>`.
-  A successful run also prints `no agents were started`.
+- Each imported entry prints `Imported as new chatroom <id>` followed by its plan lines. A run ends
+  with `Imported X of Y selected; Failed: Z` and, when any succeeded, `new chatrooms: <ids>`. A
+  successful run also prints `no agents were started`.
 - `--dry-run` prints the same plan per entry and `dry run: nothing was written`; it makes no write
   call.
 
@@ -182,7 +171,7 @@ Options:
 The format is defined once in `services/backend/src/domain/entities/chatroom-transfer-file.ts`
 and shared by the CLI, the backend and the browser.
 
-### Single chatroom (v1)
+### Chatroom payload (v1, inside a bundle)
 
 ```json
 {
@@ -207,8 +196,10 @@ and shared by the CLI, the backend and the browser.
 }
 ```
 
-- `formatVersion` is `1`. `kind` is `"chatroom-export"`; a file with another kind is refused with
-  `IMPORT_NOT_AN_EXPORT`, and another version with `IMPORT_UNSUPPORTED_VERSION`.
+- `formatVersion` is `1`. `kind` is `"chatroom-export"`. A bundle entry that is not a valid v1
+  payload is listed as `not importable` and the other entries stay importable; a file whose
+  top-level `kind` is not `"chatroom-export-bundle"` is refused whole with `IMPORT_NOT_AN_EXPORT`,
+  and a bundle with another `formatVersion` with `IMPORT_UNSUPPORTED_VERSION`.
 - `source` records the exporting chatroom and CLI version. It is metadata; import never reuses the
   chatroom id.
 - `exportedAt` is the export clock reading.
@@ -229,7 +220,7 @@ and shared by the CLI, the backend and the browser.
   from the transfer registry; see the next section. `bytes` is present only for
   `chatroom_fileAttachments`, which is counted and measured.
 
-### Bundle (`chatroom export --all`)
+### Bundle
 
 ```json
 {
@@ -268,10 +259,9 @@ and shared by the CLI, the backend and the browser.
   identity.
 
 **The file is plaintext and contains conversation content.** Write it to a private directory, keep
-it out of version control, and delete it when it is no longer needed. Every run that writes at
-least one file prints the warning line `warning: this file is plaintext and contains conversation
-content. Keep it private.` In single-chatroom mode it follows the report; in `--all` mode it is
-printed once, as the last line of the run.
+it out of version control, and delete it when it is no longer needed. Every run that writes its file
+prints the warning line `warning: this file is plaintext and contains conversation
+content. Keep it private.` It is printed once, as the last line of the run.
 
 ## What is exported and what is not
 
@@ -291,13 +281,16 @@ rebuilt decisions into `omitted`, using these exact reasons:
 - `chatroom_agentDesiredConfigs` — Deprecated desired-config rows; replaced by launch requests.
 - `chatroom_agentRestartMetrics` — Runtime restart telemetry; not portable.
 - `chatroom_agentRoleStatusReadModel` — Agent status is a daemon projection of live processes.
-- `chatroom_agentRuntimeStates` — Live agent process state; rebuilt by the daemon on the target machine.
+- `chatroom_agentRuntimeStates` —
+  Live agent process state; rebuilt by the daemon on the target machine.
 - `chatroom_capabilities_refresh_batches` — Runtime capability-refresh bookkeeping; not portable.
-- `chatroom_capabilities_refresh_machine_results` — Runtime capability-refresh bookkeeping; not portable.
+- `chatroom_capabilities_refresh_machine_results` —
+  Runtime capability-refresh bookkeeping; not portable.
 - `chatroom_connectionCloseRequests` — Live connection control messages; not portable.
 - `chatroom_conversationModePreferences` — Per-user conversation mode preference.
 - `chatroom_favorites` — Per-user favorites; the importing user starts fresh.
-- `chatroom_fileAttachments` — Binary attachments are not carried; the file records how many were left out.
+- `chatroom_fileAttachments` —
+  Binary attachments are not carried; the file records how many were left out.
 - `chatroom_fileStorageSettings` — Chatroom storage policy; not content.
 - `chatroom_fileStorageUsage` — Storage usage is per-user runtime accounting.
 - `chatroom_integrations` — Integration credentials (bot tokens) are never exported.
@@ -316,7 +309,8 @@ rebuilt decisions into `omitted`, using these exact reasons:
 - `chatroom_workflows` — Deprecated workflow feature.
 - `command_runner` — Command runner state is machine-local.
 - `launchRequestsOtherTeam` — Launch requests for other teams are filtered out and counted.
-- `launchRequestsSuperseded` — Older launch requests for the same workspace and role are superseded by the latest.
+- `launchRequestsSuperseded` —
+  Older launch requests for the same workspace and role are superseded by the latest.
 - `workspaceRemovals` — Workspaces removed before export are not carried.
 - `workspace_caches` — Workspace caches are rebuilt by the target daemon.
 - `workspace_requests` — In-flight workspace requests belong to the source daemon.
@@ -448,12 +442,12 @@ mark. No product mutation edits message content, so this cannot be triggered thr
 
 ### Export
 
-- Entry points: the chatroom sidebar row's context menu, the chatroom selector card menu, the
-  selector table menu, and the Machines tab's per-machine card menu.
+- Entry point: the Machines tab's per-machine card menu, **Export chatrooms**. It is the only export
+  entry point; the chatroom sidebar, the selector card and the selector table have no export action.
 - The browser builds the same payload bytes and file names as the CLI by calling the shared
-  `runExport` / `runExportBundle` code, then saves the file with an anchor download. Nothing is
+  `runExportBundle` code, then saves the file with an anchor download. Nothing is
   uploaded to Convex.
-- "Export chatroom" is per chatroom. "Export chatrooms" on a machine card produces one
+- "Export chatrooms" on a machine card produces one
   `chatroom-all-<machineId>-<timestamp>.json` bundle.
 - The machine export shows its listing, exporting progress, empty state, success state, the
   `EXPORT_ALL_INCOMPLETE` failure with the failed chatroom ids, and the `EXPORT_TOO_LARGE` failure
@@ -462,23 +456,26 @@ mark. No product mutation edits message content, so this cannot be triggered thr
 
 ### Import
 
-- Entry points: the chatroom sidebar header, the chatroom selector header, and the selector's empty
-  state.
+- Entry point: a machine card's **Import chatrooms…** menu item on the Machines tab
+  (`/app/machines`). The dialog is locked to that card's machine and shows an **Import to** strip.
+  There is no import button on the chatroom landing page or sidebar.
 - The dialog has four steps: **File**, **Select**, **Progress** and **Results**. The file is chosen
   with a native file input and read with the browser's file API; it is never uploaded.
 - The dialog calls the same `parseTransferFile`/`selectEntries` code as the CLI, so listing,
   validation, `not importable` entries and checksums behave identically. The size gate runs before
   the file is read.
-- Select shows the same per-entry fields as the CLI listing, a select-all control, and a target
-  machine picker. Results show each imported chatroom as a link to
+- Select shows the same per-entry fields as the CLI listing, a select-all control, and the target
+  machine shown in the strip (the card's machine; it may be offline). Results show each imported
+  chatroom as a link to
   `/app/chatroom?id=<new id>`, each failure with its code and message, and allow retrying the
   failed/skipped entries while leaving successful ones unselectable.
 - Stop/cancel aborts the import in progress and waits for its rollback; close is blocked while the
   rollback runs. The engine writes through `chatroomImport.begin/applyChunk/finalize/rollback`
   only; there is no upload route or Convex action for a transfer file.
 - A killed tab cannot run rollback. The dialog records the in-progress import in `localStorage`
-  with a heartbeat; the next visit shows an interrupted-import notice that can remove or keep the
-  record. A room finalized as `active` cannot be rolled back, exactly as in the CLI.
+  with a heartbeat; the next visit shows an interrupted-import notice on the Machines page, the
+  chatroom sidebar and the chatroom list. The notice does not name a machine. A room finalized as
+  `active` cannot be rolled back, exactly as in the CLI.
 
 ## Machine backups
 

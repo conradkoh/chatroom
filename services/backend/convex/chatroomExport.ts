@@ -62,7 +62,7 @@ export const readPage = query({
   },
 });
 
-/** The caller's own chatrooms with an active workspace on `machineId`; the set `export --all` walks. */
+/** The caller's own chatrooms with an active workspace on `machineId`; the set `chatroom export` walks. */
 export const listForMachine = query({
   args: { ...SessionIdArg, machineId: v.string() },
   handler: async (ctx, a) => {

@@ -46,26 +46,9 @@ function attachmentsNotIncludedItem(omitted: OmittedAttachments): string | null 
   return `${attachmentCountLabel(omitted.count)} ${noun} not included (${formatFileSize(omitted.bytes)})`;
 }
 
-export function chatroomExportingLabel(name: string | null): string {
-  return `Exporting “${chatroomLabel(name)}”…`;
-}
-
 /** The phase label while a machine export is writing; `done` chatrooms have finished. */
 export function machineExportingLabel(done: number, total: number): string {
   return `Exporting ${Math.min(done + 1, total)} of ${pluralize(total, 'chatroom')}…`;
-}
-
-/** Success for one chatroom. The file name is shown verbatim. */
-export function chatroomExportSuccess(args: {
-  name: string | null;
-  fileName: string;
-  omitted: OmittedAttachments;
-}): { message: string; items?: string[] } {
-  const item = attachmentsNotIncludedItem(args.omitted);
-  return {
-    message: `Exported “${chatroomLabel(args.name)}” to ${args.fileName}.`,
-    ...(item ? { items: [item] } : {}),
-  };
 }
 
 /** Success for a machine bundle: the file name, then the chatroom count and omissions. */
@@ -79,26 +62,6 @@ export function machineExportSuccess(args: {
     message: `Saved ${args.fileName}`,
     items: [pluralize(args.chatroomCount, 'chatroom'), ...(attachments ? [attachments] : [])],
   };
-}
-
-/** Copy for a failed single-chatroom export. */
-export function chatroomExportFailure(failure: TransferFailure): FailureCopy {
-  switch (failure.code) {
-    case 'EXPORT_CHATROOM_CHANGED':
-      return {
-        title: 'Export failed',
-        message: 'This chatroom changed while exporting. Try again.',
-        retryable: true,
-      };
-    case 'EXPORT_TOO_LARGE':
-      return {
-        title: 'Export failed',
-        message: `The export is larger than the ${EXPORT_LIMIT_LABEL} limit and cannot be saved as one file.`,
-        retryable: false,
-      };
-    default:
-      return { title: 'Export failed', message: 'Could not export. Try again.', retryable: true };
-  }
 }
 
 /** Copy for a failed machine export. `failed` carries the names (never the ids) of the chatrooms that failed. */
@@ -184,7 +147,7 @@ export function importRejectCopy(code: string, message: string, fileSizeBytes?: 
     case 'IMPORT_FILE_UNREADABLE':
       return 'This file is not valid JSON or could not be read.';
     case 'IMPORT_NOT_AN_EXPORT':
-      return 'This is not a chatroom export file.';
+      return 'This is not a machine export file. Save one with Export chatrooms on a machine card, or with chatroom export.';
     case 'IMPORT_UNSUPPORTED_VERSION':
       return 'This export uses a format version this app does not support. Re-export it with a matching version.';
     case 'IMPORT_CHECKSUM_MISMATCH':

@@ -3,7 +3,6 @@
 import type { KeyboardEvent, RefObject } from 'react';
 
 import { ImportEntryRow, IMPORT_CHECKBOX_CLASS } from './ImportEntryRow';
-import { ImportMachinePicker } from './ImportMachinePicker';
 import type { ImportViewState } from '../../hooks/useTransferImport';
 import {
   IMPORT_NO_CHATROOMS_COPY,
@@ -15,19 +14,17 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DialogFooter, DialogScrollBody } from '@/components/ui/dialog';
 import { chatroomIndustrialDialogFooterClassName } from '@/modules/chatroom/components/shared/industrialDialogStyles';
-import type { MachineRowModel } from '@/modules/chatroom/features/machines/hooks/useMachineRows';
 import { formatTimestampFull } from '@/modules/chatroom/utils/chatroomTimestamp';
 
 type ListedState = Extract<ImportViewState, { kind: 'listed' }>;
 
 interface ImportSelectStepProps {
   state: ListedState;
-  machines: MachineRowModel[];
-  machinesLoading: boolean;
+  /** The locked target's display name, shown in the footer. */
+  machineName: string;
   onToggle(key: string): void;
   onSelectAll(): void;
   onClear(): void;
-  onChooseMachine(machineId: string): void;
   onStart(): void;
   onReset(): void;
   onClose(): void;
@@ -37,23 +34,21 @@ interface ImportSelectStepProps {
   chooseDifferentRef: RefObject<HTMLButtonElement | null>;
 }
 
-/** The select step: one header line, the entry list, the target machine, the footer. */
+/** The select step: one header line, the entry list and the footer. */
 // fallow-ignore-next-line complexity
 export function ImportSelectStep({
   state,
-  machines,
-  machinesLoading,
+  machineName,
   onToggle,
   onSelectAll,
   onClear,
-  onChooseMachine,
   onStart,
   onReset,
   onClose,
   selectAllRef,
   chooseDifferentRef,
 }: ImportSelectStepProps) {
-  const { listing, selected, machineId, importedKeys } = state;
+  const { listing, selected, importedKeys } = state;
   const importable = listing.entries.filter(
     (entry) => entry.validity.ok && !importedKeys.has(entry.key)
   ).length;
@@ -61,8 +56,7 @@ export function ImportSelectStep({
   const selectedCount = selected.size;
   const allSelected = importable > 0 && selectedCount === importable;
   const someSelected = selectedCount > 0 && !allSelected;
-  const machineName = machines.find((row) => row.machine.machineId === machineId)?.displayName;
-  const canStart = importable > 0 && selectedCount > 0 && machineId !== null;
+  const canStart = importable > 0 && selectedCount > 0;
 
   return (
     <>
@@ -72,8 +66,7 @@ export function ImportSelectStep({
             className="min-w-0 truncate font-mono text-[10px] text-chatroom-text-muted"
             title={state.fileName}
           >
-            {state.fileName} · {listing.kind === 'bundle' ? 'Bundle' : 'Single chatroom'} · exported{' '}
-            {formatTimestampFull(Date.parse(listing.exportedAt))}
+            {state.fileName} · exported {formatTimestampFull(Date.parse(listing.exportedAt))}
           </p>
           <Button ref={chooseDifferentRef} variant="ghost" size="xs" onClick={onReset}>
             Choose different file
@@ -118,13 +111,6 @@ export function ImportSelectStep({
                 />
               ))}
             </div>
-            <ImportMachinePicker
-              machines={machines}
-              machinesLoading={machinesLoading}
-              machineId={machineId}
-              onChoose={onChooseMachine}
-              onClose={onClose}
-            />
           </>
         )}
       </DialogScrollBody>
@@ -133,7 +119,6 @@ export function ImportSelectStep({
           {disabledReason({
             importable,
             selectedCount,
-            machineId,
             machineName,
             empty: listing.entries.length === 0,
           })}
@@ -170,20 +155,17 @@ function EmptyFile({ onReset }: { onReset(): void }) {
 function disabledReason({
   importable,
   selectedCount,
-  machineId,
   machineName,
   empty,
 }: {
   importable: number;
   selectedCount: number;
-  machineId: string | null;
-  machineName: string | undefined;
+  machineName: string;
   empty: boolean;
 }): string {
   if (empty) return IMPORT_NO_CHATROOMS_COPY;
   if (importable === 0) return IMPORT_NOT_IMPORTABLE_HELP;
   if (selectedCount === 0) return 'Select at least one chatroom.';
-  if (machineId === null || machineName === undefined) return 'Choose a machine.';
   return `${selectedCount} of ${importable} selected → ${machineName}`;
 }
 

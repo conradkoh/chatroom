@@ -1,10 +1,10 @@
 /**
  * Chatroom import — offline listing and selection.
  *
- * Reads a v1 export file or a v1 bundle without a session, a network call or a
+ * Reads a v1 bundle (a machine export) without a session, a network call or a
  * machine id (D5). It answers three questions before anything is written:
  *
- * 1. Is this the right kind and version? (one whole-file refusal)
+ * 1. Is this a bundle of the right kind and version? (one whole-file refusal)
  * 2. Which chatrooms does the file contain, and which are importable? (a bad
  *    payload is listed, not refused, so one tampered entry does not hide the
  *    rest)
@@ -15,10 +15,10 @@
  *
  * ## Refusal order (fixed, first problem wins)
  *
- * JSON parse → `kind` → `formatVersion` → (single) payload validation, or
- * (bundle) index shape → bundle checksum → per-entry payload validation.
- * A single v1 file is refused as a whole, exactly as `runImport` does; a bundle
- * entry only marks itself `not importable`.
+ * JSON parse → `kind` → `formatVersion` → index shape → bundle checksum →
+ * per-entry payload validation. A single-chatroom file (`kind: 'chatroom-export'`)
+ * is refused whole as `IMPORT_NOT_AN_EXPORT` at the `kind` step; a bundle entry
+ * only marks itself `not importable`.
  */
 
 import { isPlainObject, validateExportValue, type ImportFailure } from './import-plan';
@@ -57,7 +57,6 @@ export interface ListedEntry {
 }
 
 export interface TransferListing {
-  kind: 'single' | 'bundle';
   exportedAt: string;
   entries: ListedEntry[];
   /** Validated v1 payloads by entry key, for valid entries only. */
@@ -98,35 +97,23 @@ export async function parseTransferFile(
   return await parseValue(parsed.value, opts);
 }
 
-/** Kind dispatch after the text parsed; a single file and a bundle diverge here. */
+/** Kind dispatch after the text parsed. Only a bundle is importable. */
 async function parseValue(
   value: unknown,
   opts: ParseTransferOptions
 ): Promise<TransferParseResult> {
   if (!isPlainObject(value)) return notAnExport();
-  if (value.kind === CHATROOM_EXPORT_KIND) return await parseSingle(value);
+  if (value.kind === CHATROOM_EXPORT_KIND) return singleFileRefused();
   if (value.kind === CHATROOM_EXPORT_BUNDLE_KIND) return await parseBundle(value, opts);
   return notAnExport();
 }
 
-async function parseSingle(value: Record<string, unknown>): Promise<TransferParseResult> {
-  const versionFailure = unsupportedVersion(value.formatVersion);
-  if (versionFailure) return versionFailure;
-
-  const validation = await validateExportValue(value);
-  if (!validation.ok) return validation;
-
-  const file = validation.file;
-  const entry = entryFromPayload(file, 1, file.source.chatroomId);
-  return {
-    ok: true,
-    listing: {
-      kind: 'single',
-      exportedAt: file.exportedAt,
-      entries: [entry],
-      files: new Map([[entry.key, file]]),
-    },
-  };
+/** A single-chatroom file is refused whole; its message names the machine export. */
+function singleFileRefused(): ImportFailure {
+  return failure(
+    TRANSFER_ERROR_CODES.IMPORT_NOT_AN_EXPORT,
+    'This file is a single-chatroom export, which can no longer be imported. Import a machine export (chatroom-all-<machine>-<time>.json) instead.'
+  );
 }
 
 interface BundleShape {
@@ -174,7 +161,7 @@ async function bundleListing(
 ): Promise<TransferParseResult> {
   const exportedAt = typeof value.exportedAt === 'string' ? value.exportedAt : '';
   const parsed = await parseBundleEntries(shape, exportedAt, opts);
-  return { ok: true, listing: { kind: 'bundle', exportedAt, ...parsed } };
+  return { ok: true, listing: { exportedAt, ...parsed } };
 }
 
 interface ParsedBundle {

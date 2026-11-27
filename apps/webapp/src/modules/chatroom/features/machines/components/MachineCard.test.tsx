@@ -1,5 +1,7 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { runExportBundle } from '@workspace/backend/src/domain/usecase/chatroom-transfer/export-bundle';
+import type { ChatroomExportPort } from '@workspace/backend/src/domain/usecase/chatroom-transfer/export-driver';
 import type { FunctionReference } from 'convex/server';
 import { getFunctionName } from 'convex/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -102,6 +104,68 @@ function renderExpanded(row: MachineRowModel, expandedMachineId: string | null) 
   return render(
     <MachineList rows={[row]} expandedMachineId={expandedMachineId} onToggle={() => {}} />
   );
+}
+
+const EXPORT_AT = new Date('2026-01-02T03:04:05.000Z');
+const EXPORT_STAMP = {
+  lastActivityAt: null,
+  nextQueuePosition: null,
+  latestMessage: null,
+  taskCounts: null,
+  latest: {},
+  attachmentRows: { count: 0, capped: false, totalBytes: 0 },
+};
+const EXPORT_PORT: ChatroomExportPort = {
+  getStamp: async () => EXPORT_STAMP,
+  readPage: async ({ category }) =>
+    category === 'room'
+      ? {
+          rows: [
+            {
+              id: 'room-1',
+              creationTime: 1,
+              fields: { status: 'active', name: 'Alpha', teamStructureId: 'duo' },
+            },
+          ],
+          continueCursor: null,
+          isDone: true,
+        }
+      : {
+          rows: [
+            {
+              id: 'message-1',
+              creationTime: 2,
+              fields: { senderRole: 'user', content: 'hello', type: 'message' },
+            },
+          ],
+          continueCursor: null,
+          isDone: true,
+        },
+};
+
+async function exportFile(): Promise<File> {
+  const { json } = await runExportBundle(EXPORT_PORT, {
+    chatroomIds: ['src-1'],
+    machineId: 'machine-src',
+    cliVersion: 'webapp',
+    now: () => EXPORT_AT,
+  });
+  const file = new File([json], 'chatroom-all-export.json', { type: 'application/json' });
+  Object.defineProperty(file, 'text', { value: async () => json, configurable: true });
+  return file;
+}
+
+async function openImportDialog(): Promise<void> {
+  const user = userEvent.setup();
+  await user.click(screen.getByTestId('machine-actions-trigger'));
+  await user.click(await screen.findByTestId('machine-action-import'));
+  await screen.findByTestId('import-dialog');
+}
+
+async function uploadExport(file: File): Promise<void> {
+  await act(async () => {
+    fireEvent.change(screen.getByTestId('import-file-input'), { target: { files: [file] } });
+  });
 }
 
 describe('MachineList / MachineCard', () => {
@@ -331,5 +395,84 @@ describe('MachineList / MachineCard', () => {
     releaseList([]);
 
     expect(await screen.findByText(MACHINE_EMPTY_COPY)).toBeInTheDocument();
+  });
+
+  describe('import action', () => {
+    beforeEach(() => {
+      window.localStorage.clear();
+    });
+
+    it('opens the dialog locked to an online machine', async () => {
+      renderRow(makeRow({ connected: true }));
+      await openImportDialog();
+
+      expect(screen.getByTestId('import-target')).toBeInTheDocument();
+      expect(screen.getByTestId('import-target-name').textContent).toBe('studio-mac');
+      expect(screen.getByTestId('import-target-status').textContent).toBe('Online');
+      expect(screen.queryByTestId('import-file-input')).toBeInTheDocument();
+    });
+
+    it('opens offline and keeps the notice on the File and Select steps', async () => {
+      renderRow(makeRow({ connected: false, lastSeenAt: null }));
+      await openImportDialog();
+
+      expect(screen.getByTestId('import-target-status').textContent).toBe('Offline');
+      expect(
+        screen.getByText(
+          'studio-mac is offline. The chatrooms are created now; agents cannot start until its daemon runs.'
+        )
+      ).toBeInTheDocument();
+
+      await uploadExport(await exportFile());
+
+      expect(await screen.findByTestId('import-entry-list')).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'studio-mac is offline. The chatrooms are created now; agents cannot start until its daemon runs.'
+        )
+      ).toBeInTheDocument();
+    });
+
+    it('opens while connectivity is checking and still allows import', async () => {
+      renderRow(makeRow({ connected: undefined }));
+      const user = await openActions();
+      const item = screen.getByTestId('machine-action-import');
+      expect(item).toBeEnabled();
+
+      await user.click(item);
+
+      expect(await screen.findByTestId('import-dialog')).toBeInTheDocument();
+      expect(screen.getByTestId('import-target-status').textContent).toBe('Checking…');
+    });
+
+    it('returns focus to the actions trigger on close', async () => {
+      renderRow(makeRow({ connected: true }));
+      await openImportDialog();
+
+      fireEvent.click(screen.getAllByRole('button', { name: 'Close' })[0]!);
+
+      await waitFor(() => expect(screen.getByTestId('machine-actions-trigger')).toHaveFocus());
+    });
+
+    it('opens from a collapsed card and survives expanding and collapsing the body', async () => {
+      const row = makeRow({ connected: true });
+      const { rerender } = renderExpanded(row, null);
+
+      await openImportDialog();
+
+      rerender(<MachineList rows={[row]} expandedMachineId="machine-1" onToggle={() => {}} />);
+      expect(screen.getByTestId('import-dialog')).toBeInTheDocument();
+
+      rerender(<MachineList rows={[row]} expandedMachineId={null} onToggle={() => {}} />);
+      expect(screen.getByTestId('import-dialog')).toBeInTheDocument();
+    });
+
+    it('renders no machine radio in the card dialog', async () => {
+      renderRow(makeRow({ connected: true }));
+      await openImportDialog();
+
+      expect(screen.queryAllByTestId('import-machine')).toHaveLength(0);
+      expect(screen.queryByRole('radio')).toBeNull();
+    });
   });
 });

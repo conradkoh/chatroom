@@ -647,7 +647,7 @@ export const BACKEND_ERROR_CODES = {
   // ── Chatroom transfer (export / import) ─────────────────────────────
   /** An export page returned no rows but reported more work */
   EXPORT_PAGE_STALLED: 'EXPORT_PAGE_STALLED',
-  /** `chatroom export --all`: the machine has more active workspaces than the scan cap */
+  /** `chatroom export`: the machine has more active workspaces than the scan cap */
   EXPORT_MACHINE_TOO_LARGE: 'EXPORT_MACHINE_TOO_LARGE',
   /** The export names a team structure this deployment does not know */
   IMPORT_UNKNOWN_TEAM_STRUCTURE: 'IMPORT_UNKNOWN_TEAM_STRUCTURE',

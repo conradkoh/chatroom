@@ -114,7 +114,6 @@ async function fixture(count: number): Promise<Fixture> {
   }
   return {
     listing: {
-      kind: 'bundle',
       exportedAt: NOW,
       entries: files.map(entryOf),
       files: new Map(files.map((file) => [file.source.chatroomId, file])),

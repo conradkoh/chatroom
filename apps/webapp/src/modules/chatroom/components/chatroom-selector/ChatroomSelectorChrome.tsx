@@ -7,7 +7,6 @@ import { AppSectionTabs } from '../AppSectionTabs';
 import { ChatroomCard } from './ChatroomCard';
 import type { TabType, ViewMode } from './chatroomSelectorModel';
 import type { ChatroomWithStatus } from '../../context/ChatroomListingContext';
-import { ImportChatroomsButton } from '../../features/transfer/components/ImportChatroomsButton';
 
 /** Page header with the section strip, the title and the "+ New" action. */
 export function ChatroomSelectorHeader({ onCreate }: { onCreate: () => void }) {
@@ -19,15 +18,12 @@ export function ChatroomSelectorHeader({ onCreate }: { onCreate: () => void }) {
           <h1 className="text-lg font-bold uppercase tracking-widest mb-2">Chatrooms</h1>
           <p className="text-chatroom-text-muted text-sm">Select a chatroom or create a new one</p>
         </div>
-        <div className="flex items-center gap-2">
-          <ImportChatroomsButton variant="header" />
-          <button
-            className="bg-chatroom-accent text-chatroom-bg-primary px-4 py-2 font-bold text-xs uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary"
-            onClick={onCreate}
-          >
-            + New
-          </button>
-        </div>
+        <button
+          className="bg-chatroom-accent text-chatroom-bg-primary px-4 py-2 font-bold text-xs uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary"
+          onClick={onCreate}
+        >
+          + New
+        </button>
       </div>
     </>
   );

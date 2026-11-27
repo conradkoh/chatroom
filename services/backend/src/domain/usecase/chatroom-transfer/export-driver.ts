@@ -1,5 +1,8 @@
 /**
- * Chatroom export — driver.
+ * Chatroom export — per-chatroom builder.
+ *
+ * `runExportBundle` (export-bundle.ts) calls it once per chatroom and is the only
+ * caller; it is not a user-facing entry point.
  *
  * Orchestrates a consistent snapshot over `ChatroomExportPort`:
  *
@@ -32,7 +35,7 @@ import {
 } from '../../entities/chatroom-transfer-file';
 
 /** Every category, in dependency order (the room row anchors the rest). */
-export const EXPORT_CATEGORY_ORDER: readonly ExportCategory[] = [
+const EXPORT_CATEGORY_ORDER: readonly ExportCategory[] = [
   'room',
   'workspaces',
   'agentConfigs',
@@ -61,7 +64,6 @@ export interface RunExportArgs {
   chatroomId: string;
   cliVersion: string;
   now: () => Date;
-  onProgress?: (category: ExportCategory, rows: number) => void;
   /** Test seam: 256 MiB is impractical in tests, production uses the default. */
   limits?: { maxFileBytes?: number };
 }
@@ -74,7 +76,7 @@ export async function runExport(
 
   const stamp0 = await port.getStamp(args.chatroomId);
 
-  const raw = await readCategories(port, args, maxFileBytes);
+  const raw = await readCategories(port, args.chatroomId, maxFileBytes);
   await assertUnchanged(port, args.chatroomId, raw, stamp0);
 
   const file = await buildExportFile({
@@ -87,19 +89,16 @@ export async function runExport(
   return { file, json: serializeWithinLimit(file, maxFileBytes) };
 }
 
-/** Step 2: page every category, fail early on size, and report progress. */
+/** Step 2: page every category and fail early on size. */
 async function readCategories(
   port: ChatroomExportPort,
-  args: RunExportArgs,
+  chatroomId: string,
   maxFileBytes: number
 ): Promise<Record<ExportCategory, ExportRawRow[]>> {
   const raw = emptyRaw();
   const budget = { bytes: 0, max: maxFileBytes };
   for (const category of EXPORT_CATEGORY_ORDER) {
-    raw[category] = await readAll(port, args.chatroomId, category, (row) =>
-      countBytes(budget, row)
-    );
-    args.onProgress?.(category, raw[category].length);
+    raw[category] = await readAll(port, chatroomId, category, (row) => countBytes(budget, row));
   }
   return raw;
 }

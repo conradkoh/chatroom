@@ -12,20 +12,6 @@ import { useTransferImport, type ImportViewState } from './useTransferImport';
 const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   mutation: vi.fn(),
-  machines: [
-    {
-      machine: {
-        machineId: 'machine-1',
-        hostname: 'host-1',
-        os: 'darwin',
-        registeredAt: 1,
-      },
-      displayName: 'MacBook Pro',
-      connected: true,
-      lastSeenAt: null,
-      usage: undefined,
-    },
-  ],
 }));
 
 vi.mock('convex/react', () => ({
@@ -46,10 +32,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       rollback: { name: 'rollback' },
     },
   },
-}));
-
-vi.mock('@/modules/chatroom/features/machines/hooks/useMachineRows', () => ({
-  useMachineRows: () => ({ rows: mocks.machines, isLoading: false }),
 }));
 
 const AT = new Date('2026-01-02T03:04:05.000Z');
@@ -194,7 +176,7 @@ afterEach(() => {
 
 describe('useTransferImport', () => {
   it('imports a file exported by runExport through the real engine', async () => {
-    const { result } = renderHook(() => useTransferImport());
+    const { result } = renderHook(() => useTransferImport('machine-1'));
     const json = await bundleJson();
 
     await act(async () => {
@@ -205,11 +187,9 @@ describe('useTransferImport', () => {
     expect(listed.listing.entries).toHaveLength(2);
     expect(listed.listing.entries.map((entry) => entry.name)).toEqual(['Alpha', 'Beta']);
     expect(listed.selected.size).toBe(0);
-    expect(listed.machineId).toBeNull();
-    expect(result.current.machines).toHaveLength(1);
+    expect(listed.machineId).toBe('machine-1');
 
     act(() => result.current.selectAll());
-    act(() => result.current.chooseMachine('machine-1'));
     expect(listedState(result.current.state).selected.size).toBe(2);
 
     act(() => result.current.start());
@@ -223,10 +203,20 @@ describe('useTransferImport', () => {
     expect(done.importedKeys).toEqual(new Set(['src-1', 'src-2']));
     expect(beginCount).toBe(2);
     expect(mocks.mutation.mock.calls.filter(([ref]) => ref.name === 'finalize')).toHaveLength(2);
+    expect(
+      mocks.mutation.mock.calls
+        .filter(([ref]) => ref.name === 'begin')
+        .every(([, args]) => (args as { machineId?: string }).machineId === 'machine-1')
+    ).toBe(true);
+    expect(
+      mocks.query.mock.calls.some(
+        ([, args]) => (args as { machineId?: string })?.machineId === 'machine-1'
+      )
+    ).toBe(true);
   });
 
   it('refuses an oversize file before reading it', async () => {
-    const { result } = renderHook(() => useTransferImport());
+    const { result } = renderHook(() => useTransferImport('machine-1'));
     const file = new File(['{}'], 'big.json', { type: 'application/json' });
     Object.defineProperty(file, 'size', { value: 268_435_457 });
     const text = vi.fn();
@@ -246,7 +236,7 @@ describe('useTransferImport', () => {
   });
 
   it('rejects text that is not an export and unreadable text', async () => {
-    const { result } = renderHook(() => useTransferImport());
+    const { result } = renderHook(() => useTransferImport('machine-1'));
 
     await act(async () => {
       await result.current.loadFile(fileFrom('not json'));
@@ -263,7 +253,7 @@ describe('useTransferImport', () => {
   });
 
   it('drops a parse result that arrives after reset', async () => {
-    const { result } = renderHook(() => useTransferImport());
+    const { result } = renderHook(() => useTransferImport('machine-1'));
     const json = await bundleJson();
     let release: (value: string) => void = () => {};
     const pending = new Promise<string>((resolve) => {
@@ -305,12 +295,11 @@ describe('useTransferImport', () => {
       }
     );
 
-    const { result } = renderHook(() => useTransferImport());
+    const { result } = renderHook(() => useTransferImport('machine-1'));
     await act(async () => {
       await result.current.loadFile(fileFrom(await bundleJson()));
     });
     act(() => result.current.selectAll());
-    act(() => result.current.chooseMachine('machine-1'));
     act(() => result.current.start());
     await waitFor(() => expect(listedOrImporting(result.current.state)).toBe('importing'));
 
@@ -338,6 +327,57 @@ describe('useTransferImport', () => {
     expect(mocks.mutation.mock.calls.filter(([ref]) => ref.name === 'finalize')).toHaveLength(0);
   });
 
+  it('unmounting mid-run aborts the run, rolls the room back, and warns nothing', async () => {
+    let releaseChunk: () => void = () => {};
+    const chunkGate = new Promise<void>((resolve) => {
+      releaseChunk = resolve;
+    });
+    mocks.mutation.mockImplementation(
+      async (ref: { name?: string }, args: { chunk?: ImportChunk }) => {
+        if (ref.name === 'begin') return { chatroomId: 'new-room-1' };
+        if (ref.name === 'applyChunk' && args.chunk) {
+          await chunkGate;
+          return chunkResult(args.chunk);
+        }
+        if (ref.name === 'finalize') return null;
+        if (ref.name === 'rollback') return { drained: true, deleted: 1 };
+        throw new Error(`Unexpected mutation: ${ref.name}`);
+      }
+    );
+
+    const { result, unmount } = renderHook(() => useTransferImport('machine-1'));
+    await act(async () => {
+      await result.current.loadFile(fileFrom(await bundleJson()));
+    });
+    act(() => result.current.selectAll());
+    act(() => result.current.start());
+    await waitFor(() => expect(result.current.state.kind).toBe('importing'));
+
+    // Spy from here on: earlier mounted updates are not under test.
+    const consoleError = vi.spyOn(console, 'error');
+    const consoleWarn = vi.spyOn(console, 'warn');
+    try {
+      unmount();
+      await act(async () => {
+        releaseChunk();
+      });
+
+      // Rollback is reached only through the unmount abort: the gated chunk resumes, the
+      // engine sees the aborted signal, and it rolls the room back instead of finalizing it.
+      await waitFor(() =>
+        expect(
+          mocks.mutation.mock.calls.filter(([ref]) => ref.name === 'rollback')
+        ).not.toHaveLength(0)
+      );
+      expect(mocks.mutation.mock.calls.filter(([ref]) => ref.name === 'finalize')).toHaveLength(0);
+      expect(consoleError).not.toHaveBeenCalled();
+      expect(consoleWarn).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+      consoleWarn.mockRestore();
+    }
+  });
+
   it('retry re-selects only the entries that failed or never started', async () => {
     installConvex({
       preflight: () => {
@@ -352,12 +392,11 @@ describe('useTransferImport', () => {
       throw { data: { code: 'IMPORT_UNKNOWN_TEAM_STRUCTURE', message: 'team is not known' } };
     });
 
-    const { result } = renderHook(() => useTransferImport());
+    const { result } = renderHook(() => useTransferImport('machine-1'));
     await act(async () => {
       await result.current.loadFile(fileFrom(await bundleJson()));
     });
     act(() => result.current.selectAll());
-    act(() => result.current.chooseMachine('machine-1'));
     act(() => result.current.start());
     await waitFor(() => expect(result.current.state.kind).toBe('done'));
 
@@ -379,12 +418,11 @@ describe('useTransferImport', () => {
       },
     });
 
-    const { result } = renderHook(() => useTransferImport());
+    const { result } = renderHook(() => useTransferImport('machine-1'));
     await act(async () => {
       await result.current.loadFile(fileFrom(await bundleJson()));
     });
     act(() => result.current.selectAll());
-    act(() => result.current.chooseMachine('machine-1'));
     act(() => result.current.start());
     await waitFor(() => expect(result.current.state.kind).toBe('done'));
 
@@ -398,7 +436,7 @@ describe('useTransferImport', () => {
   });
 
   it('toggles an imported key as unselectable after a retry', async () => {
-    const { result } = renderHook(() => useTransferImport());
+    const { result } = renderHook(() => useTransferImport('machine-1'));
     await act(async () => {
       await result.current.loadFile(fileFrom(await bundleJson()));
     });

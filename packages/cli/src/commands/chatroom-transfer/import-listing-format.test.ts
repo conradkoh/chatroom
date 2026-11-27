@@ -30,9 +30,8 @@ function entry(overrides: Partial<ListedEntry> = {}): ListedEntry {
   };
 }
 
-function listing(kind: 'single' | 'bundle', entries: ListedEntry[]): TransferListing {
+function listing(entries: ListedEntry[]): TransferListing {
   return {
-    kind,
     exportedAt: '2026-05-01T10:00:00.000Z',
     entries,
     files: new Map(),
@@ -55,9 +54,7 @@ describe('parseSelectTokens', () => {
 
 describe('formatListing', () => {
   it('prints a bundle header and one numbered block per chatroom', () => {
-    const lines = formatListing(
-      listing('bundle', [entry(), entry({ key: 'room-b', position: 2 })])
-    );
+    const lines = formatListing(listing([entry(), entry({ key: 'room-b', position: 2 })]));
 
     expect(lines[0]).toBe('Bundle exported 2026-05-01T10:00:00.000Z: 2 chatroom(s)');
     expect(lines).toContain('[1] Room A');
@@ -67,15 +64,9 @@ describe('formatListing', () => {
     expect(lines).toContain('  3 messages · 1 tasks · 2 backlog · 1 working dir(s)');
   });
 
-  it('prints the single-file header', () => {
-    const lines = formatListing(listing('single', [entry()]));
-
-    expect(lines[0]).toBe('Export of chatroom room-a exported 2026-05-01T10:00:00.000Z');
-  });
-
   it('falls back to Untitled chatroom and shows omitted attachments', () => {
     const lines = formatListing(
-      listing('single', [entry({ name: null, omittedAttachments: { count: 2, bytes: 2048 } })])
+      listing([entry({ name: null, omittedAttachments: { count: 2, bytes: 2048 } })])
     );
 
     expect(lines).toContain('[1] Untitled chatroom');
@@ -84,7 +75,7 @@ describe('formatListing', () => {
 
   it('marks an invalid entry not importable with its code and message', () => {
     const lines = formatListing(
-      listing('bundle', [
+      listing([
         entry({
           counts: null,
           workingDirCount: null,

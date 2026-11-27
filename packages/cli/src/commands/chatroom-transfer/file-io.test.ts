@@ -12,10 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { ChatroomTransferError } from '@workspace/backend/src/domain/entities/chatroom-transfer-file';
-import {
-  bundleFileName,
-  exportFileName,
-} from '@workspace/backend/src/domain/entities/chatroom-transfer-file-name';
+import { bundleFileName } from '@workspace/backend/src/domain/entities/chatroom-transfer-file-name';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { ChatroomTransferFs } from './deps.js';
@@ -99,14 +96,6 @@ class FakeChatroomTransferFs implements ChatroomTransferFs {
 function tempNames(fs: FakeChatroomTransferFs): string[] {
   return [...fs.files.keys()].filter((path) => path.endsWith('.tmp'));
 }
-
-describe('exportFileName', () => {
-  it('formats the UTC timestamp without colons', () => {
-    expect(exportFileName('abc', new Date('2026-11-25T13:04:05Z'))).toBe(
-      'chatroom-abc-20261125T130405Z.json'
-    );
-  });
-});
 
 describe('bundleFileName', () => {
   it('names the one-file bundle after the machine and the UTC instant', () => {

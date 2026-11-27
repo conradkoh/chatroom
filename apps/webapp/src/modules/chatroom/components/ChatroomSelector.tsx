@@ -8,7 +8,6 @@ import { AppSectionTabs } from './AppSectionTabs';
 import { ChatroomBrowser } from './chatroom-selector/ChatroomBrowser';
 import type { ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { NewChatroomWizard } from '../features/new-chatroom/NewChatroomWizard';
-import { ImportChatroomsButton } from '../features/transfer/components/ImportChatroomsButton';
 import { useChatroomListingStatuses } from '../hooks/useChatroomListingStatuses';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
@@ -52,7 +51,6 @@ function ChatroomEmptyState({ onCreate }: { onCreate: () => void }) {
         >
           Create New Chatroom
         </button>
-        <ImportChatroomsButton variant="empty" />
       </div>
     </div>
   );

@@ -15,9 +15,6 @@ import { getChatroomDisplayName } from '../../viewModels/chatroomViewModel';
 import { createChatroomSelectKeyDown } from '../chatroom-select-keydown';
 import { LifecycleConfirmDialog } from '../LifecycleConfirmDialog';
 
-import { ExportFeedback } from '@/modules/chatroom/features/transfer/components/ExportFeedback';
-import { useChatroomExportAction } from '@/modules/chatroom/features/transfer/hooks/useChatroomExportAction';
-
 export interface ChatroomCardProps {
   chatroom: ChatroomWithStatus;
   onSelect: (chatroomId: string) => void;
@@ -40,8 +37,6 @@ export const ChatroomCard = memo(function ChatroomCard({
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const toggleFavorite = useSessionMutation(api.chatrooms.toggleFavorite);
   const { activityStatus, state } = useCardStatus(chatroom._id);
-  const exportAction = useChatroomExportAction(chatroom._id, chatroom.name ?? null);
-  const { start: startExport } = exportAction;
 
   const handleToggleFavorite = useCallback(
     async (e: React.MouseEvent) => {
@@ -61,14 +56,6 @@ export const ChatroomCard = memo(function ChatroomCard({
     e.stopPropagation(); // Prevent card click
     setArchiveDialogOpen(true);
   }, []);
-
-  const handleExport = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation(); // Prevent card click
-      startExport();
-    },
-    [startExport]
-  );
 
   if (!isChatroomShownInTab(chatroom, state, activeTab)) {
     return null;
@@ -100,25 +87,13 @@ export const ChatroomCard = memo(function ChatroomCard({
               />
               <ChatroomActionsMenu
                 canArchive={state !== 'completed'}
-                exporting={exportAction.exporting}
                 triggerHoverClassName="hover:bg-chatroom-bg-hover"
-                onExport={handleExport}
                 onArchive={handleArchive}
               />
             </div>
           </div>
         </div>
       </div>
-
-      <ExportFeedback
-        exporting={exportAction.exporting}
-        label={exportAction.label}
-        feedback={exportAction.feedback}
-        onDismiss={exportAction.dismiss}
-        onRetry={exportAction.retryable ? exportAction.start : undefined}
-        className="mt-1"
-        data-testid="chatroom-export-feedback"
-      />
 
       <LifecycleConfirmDialog
         open={archiveDialogOpen}

@@ -13,6 +13,7 @@ import { MachineHarnessChips } from './MachineHarnessChips';
 import { MachineProjectRoots } from './MachineProjectRoots';
 import { MachineRepositories } from './MachineRepositories';
 import { formatTimestampFull } from '../../../utils/chatroomTimestamp';
+import { ImportDialog } from '../../transfer/components/ImportDialog';
 import { useMachineExportAction } from '../../transfer/hooks/useMachineExportAction';
 import type { MachineRowModel } from '../hooks/useMachineRows';
 import {
@@ -27,7 +28,11 @@ import { useMachineProjectRoots } from '@/hooks/useMachineProjectRoots';
 import type { MachineUsage } from '@/hooks/useMachineUsage';
 import { cn } from '@/lib/utils';
 
-/** Connectivity dot: success (online), muted (offline), pulsing (checking). */
+/**
+ * Connectivity dot: success (online), muted (offline), pulsing (checking).
+ * Mirrors the strip dot in `transfer/components/import/ImportTargetMachine.tsx`. The sizes
+ * differ on purpose, so keep only the colour mapping in step.
+ */
 function MachineStatusDot({ connected }: { connected: boolean | undefined }) {
   const color =
     connected === undefined
@@ -41,6 +46,7 @@ function MachineStatusDot({ connected }: { connected: boolean | undefined }) {
   );
 }
 
+// Mirrors the import target strip's status text in ImportTargetMachine.tsx. Change both together.
 function statusLabel(connected: boolean | undefined): string {
   if (connected === undefined) return 'Checking…';
   return connected ? 'Online' : 'Offline';
@@ -285,6 +291,7 @@ export function MachineCard({
 }) {
   const { machine } = row;
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [renameSignal, setRenameSignal] = useState(0);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const bodyId = useId();
@@ -295,6 +302,7 @@ export function MachineCard({
       buildMachineActions({
         onRename: () => setRenameSignal((n) => n + 1),
         onExport: exportAction.start,
+        onImport: () => setImportOpen(true),
         onDelete: () => setDeleteOpen(true),
       }),
     [exportAction.start]
@@ -326,6 +334,18 @@ export function MachineCard({
         usage={row.usage}
         finalFocusRef={menuTriggerRef}
       />
+      {importOpen && (
+        <ImportDialog
+          target={{
+            machineId: machine.machineId,
+            displayName: row.displayName,
+            hostname: machine.hostname,
+            connected: row.connected,
+          }}
+          onClose={() => setImportOpen(false)}
+          finalFocusRef={menuTriggerRef}
+        />
+      )}
     </li>
   );
 }

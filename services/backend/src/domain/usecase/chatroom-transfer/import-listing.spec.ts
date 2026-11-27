@@ -7,9 +7,10 @@
  * tests never compute an expected checksum themselves: they tamper with one
  * field and assert the pairing/checksum rules catch it.
  *
- * This seam proves the fixed refusal order, that a single file is refused whole
- * while a bundle entry only marks itself `not importable`, and the selection
- * token rules. It does not render CLI output.
+ * This seam proves the fixed refusal order, that a single-chatroom file is
+ * refused whole as `IMPORT_NOT_AN_EXPORT`, that a bundle entry only marks itself
+ * `not importable`, and the selection token rules. It does not render CLI
+ * output.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -146,32 +147,7 @@ async function listingOf(json: string): Promise<TransferListing> {
 // Whole-file refusals
 // ---------------------------------------------------------------------------
 
-describe('parseTransferFile — single v1 file', () => {
-  it('lists the one chatroom with its payload and details', async () => {
-    const result = await parseTransferFile(await singleFile('Room A'));
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.listing.kind).toBe('single');
-    expect(result.listing.exportedAt).toBe(NOW);
-    expect(result.listing.entries).toEqual([
-      {
-        key: 'roomA',
-        position: 1,
-        name: 'Room A',
-        sourceChatroomId: 'roomA',
-        teamStructureId: 'trio@1',
-        status: 'active',
-        exportedAt: NOW,
-        counts: { messages: 1, tasks: 0, backlog: 0 },
-        workingDirCount: 1,
-        omittedAttachments: { count: 0, bytes: 0 },
-        validity: { ok: true },
-      },
-    ]);
-    expect(result.listing.files.get('roomA')?.source.chatroomId).toBe('roomA');
-  });
-
+describe('parseTransferFile — whole-file refusals', () => {
   it('refuses invalid JSON with IMPORT_FILE_UNREADABLE first', async () => {
     expect(await parseTransferFile('{')).toMatchObject({
       ok: false,
@@ -184,25 +160,28 @@ describe('parseTransferFile — single v1 file', () => {
     expect(await parseTransferFile('{"formatVersion":1,"kind":"something-else"}')).toMatchObject({
       ok: false,
       code: TRANSFER_ERROR_CODES.IMPORT_NOT_AN_EXPORT,
+      message: 'This file is not a chatroom export.',
     });
   });
 
-  it('refuses a bad version with IMPORT_UNSUPPORTED_VERSION', async () => {
+  it('refuses a valid single-chatroom file as no longer importable, naming the machine export', async () => {
+    expect(await parseTransferFile(await singleFile('Room A'))).toEqual({
+      ok: false,
+      code: TRANSFER_ERROR_CODES.IMPORT_NOT_AN_EXPORT,
+      message:
+        'This file is a single-chatroom export, which can no longer be imported. Import a machine export (chatroom-all-<machine>-<time>.json) instead.',
+      details: [],
+    });
+  });
+
+  it('checks the kind before the version, so a single file with a bad version is still IMPORT_NOT_AN_EXPORT', async () => {
     const v2 = rewrite(await singleFile(), (file) => {
       (file as unknown as { formatVersion: number }).formatVersion = 2;
     });
 
     expect(await parseTransferFile(v2)).toMatchObject({
       ok: false,
-      code: TRANSFER_ERROR_CODES.IMPORT_UNSUPPORTED_VERSION,
-      message: 'This export file has format version 2; this app reads version 1.',
-    });
-  });
-
-  it('refuses a single file whose checksum does not match, rather than listing it', async () => {
-    expect(await parseTransferFile(tamperChecksum(await singleFile()))).toMatchObject({
-      ok: false,
-      code: TRANSFER_ERROR_CODES.IMPORT_CHECKSUM_MISMATCH,
+      code: TRANSFER_ERROR_CODES.IMPORT_NOT_AN_EXPORT,
     });
   });
 });
@@ -215,7 +194,6 @@ describe('parseTransferFile — bundle', () => {
   it('lists every chatroom in index order with its counts and names', async () => {
     const listing = await listingOf(await bundleFile());
 
-    expect(listing.kind).toBe('bundle');
     expect(listing.exportedAt).toBe(NOW);
     expect(listing.entries.map((entry) => entry.key)).toEqual(['roomA', 'roomB']);
     expect(listing.entries.map((entry) => entry.position)).toEqual([1, 2]);
@@ -243,6 +221,35 @@ describe('parseTransferFile — bundle', () => {
       code: TRANSFER_ERROR_CODES.IMPORT_CHECKSUM_MISMATCH,
       message: 'The bundle index does not match its checksum; the file changed after export.',
     });
+  });
+
+  it('refuses a bundle with a bad version with IMPORT_UNSUPPORTED_VERSION', async () => {
+    const v2 = rewrite(await bundleFile(), (bundle) => {
+      (bundle as unknown as { formatVersion: number }).formatVersion = 2;
+    });
+
+    expect(await parseTransferFile(v2)).toMatchObject({
+      ok: false,
+      code: TRANSFER_ERROR_CODES.IMPORT_UNSUPPORTED_VERSION,
+      message: 'This export file has format version 2; this app reads version 1.',
+    });
+  });
+
+  it('lists a one-entry bundle and selects it like any other bundle', async () => {
+    const { json } = await runExportBundle(
+      portFor({ roomA: rawRows('roomA', 'Room A', ['hello']) }),
+      {
+        chatroomIds: ['roomA'],
+        machineId: 'machine-1',
+        cliVersion: 'test',
+        now: () => new Date(NOW),
+      }
+    );
+    const listing = await listingOf(json);
+
+    expect(listing.entries.map((entry) => entry.key)).toEqual(['roomA']);
+    expect(selectEntries(listing, 'all')).toEqual({ ok: true, keys: ['roomA'] });
+    expect(selectEntries(listing, ['1'])).toEqual({ ok: true, keys: ['roomA'] });
   });
 
   it('refuses a bundle whose index and chatrooms have different lengths', async () => {

@@ -2,8 +2,9 @@
  * Chatroom import — the dialog's state machine.
  *
  * The file is read and validated in the browser and is never uploaded. Once a
- * selection and a target machine exist, `runSelectedImports` writes one chunk at
- * a time through `chatroomImport.*`; this hook only tracks what the dialog shows.
+ * selection exists, `runSelectedImports` writes one chunk at a time through
+ * `chatroomImport.*` into the machine the caller fixed; this hook only tracks
+ * what the dialog shows.
  *
  * Cancelling aborts the engine's signal and then waits for the run to settle, so
  * the rollback of the chatroom in progress finishes before the results appear.
@@ -41,11 +42,6 @@ import {
 } from '../lib/inflightImport';
 import { transferFailureOf } from '../lib/transferFailure';
 
-import {
-  useMachineRows,
-  type MachineRowModel,
-} from '@/modules/chatroom/features/machines/hooks/useMachineRows';
-
 export type ImportViewState =
   | { kind: 'idle' }
   | { kind: 'reading'; fileName: string; progress: { done: number; total: number } | null }
@@ -55,7 +51,7 @@ export type ImportViewState =
       fileName: string;
       listing: TransferListing;
       selected: ReadonlySet<string>;
-      machineId: string | null;
+      machineId: string;
       /** Keys imported in an earlier run of this file. Never selectable again. */
       importedKeys: ReadonlySet<string>;
     }
@@ -84,13 +80,10 @@ type ImportingState = Extract<ImportViewState, { kind: 'importing' }>;
 
 export interface UseTransferImportResult {
   state: ImportViewState;
-  machines: MachineRowModel[];
-  machinesLoading: boolean;
   loadFile(file: File): Promise<void>;
   toggle(key: string): void;
   selectAll(): void;
   clear(): void;
-  chooseMachine(machineId: string): void;
   start(): void;
   cancel(): Promise<void>;
   retryRemaining(): void;
@@ -98,15 +91,15 @@ export interface UseTransferImportResult {
 }
 
 // fallow-ignore-next-line complexity
-export function useTransferImport(): UseTransferImportResult {
+export function useTransferImport(machineId: string): UseTransferImportResult {
   const convex = useConvex();
   const [sessionId] = useSessionId();
-  const { rows: machines, isLoading: machinesLoading } = useMachineRows();
   const [state, setState] = useState<ImportViewState>({ kind: 'idle' });
   const readTokenRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const runPromiseRef = useRef<Promise<void> | null>(null);
 
+  // prettier-ignore
   // fallow-ignore-next-line complexity
   const loadFile = useCallback(async (file: File) => {
     const token = bumpToken(readTokenRef);
@@ -151,10 +144,10 @@ export function useTransferImport(): UseTransferImportResult {
       fileName: file.name,
       listing: parsed.listing,
       selected: new Set(),
-      machineId: null,
+      machineId,
       importedKeys: new Set(),
     });
-  }, []);
+  }, [machineId]);
 
   const reset = useCallback(() => {
     bumpToken(readTokenRef);
@@ -173,15 +166,11 @@ export function useTransferImport(): UseTransferImportResult {
     setState((prev) => (prev.kind === 'listed' ? { ...prev, selected: new Set<string>() } : prev));
   }, []);
 
-  const chooseMachine = useCallback((machineId: string) => {
-    setState((prev) => (prev.kind === 'listed' ? { ...prev, machineId } : prev));
-  }, []);
-
   // fallow-ignore-next-line complexity
   const start = useCallback(() => {
     if (state.kind !== 'listed') return;
     const { fileName, listing, selected, machineId, importedKeys } = state;
-    if (machineId === null || selected.size === 0 || sessionId === undefined) return;
+    if (selected.size === 0 || sessionId === undefined) return;
 
     const keys = listing.entries.map((entry) => entry.key).filter((key) => selected.has(key));
     const controller = new AbortController();
@@ -243,13 +232,10 @@ export function useTransferImport(): UseTransferImportResult {
 
   return {
     state,
-    machines,
-    machinesLoading,
     loadFile,
     toggle,
     selectAll,
     clear,
-    chooseMachine,
     start,
     cancel,
     retryRemaining,

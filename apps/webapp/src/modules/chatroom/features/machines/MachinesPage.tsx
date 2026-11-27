@@ -11,6 +11,7 @@ import {
 import { useMachineRows } from './hooks/useMachineRows';
 import { AppSectionTabs } from '../../components/AppSectionTabs';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
+import { InterruptedImportNotice } from '../transfer/components/InterruptedImportNotice';
 
 /**
  * Machines page shell.
@@ -31,6 +32,7 @@ export function MachinesPage() {
           Computers running the daemon for your account
         </p>
       </div>
+      <InterruptedImportNotice className="mx-0 mt-0 mb-4" />
       <ErrorBoundary fallback={<MachinesLoadError />}>
         <MachinesContent />
       </ErrorBoundary>

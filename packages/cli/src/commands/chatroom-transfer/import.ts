@@ -1,15 +1,14 @@
 /**
- * `chatroom import` — list an export file offline, choose chatrooms, import each.
+ * `chatroom import` — list a machine export bundle offline, choose chatrooms, import each.
  *
  * The file is read and validated before any login, Convex call or machine
- * lookup: listing a bundle needs none of them (D5). Once keys are chosen, each
- * selected chatroom is imported independently by `runSelectedImports`, which
- * keeps `runImport` as the per-chatroom engine.
+ * lookup: listing a bundle needs none of them (D5). A single-chatroom file is
+ * refused there as `IMPORT_NOT_AN_EXPORT`. Once keys are chosen, each selected
+ * chatroom is imported independently by `runSelectedImports`, which keeps
+ * `runImport` as the per-chatroom engine.
  *
- * Output keeps today's single-file shape (`Imported as new chatroom <id>`, the
- * plan lines, `no agents were started`). A bundle adds the selection listing,
- * one block per entry, and one summary line:
- * `Imported X of Y selected; Failed: Z`.
+ * Output: the bundle listing, one `Importing i of N` line and one block per
+ * entry, then the summary line `Imported X of Y selected; Failed: Z`.
  */
 
 import { resolve } from 'node:path';
@@ -17,7 +16,6 @@ import { resolve } from 'node:path';
 import {
   ChatroomTransferError,
   TRANSFER_ERROR_CODES,
-  type TransferErrorCode,
 } from '@workspace/backend/src/domain/entities/chatroom-transfer-file';
 import type { ChatroomImportPort } from '@workspace/backend/src/domain/usecase/chatroom-transfer/import-driver';
 import {
@@ -109,8 +107,8 @@ export async function importChatroom(
   if (plan === null) return;
 
   const summary = await runPlan(plan, opts, deps, runtime);
-  reportSummary(summary, opts, listing, plan.keys.length, deps);
-  if (isRunFailure(summary)) throw summaryFailure(summary, listing, plan.keys.length);
+  reportSummary(summary, opts, plan.keys.length, deps);
+  if (isRunFailure(summary)) throw bundleFailure(summary, plan.keys.length);
 }
 
 /** Reads and prints the listing; `null` means `--list` asked to stop. */
@@ -119,7 +117,7 @@ async function readAndList(
   deps: ChatroomTransferDeps
 ): Promise<TransferListing | null> {
   const listing = await readListing(deps, opts.path);
-  if (listing.kind === 'bundle' || opts.list === true) printListing(deps, listing);
+  printListing(deps, listing);
   return opts.list === true ? null : listing;
 }
 
@@ -237,8 +235,6 @@ async function chooseKeys(
   listing: TransferListing,
   deps: ChatroomTransferDeps
 ): Promise<string[] | null> {
-  if (listing.kind === 'single') return [singleKey(listing)];
-
   const tokens =
     opts.select === undefined ? await askForSelection(deps) : parseSelectTokens(opts.select);
   if (tokens === null) return null;
@@ -261,17 +257,6 @@ async function askForSelection(
   if (answer.trim() !== '') return parseSelectTokens(answer);
   deps.out('Nothing selected; nothing was imported.');
   return null;
-}
-
-function singleKey(listing: TransferListing): string {
-  const key = listing.entries[0]?.key;
-  if (key === undefined) {
-    throw new ChatroomTransferError(
-      TRANSFER_ERROR_CODES.IMPORT_FILE_UNREADABLE,
-      'The file is not a readable chatroom export.'
-    );
-  }
-  return key;
 }
 
 async function resolveSelection(
@@ -326,7 +311,6 @@ function reportStarted(
   deps: ChatroomTransferDeps,
   listing: TransferListing
 ): void {
-  if (listing.kind !== 'bundle') return;
   deps.out(`Importing ${event.index} of ${event.total}: ${entryLabel(listing, event.key)}`);
 }
 
@@ -370,13 +354,12 @@ function reportFailed(
 function reportSummary(
   summary: SelectedImportSummary,
   opts: ImportOptions,
-  listing: TransferListing,
   selected: number,
   deps: ChatroomTransferDeps
 ): void {
   reportDryRun(summary, opts, deps);
   if (summary.imported > 0) deps.out('no agents were started');
-  if (listing.kind === 'bundle') reportBundleSummary(summary, selected, deps);
+  reportBundleSummary(summary, selected, deps);
 }
 
 function reportDryRun(
@@ -401,61 +384,6 @@ function reportBundleSummary(
 }
 
 /** Builds the refusal the wrapper renders; the run's own lines are already printed. */
-function summaryFailure(
-  summary: SelectedImportSummary,
-  listing: TransferListing,
-  selected: number
-): ChatroomTransferError {
-  if (listing.kind === 'single') return singleFailure(summary);
-  return bundleFailure(summary, selected);
-}
-
-function singleFailure(summary: SelectedImportSummary): ChatroomTransferError {
-  const failed = summary.results.find(
-    (result): result is Extract<EntryImportResult, { status: 'failed' }> =>
-      result.status === 'failed'
-  );
-  if (failed === undefined) return cancelledError();
-  return failedError(failed);
-}
-
-function failedError(
-  failed: Extract<EntryImportResult, { status: 'failed' }>
-): ChatroomTransferError {
-  if (failed.code === TRANSFER_ERROR_CODES.IMPORT_ROLLBACK_FAILED)
-    return rollbackFailedError(failed);
-  if (failed.code === TRANSFER_ERROR_CODES.IMPORT_ROLLED_BACK) {
-    return new ChatroomTransferError(
-      TRANSFER_ERROR_CODES.IMPORT_ROLLED_BACK,
-      failed.message,
-      failed.details
-    );
-  }
-  return new ChatroomTransferError(
-    failed.code as TransferErrorCode,
-    failed.message,
-    failed.details
-  );
-}
-
-function cancelledError(): ChatroomTransferError {
-  return new ChatroomTransferError(
-    TRANSFER_ERROR_CODES.IMPORT_ROLLED_BACK,
-    'The import was cancelled before it started. No rows were kept.'
-  );
-}
-
-function rollbackFailedError(
-  failed: Extract<EntryImportResult, { status: 'failed' }>
-): ChatroomTransferError {
-  const orphan = failed.orphanChatroomId;
-  return new ChatroomTransferError(
-    TRANSFER_ERROR_CODES.IMPORT_ROLLBACK_FAILED,
-    `The import did not complete and rollback did not finish. Chatroom ${orphan ?? 'unknown'} may still exist and may be active; archive or delete it in the webapp. It was not imported. ${failed.message}`,
-    orphan === undefined ? failed.details : [orphan]
-  );
-}
-
 function bundleFailure(summary: SelectedImportSummary, selected: number): ChatroomTransferError {
   const code = summary.results.some(
     (result) =>
