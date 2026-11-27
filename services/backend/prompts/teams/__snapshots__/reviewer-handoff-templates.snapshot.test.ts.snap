@@ -33,7 +33,7 @@ Add this section to your message. Replace the placeholder with the id of the new
 ## Grounding
 Grounding ID: <groundingId>, or \`None.\`
 Read it: \`chatroom grounding read --chatroom-id="<chatroom-id>" --role="reviewer" --grounding-id="<groundingId>"\`
-It records preliminary, factual observations from an earlier pass. Treat it as a starting point, not as verified truth: re-check every file, symbol and flow you rely on against the repository, and prefer the code where they differ.
+It records factual observations from an earlier pass.
 \`\`\`"
 `;
 
@@ -119,7 +119,7 @@ Add this section to your message. Replace the placeholder with the id of the new
 ## Grounding
 Grounding ID: <groundingId>, or \`None.\`
 Read it: \`chatroom grounding read --chatroom-id="<chatroom-id>" --role="reviewer" --grounding-id="<groundingId>"\`
-It records preliminary, factual observations from an earlier pass. Treat it as a starting point, not as verified truth: re-check every file, symbol and flow you rely on against the repository, and prefer the code where they differ.
+It records factual observations from an earlier pass.
 \`\`\`"
 `;
 

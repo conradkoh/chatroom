@@ -19,15 +19,14 @@ describe('pairCarriesGroundingReference', () => {
 });
 
 describe('getGroundingReferenceBlock', () => {
-  test('names the read command for the recipient and treats the document as a starting point', () => {
+  test('names the read command for the recipient and describes the document neutrally', () => {
     const block = getGroundingReferenceBlock({ chatroomId: 'chat-1', toRole: 'architect' });
 
     expect(block).toContain('Grounding ID: <groundingId>, or `None.`');
     expect(block).toContain(
       'Read it: `chatroom grounding read --chatroom-id="chat-1" --role="architect" --grounding-id="<groundingId>"`'
     );
-    expect(block).toContain('starting point');
-    expect(block).toContain('prefer the code where they differ');
+    expect(block).toContain('It records factual observations from an earlier pass.');
   });
 
   test('falls back to the chatroom-id placeholder when no id is supplied', () => {

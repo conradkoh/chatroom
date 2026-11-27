@@ -46,7 +46,7 @@ export function getGroundingReferenceBlock(q: {
     '## Grounding',
     'Grounding ID: <groundingId>, or `None.`',
     `Read it: \`${readCommand}\``,
-    'It records preliminary, factual observations from an earlier pass. Treat it as a starting point, not as verified truth: re-check every file, symbol and flow you rely on against the repository, and prefer the code where they differ.',
+    'It records factual observations from an earlier pass.',
     FENCE,
   ].join('\n');
 }

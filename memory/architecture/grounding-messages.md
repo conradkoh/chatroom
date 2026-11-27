@@ -1,7 +1,7 @@
 ---
 type: decision-log
 title: Grounding messages
-description: Neutral, immutable grounding documents published by entry points as type grounding chat messages, validated by one skeleton validator, read back by id, and referenced from handoff templates as a starting point to verify against the code.
+description: Neutral, immutable grounding documents published by entry points as type grounding chat messages, validated by one skeleton validator, read back by id, and referenced from handoff templates.
 tags: [chatroom, grounding, messages, handoff, cli, prompts]
 status: active
 ---
@@ -14,9 +14,9 @@ Before delegating discovery work, an entry point explores the repository to find
 the relevant files, entry points and flow. The recipient used to repeat that
 exploration from scratch. A grounding document records those observations once,
 as facts, so the recipient starts from them instead of rediscovering them. It
-is referenced from the handoff templates the sender uses, and recipients are
-told to treat it as a starting point, not as verified truth. The trio flow that
-carries it is described in
+is referenced from the handoff templates the sender uses, and each template
+tells the recipient what the document contains. The trio flow that carries it
+is described in
 [Trio team coordination](/architecture/trio-team-coordination.md).
 
 ## Decisions
@@ -60,7 +60,7 @@ A rejected publish stores no row.
 
 ## Reference block
 
-The resolver appends one `### Grounding reference` block after the handoff body when the pair carries it. The carrier predicate is `getTeamPreset(teamId)?.entryPoint === fromRole && toRole !== 'user'`, or `trio:specifier→builder`. The block contains a fenced `## Grounding` section with the grounding id line and the `chatroom grounding read` command for the recipient, plus the instruction to treat the document as a starting point and prefer the code where they differ. It is appended once in `renderHandoffTemplate`; getter files are not edited.
+The resolver appends one `### Grounding reference` block after the handoff body when the pair carries it. The carrier predicate is `getTeamPreset(teamId)?.entryPoint === fromRole && toRole !== 'user'`, or `trio:specifier→builder`. The block contains a fenced `## Grounding` section with the grounding id line and the `chatroom grounding read` command for the recipient, plus one neutral sentence describing the document's contents. It is appended once in `renderHandoffTemplate`; getter files are not edited.
 
 ## Rollback caution
 
