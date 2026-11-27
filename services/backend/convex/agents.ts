@@ -1,5 +1,6 @@
 /** Canonical web-facing agent configuration and status reads. */
 
+import { normalizeAgentRole } from '@workspace/shared/domain/agent-role';
 import {
   deriveChatroomActivityStatus,
   deriveChatroomState,
@@ -19,6 +20,7 @@ import { getSession } from './auth/session';
 import { agentHarnessValidator } from './schema';
 import { validateWorkingDir } from './workspacePathSecurity';
 import { AgentStartReasonCode } from '../src/domain/entities/agent';
+import { ACTIVE_TASK_HEADER_READ_LIMIT } from '../src/domain/entities/task';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
@@ -455,6 +457,11 @@ export const getViewStatus = query({
   },
 });
 
+/**
+ * Per-role status rows in team order. `hasAssignedTask` is true while an active
+ * (pending, acknowledged or in_progress) task is assigned to the role. It is
+ * independent of `status` and `activeWork`.
+ */
 export const listStatus = query({
   args: {
     ...SessionIdArg,
@@ -467,6 +474,14 @@ export const listStatus = query({
       .query('chatroom_agentRoleStatusReadModel')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
+    // Slim projection of active, assigned tasks (no content), the same bounded read as getChatroomStatus.
+    const activeTaskHeaders = await ctx.db
+      .query('chatroom_activeTaskHeaders')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .take(ACTIVE_TASK_HEADER_READ_LIMIT);
+    const assignedRoles = new Set(
+      activeTaskHeaders.map((header) => normalizeAgentRole(header.assignedTo))
+    );
     const byRole = new Map(rows.map((row) => [row.role.toLowerCase(), row]));
     return (structure?.roles ?? []).map(({ role, lifecycle, optional }) => {
       const row = byRole.get(role.toLowerCase());
@@ -481,6 +496,7 @@ export const listStatus = query({
         lastSeenAt: row?.lastSeenAt ?? null,
         lastSeenAction: row?.lastSeenAction ?? null,
         activeWork: row?.activeWork?.kind === 'task' ? row.activeWork : null,
+        hasAssignedTask: assignedRoles.has(normalizeAgentRole(role)),
         error: row?.error ?? null,
         projectedAt: row?.projectedAt ?? null,
       };
@@ -501,7 +517,7 @@ export const getChatroomStatus = query({
     const activeTaskHeaders = await ctx.db
       .query('chatroom_activeTaskHeaders')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .take(200);
+      .take(ACTIVE_TASK_HEADER_READ_LIMIT);
     const stuck = hasStuckAssignedWork(
       rows.map((row) => ({ role: row.role, status: row.status })),
       activeTaskHeaders.map((header) => ({ assignedTo: header.assignedTo, status: header.status }))

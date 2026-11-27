@@ -29,6 +29,13 @@ export const ACTIVE_TASK_STATUSES: ReadonlySet<TaskStatus> = new Set(
 );
 
 /**
+ * Most active task headers read per chatroom by status queries
+ * (`agents.listStatus`, `agents.getChatroomStatus`). The active queue is small;
+ * the bound is deliberate.
+ */
+export const ACTIVE_TASK_HEADER_READ_LIMIT = 200;
+
+/**
  * Task statuses that free the queue slot and trigger auto-promotion
  * of the next queued message.
  */
