@@ -309,7 +309,7 @@ Add this section to your message. Replace the placeholder with the id of the new
 ## Grounding
 Grounding ID: <groundingId>, or \`None.\`
 Read it: \`chatroom grounding read --chatroom-id="test-chatroom-id" --role="builder" --grounding-id="<groundingId>"\`
-It records preliminary, factual observations from an earlier pass. Treat it as a starting point, not as verified truth: re-check every file, symbol and flow you rely on against the repository, and prefer the code where they differ.
+It records factual observations from an earlier pass.
 \`\`\`"
 `;
 
@@ -528,7 +528,7 @@ Add this section to your message. Replace the placeholder with the id of the new
 ## Grounding
 Grounding ID: <groundingId>, or \`None.\`
 Read it: \`chatroom grounding read --chatroom-id="test-chatroom-id" --role="builder" --grounding-id="<groundingId>"\`
-It records preliminary, factual observations from an earlier pass. Treat it as a starting point, not as verified truth: re-check every file, symbol and flow you rely on against the repository, and prefer the code where they differ.
+It records factual observations from an earlier pass.
 \`\`\`"
 `;
 
@@ -796,7 +796,7 @@ flowchart TD
 - Send back with specific feedback if requirements aren't met.
 
 
-**Grounding document.** Before you delegate work that involves discovery — any handoff to a specialist, or a change for the \`specifier\`/\`builder\` that spans more than one file or surface — publish a grounding document so receiving agents do not repeat the same exploration. Run \`chatroom grounding view-template\`, fill it, then publish it with the command below. It holds only neutral, observed facts: relevant files, entry points and the observed flow as a sequence diagram. No conclusions, recommendations or design choices. Skip it for conversation-only requests and for single-file edits you have already read, and write \`Grounding ID: None.\` in the handoff. It is immutable: if your observations change, publish a new one and cite the newest id in the next handoff. Recipients are told to treat it as a starting point and verify it.
+**Grounding document.** Before you delegate work that involves discovery — any handoff to a specialist, or a change for the \`specifier\`/\`builder\` that spans more than one file or surface — publish a grounding document so receiving agents do not repeat the same exploration. Run \`chatroom grounding view-template\`, fill it, then publish it with the command below. It holds only neutral, observed facts: relevant files, entry points and the observed flow as a sequence diagram. No conclusions, recommendations or design choices. Skip it for conversation-only requests and for single-file edits you have already read, and write \`Grounding ID: None.\` in the handoff. It is immutable: if your observations change, publish a new one and cite the newest id in the next handoff. The handoff templates include the read command for the recipient.
 
 \`\`\`bash
 
@@ -945,7 +945,7 @@ flowchart TD
 - Send back with specific feedback if requirements aren't met.
 
 
-**Grounding document.** Before you delegate work that involves discovery — any handoff to a specialist, or a change for the \`specifier\`/\`builder\` that spans more than one file or surface — publish a grounding document so receiving agents do not repeat the same exploration. Run \`chatroom grounding view-template\`, fill it, then publish it with the command below. It holds only neutral, observed facts: relevant files, entry points and the observed flow as a sequence diagram. No conclusions, recommendations or design choices. Skip it for conversation-only requests and for single-file edits you have already read, and write \`Grounding ID: None.\` in the handoff. It is immutable: if your observations change, publish a new one and cite the newest id in the next handoff. Recipients are told to treat it as a starting point and verify it.
+**Grounding document.** Before you delegate work that involves discovery — any handoff to a specialist, or a change for the \`specifier\`/\`builder\` that spans more than one file or surface — publish a grounding document so receiving agents do not repeat the same exploration. Run \`chatroom grounding view-template\`, fill it, then publish it with the command below. It holds only neutral, observed facts: relevant files, entry points and the observed flow as a sequence diagram. No conclusions, recommendations or design choices. Skip it for conversation-only requests and for single-file edits you have already read, and write \`Grounding ID: None.\` in the handoff. It is immutable: if your observations change, publish a new one and cite the newest id in the next handoff. The handoff templates include the read command for the recipient.
 
 \`\`\`bash
 

@@ -569,7 +569,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       ## Grounding
       Grounding ID: <groundingId>, or \`None.\`
       Read it: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom grounding read --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --grounding-id="<groundingId>"\`
-      It records preliminary, factual observations from an earlier pass. Treat it as a starting point, not as verified truth: re-check every file, symbol and flow you rely on against the repository, and prefer the code where they differ.
+      It records factual observations from an earlier pass.
       \`\`\`"
     `);
   });
@@ -692,7 +692,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       ## Grounding
       Grounding ID: <groundingId>, or \`None.\`
       Read it: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom grounding read --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --grounding-id="<groundingId>"\`
-      It records preliminary, factual observations from an earlier pass. Treat it as a starting point, not as verified truth: re-check every file, symbol and flow you rely on against the repository, and prefer the code where they differ.
+      It records factual observations from an earlier pass.
       \`\`\`"
     `);
   });

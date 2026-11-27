@@ -294,8 +294,7 @@ describe('renderHandoffTemplate — grounding reference coverage', () => {
         if (carries) {
           expect(rendered).toContain('chatroom grounding read');
           expect(rendered).toContain(`--role="${pair.toRole}"`);
-          expect(rendered).toContain('starting point');
-          expect(rendered).toContain('prefer the code where they differ');
+          expect(rendered).toContain('It records factual observations from an earlier pass.');
         }
       });
     }

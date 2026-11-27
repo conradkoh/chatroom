@@ -14,7 +14,7 @@
 - [Handoff sender agent snapshot](handoff-sender-agent.md) — point-in-time harness/model on handoffs, defensive webapp normalization, no placeholder for legacy rows
 - [Trio team coordination](trio-team-coordination.md) — coordinator-centred enforced handoff graph and per-edge session policy for the Trio preset
 - [Plan messages](plan-messages.md) — phased plans as immutable `plan` chat messages, one parser, `planId#Pn` references, `--supersedes` revisions, and the distinction from `docs/plans/`
-- [Grounding messages](grounding-messages.md) — neutral, immutable grounding documents published by entry points and referenced from handoff templates as starting points
+- [Grounding messages](grounding-messages.md) — neutral, immutable grounding documents published by entry points and referenced from handoff templates
 - [Message page model](message-page-model.md) — one flat message entity, pages derived from existing rows, one page API for webapp and CLI, and no data migration
 - [Per-team prompt isolation](/architecture/team-prompt-isolation.md) — duo, solo, and trio role identity, guidance, and team context live under each team's folder and resolve through one registry
 - [Machine management invariants](machine-management.md) — tombstone-first deletion, MACHINE_SCOPED_TABLES registry rule, lazy roots/ledger, command nudges, per-row action area
