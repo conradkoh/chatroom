@@ -4,10 +4,14 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { Settings2, Loader2 } from 'lucide-react';
-import React, { useCallback, memo, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, memo, useEffect, useMemo, useRef, useState } from 'react';
 
 import { SetupAgentTeamStep } from './setup/SetupAgentTeamStep';
 import { SetupWorkspaceStep } from './setup/SetupWorkspaceStep';
+import { useChatroomWorkspace } from '../context/ChatroomWorkspaceContext';
+import type { SwitchWorkspaceResult } from '../context/ChatroomWorkspaceContext';
+import { SwitchWorkspaceFlow } from '../features/switch-workspace/SwitchWorkspaceFlow';
+import { useSwitchWorkspaceFlow } from '../features/switch-workspace/useSwitchWorkspaceFlow';
 import { useAgentCommandSender } from '../hooks/useAgentCommandSender';
 import { useAgentConfigs } from '../hooks/useAgentConfigs';
 import type { UserMachine } from '../types/machine';
@@ -59,6 +63,19 @@ const SetupMachineConnectivity = memo(function SetupMachineConnectivity({
   return <>{children(connectedMachines)}</>;
 });
 
+/** A registered workspace, in the shape `pickSetupWorkspace` resumes from. */
+function toSetupCandidate(ws: {
+  machineId: string | null;
+  workingDir: string;
+  registeredAt?: number;
+}) {
+  return {
+    machineId: ws.machineId ?? '',
+    workingDir: ws.workingDir,
+    registeredAt: ws.registeredAt,
+  };
+}
+
 const STEP_COPY: Record<SetupStep, { title: string; description: string }> = {
   workspace: {
     title: 'Setup Workspace',
@@ -95,29 +112,36 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
   const { workspaces: chatroomWorkspaces, isLoading: isLoadingWorkspaces } =
     useChatroomWorkspaces(chatroomId);
 
+  const { activeWorkspace } = useChatroomWorkspace();
+  const switchFlow = useSwitchWorkspaceFlow();
+  const switchInProgress = switchFlow.stage === 'submitting' || switchFlow.stage === 'done';
+  // Read inside the effect without making it a dependency: a switch that finishes must not re-route.
+  const switchInProgressRef = useRef(false);
+  switchInProgressRef.current = switchInProgress;
+
+  const existingWorkspace = useMemo(
+    () => pickSetupWorkspace(chatroomWorkspaces.map(toSetupCandidate)),
+    [chatroomWorkspaces]
+  );
+  const existingMachineId = existingWorkspace?.machineId ?? null;
+  const existingWorkingDir = existingWorkspace?.workingDir ?? null;
+
   useEffect(() => {
     if (!isOpen) return;
     // Wait for workspace registry before choosing initial step (prevents step-1 flash).
     if (isLoadingWorkspaces) return;
-
-    const existing = pickSetupWorkspace(
-      chatroomWorkspaces.map((ws) => ({
-        machineId: ws.machineId ?? '',
-        workingDir: ws.workingDir,
-        registeredAt: ws.registeredAt,
-      }))
-    );
-    if (existing) {
-      setSetupMachineId(existing.machineId);
-      setSetupWorkingDir(existing.workingDir);
+    // A switch that is submitting or showing its Result owns the step.
+    if (switchInProgressRef.current) return;
+    if (existingMachineId !== null && existingWorkingDir !== null) {
+      setSetupMachineId(existingMachineId);
+      setSetupWorkingDir(existingWorkingDir);
       setStep('agents');
       return;
     }
-
     setStep('workspace');
     setSetupMachineId(null);
     setSetupWorkingDir(null);
-  }, [isOpen, isLoadingWorkspaces, chatroomWorkspaces]);
+  }, [isOpen, isLoadingWorkspaces, existingMachineId, existingWorkingDir]);
 
   const joinedCount = useMemo(
     () => countJoinedRoles(teamRoles, participants),
@@ -125,7 +149,9 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
   );
 
   const handleConfirmWorkspace = useCallback(
+    // fallow-ignore-next-line complexity
     async (machineId: string, workingDir: string, connectedMachines: UserMachine[]) => {
+      // registerWorkspace is only reached with no active workspace; a bound chatroom switches instead.
       const machine = connectedMachines.find((m) => m.machineId === machineId);
       await registerWorkspace({
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -151,21 +177,51 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
     setStep('workspace');
   }, []);
 
+  const handleSwitchCancel = useCallback(() => setStep('agents'), []);
+
+  const { reset: resetSwitchFlow } = switchFlow;
+  const handleSwitchDone = useCallback(
+    (result: SwitchWorkspaceResult) => {
+      setSetupMachineId(result.machineId);
+      setSetupWorkingDir(result.workingDir);
+      resetSwitchFlow();
+      setStep('agents');
+    },
+    [resetSwitchFlow]
+  );
+
   const handleAllAgentsStarted = useCallback(() => {
     onClose();
   }, [onClose]);
 
-  const { title, description } = STEP_COPY[step];
-  const stepSubtitle =
-    step === 'workspace' ? 'Step 1 of 2' : `${joinedCount} of ${teamRoles.length} agents ready`;
+  // The modal close is ignored while a switch is submitting.
+  const handleRequestClose = useCallback(() => {
+    if (switchFlow.busy) return;
+    onClose();
+  }, [onClose, switchFlow.busy]);
+
+  const switching = step === 'workspace' && activeWorkspace !== null;
+  const { title, description } = switching
+    ? {
+        title: 'Switch Workspace',
+        description: 'Move this chatroom to a different machine or folder.',
+      }
+    : STEP_COPY[step];
+  const stepSubtitle = switching
+    ? switchFlow.stage === 'done'
+      ? 'Done'
+      : 'Step 1 of 2'
+    : step === 'workspace'
+      ? 'Step 1 of 2'
+      : `${joinedCount} of ${teamRoles.length} agents ready`;
 
   return (
-    <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-2xl">
+    <FixedModal isOpen={isOpen} onClose={handleRequestClose} maxWidth="max-w-2xl">
       <SetupMachineConnectivity>
         {/* fallow-ignore-next-line complexity */}
         {(connectedMachines) => (
           <FixedModalContent>
-            <FixedModalHeader onClose={onClose}>
+            <FixedModalHeader onClose={handleRequestClose}>
               <div className="flex items-center gap-3 min-w-0">
                 <Settings2 size={18} className="text-chatroom-status-warning flex-shrink-0" />
                 <div className="min-w-0">
@@ -188,13 +244,22 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
                   <span className="text-sm">Loading workspace...</span>
                 </div>
               ) : step === 'workspace' ? (
-                <SetupWorkspaceStep
-                  connectedMachines={connectedMachines}
-                  isLoadingMachines={isLoadingMachines}
-                  onConfirm={(machineId, workingDir) =>
-                    handleConfirmWorkspace(machineId, workingDir, connectedMachines)
-                  }
-                />
+                activeWorkspace !== null ? (
+                  <SwitchWorkspaceFlow
+                    flow={switchFlow}
+                    doneLabel="Continue to agent team"
+                    onCancel={handleSwitchCancel}
+                    onDone={handleSwitchDone}
+                  />
+                ) : (
+                  <SetupWorkspaceStep
+                    connectedMachines={connectedMachines}
+                    isLoadingMachines={isLoadingMachines}
+                    onConfirm={(machineId, workingDir) =>
+                      handleConfirmWorkspace(machineId, workingDir, connectedMachines)
+                    }
+                  />
+                )
               ) : setupMachineId && setupWorkingDir ? (
                 <SetupAgentTeamStep
                   chatroomId={chatroomId}

@@ -36,6 +36,23 @@ neither focused before.
 | Offline machine       | `SetupMachinePicker` lists it dimmed, with an "Offline" label, and it cannot be picked.                                          |
 | Error                 | An inline paragraph in the step with the status error style. These are not a shared panel.                                       |
 
+## Offline-selectable machines
+
+Some flows may target a machine whose daemon is offline: the backend only needs ownership to bind
+a workspace, and the daemon may start later. Those flows pass `offlineSelectable` to
+`SetupMachineSection`:
+
+- `SetupMachineSection` treats every machine outside `connectedMachineIds` as offline and passes it
+  as `offlineMachineIds` to `SetupMachinePicker`. The prerequisites panel then appears only when no
+  machine is registered, instead of whenever nothing is connected.
+- `SetupMachinePicker`'s `offlineMachineIds` rows show the "Offline" label but stay enabled and are
+  not dimmed. `disabledMachineIds` keeps the old behaviour: label, dim, and refuse selection.
+- The typeahead path field still needs the daemon for Browse. Callers disable Browse for an offline
+  machine while leaving the text input editable.
+
+`features/switch-workspace/` consumes these pieces (`SetupMachineSection`, `SetupFolderPickerField`,
+`useSetupWorkspaceFolderPicker`, `SetupStepLayout`) and is the one user of `offlineSelectable` today.
+
 ## Machine rules
 
 - A machine counts as connected through `useConnectedMachines`
