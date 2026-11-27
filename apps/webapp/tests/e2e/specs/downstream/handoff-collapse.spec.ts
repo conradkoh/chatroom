@@ -695,7 +695,7 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     await expect(huge.getByTestId('timeline-handoff-duration')).toHaveText('100h 10m');
     await expect(huge.getByTestId('timeline-handoff-duration')).toHaveAttribute(
       'title',
-      'Time since previous message: 100h 10m'
+      'Time since last user message or handoff: 100h 10m'
     );
     // The slot clips an over-wide value instead of growing: the ellipsis rule is computed
     // style, so this fails if the slot loses `truncate` even when the width stays 7ch.
@@ -721,7 +721,10 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       const duration = huge.getByTestId('timeline-handoff-duration');
       const slot = huge.getByTestId('timeline-handoff-duration-slot');
       await expect(duration).toHaveText('100h 10m');
-      await expect(duration).toHaveAttribute('title', 'Time since previous message: 100h 10m');
+      await expect(duration).toHaveAttribute(
+        'title',
+        'Time since last user message or handoff: 100h 10m'
+      );
       await expect(slot).toHaveCSS('overflow-x', 'visible');
 
       const durationBox = await readBox(duration);

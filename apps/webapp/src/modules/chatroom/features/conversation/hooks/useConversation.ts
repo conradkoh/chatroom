@@ -8,7 +8,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 
 import { shallowEqualRecord, structurallyEqual } from './stableIdentity';
 import {
-  getHandoffDurationMs,
+  getHandoffDurationsMs,
   getSlowHandoffThresholdMs,
   isSlowHandoffDuration,
 } from '../../../timeline/handoffTiming';
@@ -158,8 +158,9 @@ export function useConversation(chatroomId: string) {
     setSelectedPageId(null);
   }, []);
 
-  // `handoffDurationMs` is derived from the previous message, so an event is keyed
-  // on both its message (now identity-stable) and the freshly computed duration.
+  // `handoffDurationMs` is derived from the last user message or handoff in the window,
+  // so an event is keyed on both its message (now identity-stable) and the freshly
+  // computed duration.
   // `handoffDurationSlow` depends on the whole window's duration distribution, so a
   // newly loaded message can recolor older rows.
   //
@@ -170,9 +171,7 @@ export function useConversation(chatroomId: string) {
   const events: TimelineEvent[] = useMemo(() => {
     const previousById = stableEventsRef.current;
     const nextById = new Map<string, TimelineEvent>();
-    const durations = messages.map((message, index) =>
-      getHandoffDurationMs(message, messages[index - 1])
-    );
+    const durations = getHandoffDurationsMs(messages);
     const slowThresholdMs = getSlowHandoffThresholdMs(durations);
     const stabilized = messages.map((message, index) => {
       const durationMs = durations[index];

@@ -158,7 +158,7 @@ export interface TimelineMessageFooterProps {
   message: Message;
   /** When set, copy/download use this instead of message.content. */
   displayContent?: string;
-  /** Elapsed time since the previous message in the timeline. */
+  /** Elapsed time since the last user message or handoff in the loaded window. */
   handoffDurationMs?: number;
   /** Whether the duration is much longer than others in the loaded window (orange). */
   handoffDurationSlow?: boolean;
