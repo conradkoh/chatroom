@@ -16,7 +16,9 @@ The Trio preset separates coordination, specification, and implementation. The
 risk is that a three-role team becomes another advisory mesh: every role can
 reach every other role, and session boundaries depend on whatever each sender
 task happened to carry. Trio instead has one coordination hub and explicit
-session boundaries per handoff edge.
+session boundaries per handoff edge. The coordinator groups requirements into
+work packages and a plan is optional; the decisions below define the delivery
+flow.
 
 ## Decisions
 
@@ -47,46 +49,13 @@ session boundaries per handoff edge.
    `handoffGraph: 'advisory'` and an empty rule list. They continue to inherit
    the sender task's envelope policy, and their configured-membership handoff
    lists are unaffected.
-5. **The specifier chooses the round; the coordinator holds the plan.** The
-   specifier plans a work package as ordered phases and decides which phases one
-   round delivers (decision 7). After the round it hands a round report to
-   `coordinator` that states what was delivered, the plan id, and what the plan
-   still has, then stops. The coordinator reviews the round and, while the plan
-   still has work, reminds the specifier what is delivered and what remains; it
-   does not assign the next phase. The `new` policy on `coordinator` →
-   `specifier` (decision 2) still resets the specifier's context per package and
-   per rework round. This is a prompt and template change only;
-   `handoffSessionRules` are unchanged.
-6. **The ordered plan is a plan message.** On its first pass the specifier
-   publishes the ordered plan with `chatroom plan publish`, takes the phases its
-   first round delivers, and reports the plan id under `## Plan reference` (newly
-   published, unchanged, or superseded by a new id). The coordinator records
-   that id and cites it in each following package, with a `Delivered so far`
-   reminder. The specifier reads the plan, or the phase it takes, with
-   `chatroom plan read` before it briefs the builder, and never reconstructs a
-   plan from memory or earlier reports. A revision is a new plan published with
-   `--supersedes`: the coordinator asks for it, the revision's `## Remarks`
-   states which delegated phases are unchanged, replaced, or dropped, and the
-   coordinator cites the new plan id from then on. A broken reference goes back
-   to the coordinator. The plan format and its invariants are in
-   [Plan messages](/architecture/plan-messages.md). Decision 6 adds no edge,
-   session rule, or role: `coordinator` → `specifier` stays `new`, and the
-   specifier still hands back only to `builder` and `coordinator`.
-7. **Delegation cadence is the specifier's call.** A builder round trip is slow
-   and verification-heavy: it implements, commits, and runs the verification
-   kinds its brief flags (typecheck and lint always; unit, integration, or e2e
-   when flagged), which can take many minutes, and each delegation starts a
-   fresh builder session. The specifier groups phases by
-   verification stage: phases checked by the same end-of-round run, and not
-   invalidating each other, share a round. Diagnosis cost is the counterweight: a
-   large batch that fails is slower to repair, so a risky or contract-changing
-   phase (shared contract, schema, public API, anything later phases build on)
-   lands and is verified alone first. The specifier reports why it grouped the
-   phases so the coordinator can raise a concern before the next round. The
-   coordinator holds the plan and reminds the specifier of what is delivered
-   only while work remains. There is no fixed limit on phases per round or
-   slices per session. The coordinator's escalation after 2 failed rework rounds
-   stays.
+5. **Superseded by decisions 8–11.** The specifier no longer chooses the round or holds the plan.
+6. **Superseded by decisions 8–11.** The specifier no longer publishes or owns the plan message.
+7. **Superseded by decisions 8–11.** Delegation cadence is no longer the specifier's call.
+8. **One specifier pass per work package.** The specifier writes one complete brief, makes one builder handoff, reviews the single hand-back, reports `delivered | partial | blocked` to the coordinator, and stops. No in-package rework: rework, regrouping and the 2-failed-rework escalation (now "2 failed rework deliveries on a package") are the coordinator's. Why: each builder round trip breaks the specifier's prompt cache and runs it at long context; phase-by-phase delegation is slow for simple tasks. No edge or session-rule change.
+9. **The coordinator groups requirements into sequential packages.** One package is what one builder pass can deliver and verify; a contract-changing package lands alone first; a package one brief cannot carry goes back to the coordinator with a proposed split before building.
+10. **Plans are optional and not specifier-authored.** Default none; required only for two or more dependent packages or on user request; the architect (default) or product-manager publishes on a `Plan: required` request, one author per task; the coordinator cites `<planId>#Pn` under `## Plan phases`; the specifier only reads.
+11. **Single-pass brief variant.** The trio brief has one full-scope verification definition; duo keeps `focused | round-final`.
 
 ## Known gap
 
@@ -108,3 +77,6 @@ builder table are stale for those tasks and need a separate fix.
 - Removing a rule or the graph policy is a forward-only behaviour change: tasks
   already created keep their recorded envelope, so in-flight work is not
   retroactively re-routed.
+- Specifier cost is bounded by one cache-breaking builder round trip per package:
+  one brief, one builder pass, one report. Regrouping and rework are coordinator
+  work packages.
