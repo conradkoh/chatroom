@@ -142,15 +142,24 @@ test.describe('Machine backups', { tag: [TAG_DOWNSTREAM] }, () => {
     const saveButton = card.getByRole('button', { name: 'Save file' });
     await expect(saveButton).toBeVisible({ timeout: 15_000 });
 
+    // The minted URL is a bearer capability; capture the exact one this save used.
+    const storageRequest = page.waitForRequest(
+      (request) => request.method() === 'GET' && request.url().includes('/api/storage/')
+    );
     const downloadPromise = page.waitForEvent('download');
     await saveButton.click();
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toBe(BACKUP_FILENAME);
+    const storageUrl = (await storageRequest).url();
 
     await expect(card.getByTestId('backup-download-status')).toHaveAttribute('data-state', 'done', {
       timeout: 15_000,
     });
     await expect(card.getByText(/The temporary copy was deleted/)).toBeVisible();
+
+    // The status check alone would still say not_found if the blob survived, so fetch the old URL.
+    const afterDelete = await page.request.get(storageUrl, { failOnStatusCode: false });
+    expect(afterDelete.status()).toBe(404);
 
     const again = await client.mutation(api.machineBackups.createDownloadAccess, {
       sessionId,
