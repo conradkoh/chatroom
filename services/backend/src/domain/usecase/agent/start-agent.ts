@@ -15,6 +15,7 @@
  * any mutation handler without being coupled to a specific Convex wrapper.
  */
 
+import { assertWorkspaceBelongsToAgentRequest } from './assert-workspace-belongs-to-agent-request';
 import { recordLastSentLaunchRequest } from './record-last-sent-launch-request';
 import { resolveDefaultWantResume } from './resolve-default-want-resume';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
@@ -152,17 +153,13 @@ export async function startAgent(
   }
 
   if (workspaceId) {
-    const workspace = await ctx.db.get('chatroom_workspaces', workspaceId);
-    const normalize = (value: string) => value.trim().replace(/[/\\]+$/, '');
-    if (
-      !workspace ||
-      workspace.chatroomId !== chatroomId ||
-      workspace.removedAt !== undefined ||
-      workspace.machineId !== machineId ||
-      normalize(workspace.workingDir) !== normalize(workingDir)
-    ) {
-      throw new Error('Workspace does not belong to this agent start request');
-    }
+    await assertWorkspaceBelongsToAgentRequest(ctx, {
+      workspaceId,
+      chatroomId,
+      machineId,
+      workingDir,
+      kind: 'start',
+    });
   }
 
   // ── Step 1: Verify harness is available on the machine ────────────────

@@ -27,6 +27,7 @@ import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { applyAgentConfig } from '../src/domain/usecase/agent/apply-agent-config';
 import { assertAgentTargetIsActiveWorkspace } from '../src/domain/usecase/agent/assert-agent-target-in-active-workspace';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
+import { assertWorkspaceBelongsToAgentRequest } from '../src/domain/usecase/agent/assert-workspace-belongs-to-agent-request';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { getAgentModelOptions as getAgentModelOptionsUseCase } from '../src/domain/usecase/agent/get-agent-model-options';
 import {
@@ -83,14 +84,13 @@ export const requestStart = mutation({
     const workspace = args.workspaceId
       ? await ctx.db.get('chatroom_workspaces', args.workspaceId)
       : null;
-    if (
-      args.workspaceId &&
-      (!workspace ||
-        workspace.chatroomId !== args.chatroomId ||
-        workspace.removedAt !== undefined ||
-        workspace.machineId !== args.machineId)
-    ) {
-      throw new Error('Workspace does not belong to this agent start request');
+    if (args.workspaceId) {
+      await assertWorkspaceBelongsToAgentRequest(ctx, {
+        workspaceId: args.workspaceId,
+        chatroomId: args.chatroomId,
+        machineId: args.machineId,
+        kind: 'start',
+      });
     }
     const existing = await getLastSentLaunchRequestForRole(ctx, {
       chatroomId: args.chatroomId,
@@ -260,16 +260,13 @@ export const requestRestart = mutation({
       .first();
     if (!machine) throw new Error('Machine not found');
     if (args.workspaceId) {
-      const workspace = await ctx.db.get('chatroom_workspaces', args.workspaceId);
-      if (
-        !workspace ||
-        workspace.chatroomId !== args.chatroomId ||
-        workspace.removedAt !== undefined ||
-        workspace.machineId !== args.machineId ||
-        normalizeWorkingDir(workspace.workingDir) !== normalizeWorkingDir(args.workingDir)
-      ) {
-        throw new Error('Workspace does not belong to this agent restart request');
-      }
+      await assertWorkspaceBelongsToAgentRequest(ctx, {
+        workspaceId: args.workspaceId,
+        chatroomId: args.chatroomId,
+        machineId: args.machineId,
+        workingDir: args.workingDir,
+        kind: 'restart',
+      });
     }
     await assertAgentTargetIsActiveWorkspace(ctx, {
       chatroomId: args.chatroomId,

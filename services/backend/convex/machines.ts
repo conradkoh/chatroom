@@ -32,6 +32,7 @@ import {
 import { applyAgentActivityHeartbeat } from '../src/domain/usecase/agent/apply-agent-activity-heartbeat';
 import { assertAgentTargetIsActiveWorkspace } from '../src/domain/usecase/agent/assert-agent-target-in-active-workspace';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
+import { assertWorkspaceBelongsToAgentRequest } from '../src/domain/usecase/agent/assert-workspace-belongs-to-agent-request';
 import { authorizeAgentStart as authorizeAgentStartUseCase } from '../src/domain/usecase/agent/authorize-agent-start';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { getLastSentLaunchRequestForRole } from '../src/domain/usecase/agent/get-last-sent-launch-request';
@@ -1166,6 +1167,16 @@ export const sendCommand = mutation({
         );
       }
 
+      if (args.payload.workspaceId) {
+        await assertWorkspaceBelongsToAgentRequest(ctx, {
+          workspaceId: args.payload.workspaceId,
+          chatroomId: args.payload.chatroomId,
+          machineId: args.machineId,
+          workingDir: resolvedWorkingDir,
+          kind: 'start',
+        });
+      }
+
       await assertAgentTargetIsActiveWorkspace(ctx, {
         chatroomId: args.payload.chatroomId,
         machineId: args.machineId,
@@ -1206,6 +1217,16 @@ export const sendCommand = mutation({
         throw new Error(
           'Cannot restart agent: model, agentHarness, and workingDir are required in the payload.'
         );
+      }
+
+      if (args.payload.workspaceId) {
+        await assertWorkspaceBelongsToAgentRequest(ctx, {
+          workspaceId: args.payload.workspaceId,
+          chatroomId: args.payload.chatroomId,
+          machineId: args.machineId,
+          workingDir,
+          kind: 'restart',
+        });
       }
 
       const existingConfig = await getCurrentLastSentLaunchRequest(

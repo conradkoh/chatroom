@@ -1,3 +1,4 @@
+import { assertWorkspaceBelongsToAgentRequest } from './assert-workspace-belongs-to-agent-request';
 import { getAgentConfig } from './get-agent-config';
 import { recordLastSentLaunchRequest } from './record-last-sent-launch-request';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
@@ -12,6 +13,7 @@ import { getTeamStructure } from '../../entities/team-presets';
 import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
 import { getActiveTeamStructure } from '../team/active-team-structure';
 
+// fallow-ignore-next-line complexity
 export async function requestAgentRestart(
   ctx: MutationCtx,
   input: {
@@ -23,6 +25,18 @@ export async function requestAgentRestart(
   },
   machine?: Doc<'chatroom_machines'>
 ): Promise<AgentRestartResult> {
+  const resolved = resolveRestartOverrides(input.request);
+
+  if (input.workspaceId) {
+    await assertWorkspaceBelongsToAgentRequest(ctx, {
+      workspaceId: input.workspaceId,
+      chatroomId: input.chatroomId,
+      machineId: resolved.machineId,
+      workingDir: resolved.workingDir,
+      kind: 'restart',
+    });
+  }
+
   const configResult = await getAgentConfig(ctx, input);
   if (!configResult.found || configResult.config.type !== 'remote') {
     return { status: 'skipped', reason: 'no_remote_config' };
@@ -32,8 +46,6 @@ export async function requestAgentRestart(
   if (!isRunnableRemoteTeamConfig(base)) {
     return { status: 'skipped', reason: 'incomplete_remote_config' };
   }
-
-  const resolved = resolveRestartOverrides(input.request);
 
   await validateMachineHarness(ctx, machine, resolved.agentHarness);
 
@@ -56,6 +68,7 @@ async function validateMachineHarness(
   harness: RunnableRemoteAgentConfig['agentHarness']
 ): Promise<void> {
   if (!machine) return;
+  // fallow-ignore-next-line code-duplication
   const capabilities = await ctx.db
     .query('chatroom_machineCapabilities')
     .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
