@@ -8,8 +8,8 @@
 ## What it does
 
 `chatroom export` writes every chatroom you own that has an active workspace on this machine to one
-bundle file. `chatroom import` reads that bundle and creates **new** chatrooms owned by the importing
-user. A bundle can contain several chatrooms, so you choose which ones to import.
+bundle file. `chatroom import` reads that bundle and creates **new** chatrooms owned by the
+importing user. A bundle can contain several chatrooms, so you choose which ones to import.
 
 The webapp offers the same flows: it builds the same bytes and file names as the CLI, reads an
 import file locally, and never uploads it.
@@ -18,7 +18,8 @@ An export is a portable copy, not a backup: it carries conversation content and 
 never the source deployment's identity, credentials, binary attachments, or runtime state.
 
 Machine backups are a separate flow. The Machines tab can list the local-stack backups that exist
-on a machine and download one through an ephemeral Convex copy; see [Machine backups](#machine-backups).
+on a machine and download one through an ephemeral Convex copy; see
+[Machine backups](#machine-backups).
 
 ## Commands
 
@@ -76,7 +77,8 @@ Options:
 - `EXPORT_NO_MACHINE_IDENTITY` — the export ran on a machine with no identity.
 - `EXPORT_MACHINE_TOO_LARGE` — the machine has more than 1000 active workspace rows, counting
   other users' chatrooms. The list is refused rather than truncated, so no file is written.
-- `EXPORT_ALL_INCOMPLETE` — at least one chatroom failed twice during the export; no file was written.
+- `EXPORT_ALL_INCOMPLETE` — at least one chatroom failed twice during the export; no file was
+  written.
 - `EXPORT_TOO_LARGE` — the serialized file or the bundle would exceed 256 MiB.
 - `EXPORT_FILE_EXISTS` — a file with the generated name already exists.
 - `EXPORT_PUBLISH_UNSUPPORTED` — the filesystem cannot hard-link the temp file into place.
@@ -116,17 +118,18 @@ Options:
 
 #### Listing the file
 
-- A single-chatroom file from an older version is refused with `IMPORT_NOT_AN_EXPORT`; only machine
-  export bundles can be imported.
 - Listing needs no session, no network call and no machine id (D5). `--list` prints the file's
   chatrooms and exits `0` without writing anything.
-- An import always prints the listing first, so the numbers and ids the prompt accepts are on screen.
+- An import always prints the listing first, so the numbers and ids the prompt accepts are on
+  screen.
 - Each entry prints its 1-based position, name (or `Untitled chatroom`), source chatroom id, team
   structure, status, export time, message/task/backlog counts, working-directory count, and any
   omitted attachments.
 - A bundle entry whose payload fails validation is listed with
   `not importable: <CODE> — <message>` instead of refusing the whole bundle. The other entries stay
   importable. A bundle-level index checksum mismatch still refuses the whole file.
+- A single-chatroom file from an older version is refused with `IMPORT_NOT_AN_EXPORT`; only machine
+  export bundles can be imported.
 
 #### Choosing chatrooms
 
@@ -157,8 +160,9 @@ Options:
   entry `skipped: fatal`.
 - `SIGINT` and `SIGTERM` abort the chatroom in progress through its own rollback; the remaining
   entries are marked `skipped: cancelled`.
-- A run ends with `Imported X of Y selected; Failed: Z` and, when any succeeded,
-  `new chatrooms: <ids>`. A successful run also prints `no agents were started`.
+- Each imported entry prints `Imported as new chatroom <id>` followed by its plan lines. A run ends
+  with `Imported X of Y selected; Failed: Z` and, when any succeeded, `new chatrooms: <ids>`. A
+  successful run also prints `no agents were started`.
 - `--dry-run` prints the same plan per entry and `dry run: nothing was written`; it makes no write
   call.
 
@@ -277,13 +281,16 @@ rebuilt decisions into `omitted`, using these exact reasons:
 - `chatroom_agentDesiredConfigs` — Deprecated desired-config rows; replaced by launch requests.
 - `chatroom_agentRestartMetrics` — Runtime restart telemetry; not portable.
 - `chatroom_agentRoleStatusReadModel` — Agent status is a daemon projection of live processes.
-- `chatroom_agentRuntimeStates` — Live agent process state; rebuilt by the daemon on the target machine.
+- `chatroom_agentRuntimeStates` —
+  Live agent process state; rebuilt by the daemon on the target machine.
 - `chatroom_capabilities_refresh_batches` — Runtime capability-refresh bookkeeping; not portable.
-- `chatroom_capabilities_refresh_machine_results` — Runtime capability-refresh bookkeeping; not portable.
+- `chatroom_capabilities_refresh_machine_results` —
+  Runtime capability-refresh bookkeeping; not portable.
 - `chatroom_connectionCloseRequests` — Live connection control messages; not portable.
 - `chatroom_conversationModePreferences` — Per-user conversation mode preference.
 - `chatroom_favorites` — Per-user favorites; the importing user starts fresh.
-- `chatroom_fileAttachments` — Binary attachments are not carried; the file records how many were left out.
+- `chatroom_fileAttachments` —
+  Binary attachments are not carried; the file records how many were left out.
 - `chatroom_fileStorageSettings` — Chatroom storage policy; not content.
 - `chatroom_fileStorageUsage` — Storage usage is per-user runtime accounting.
 - `chatroom_integrations` — Integration credentials (bot tokens) are never exported.
@@ -302,7 +309,8 @@ rebuilt decisions into `omitted`, using these exact reasons:
 - `chatroom_workflows` — Deprecated workflow feature.
 - `command_runner` — Command runner state is machine-local.
 - `launchRequestsOtherTeam` — Launch requests for other teams are filtered out and counted.
-- `launchRequestsSuperseded` — Older launch requests for the same workspace and role are superseded by the latest.
+- `launchRequestsSuperseded` —
+  Older launch requests for the same workspace and role are superseded by the latest.
 - `workspaceRemovals` — Workspaces removed before export are not carried.
 - `workspace_caches` — Workspace caches are rebuilt by the target daemon.
 - `workspace_requests` — In-flight workspace requests belong to the source daemon.
@@ -434,7 +442,8 @@ mark. No product mutation edits message content, so this cannot be triggered thr
 
 ### Export
 
-- Entry point: the Machines tab's per-machine card menu, **Export chatrooms**. It is the only export entry point; the chatroom sidebar, the selector card and the selector table have no export action.
+- Entry point: the Machines tab's per-machine card menu, **Export chatrooms**. It is the only export
+  entry point; the chatroom sidebar, the selector card and the selector table have no export action.
 - The browser builds the same payload bytes and file names as the CLI by calling the shared
   `runExportBundle` code, then saves the file with an anchor download. Nothing is
   uploaded to Convex.
