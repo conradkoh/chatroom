@@ -89,9 +89,13 @@ const panelProps = {
 
 type StatusValue = NonNullable<AgentRoleStatusReadModel['status']>;
 
-/** Builds one projected role-status row for the status read model. */
-function statusRow(role: string, status: StatusValue): AgentRoleStatusReadModel {
-  return { role, roleKind: 'ephemeral', status, projectedAt: Date.now() };
+/** Builds one projected role-status row, shaped like a `listStatus` row. */
+function statusRow(
+  role: string,
+  status: StatusValue,
+  hasAssignedTask = false
+): AgentRoleStatusReadModel {
+  return { role, roleKind: 'ephemeral', status, hasAssignedTask, projectedAt: Date.now() };
 }
 
 const ephemeralToggle = () => screen.getByRole('button', { name: /^Ephemeral \(\d+\):/ });
@@ -270,22 +274,79 @@ describe('AgentPanel', () => {
     expect(within(triage).getByLabelText('Status: Loading...')).toBeInTheDocument();
   });
 
-  it('keeps declared rows visible with an error status', () => {
-    const errorStatus: AgentRoleStatusReadModel[] = [statusRow('triage', 'error')];
+  it('keeps an errored agent with an assigned task below the group', () => {
     render(
-      <AgentPanel {...panelProps} teamStructure={duoStructure} statusReadModel={errorStatus} />
+      <AgentPanel
+        {...panelProps}
+        teamStructure={duoStructure}
+        statusReadModel={[statusRow('triage', 'error', true)]}
+      />
     );
 
     expect(screen.getByText('Agents (10)')).toBeInTheDocument();
-    // The errored agent renders below the collapsed group.
     expect(screen.getAllByLabelText(/triage:/i)).toHaveLength(1);
     expect(screen.getByLabelText(/triage:/i)).toHaveTextContent('OFFLINE (ERROR)');
     expect(screen.queryByLabelText(/architect:/i)).toBeNull();
-    expect(screen.queryByLabelText(/uiux-engineer:/i)).toBeNull();
 
     expandEphemeralGroup();
     expect(screen.getByLabelText(/architect:/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/uiux-engineer:/i)).toBeInTheDocument();
+  });
+
+  it('keeps an errored agent without an assigned task inside the group', () => {
+    render(
+      <AgentPanel
+        {...panelProps}
+        teamStructure={duoStructure}
+        statusReadModel={[statusRow('triage', 'error')]}
+      />
+    );
+
+    expect(screen.queryByLabelText(/triage:/i)).toBeNull();
+    expect(screen.getByText('1 errored')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {
+        name: 'Ephemeral (8): 0 online, 7 offline, 1 errored. Show group.',
+      })
+    ).toHaveAttribute('aria-expanded', 'false');
+
+    expandEphemeralGroup();
+    expect(screen.getByLabelText(/triage:/i)).toHaveTextContent('OFFLINE (ERROR)');
+  });
+
+  it('keeps a working agent without an assigned task inside the group', () => {
+    render(
+      <AgentPanel
+        {...panelProps}
+        teamStructure={duoStructure}
+        statusReadModel={[statusRow('architect', 'working')]}
+      />
+    );
+
+    expect(screen.queryByLabelText(/^architect:/i)).toBeNull();
+    expect(screen.getByText('1 online')).toBeInTheDocument();
+
+    expandEphemeralGroup();
+    expect(screen.getByLabelText(/^architect:/i)).toBeInTheDocument();
+  });
+
+  it.each([
+    ['starting', 'STARTING'],
+    ['offline', 'OFFLINE'],
+    ['error', 'OFFLINE (ERROR)'],
+    ['waiting', 'WAITING'],
+    ['working', 'WORKING'],
+  ] as const)('keeps an assigned %s agent below the collapsed group', (status, label) => {
+    render(
+      <AgentPanel
+        {...panelProps}
+        teamStructure={duoStructure}
+        statusReadModel={[statusRow('architect', status, true)]}
+      />
+    );
+
+    expect(screen.getByTestId('agent-sidebar-row-architect')).toHaveTextContent(label);
+    expect(ephemeralToggle()).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('shows the loading panel while the team structure is unresolved', () => {
@@ -346,12 +407,15 @@ describe('AgentPanel', () => {
     expect(screen.queryByLabelText(/^product-manager:/i)).toBeNull();
   });
 
-  it('moves working and errored ephemeral agents below the group', () => {
+  it('moves assigned ephemeral agents below the group', () => {
     render(
       <AgentPanel
         {...panelProps}
         teamStructure={duoStructure}
-        statusReadModel={[statusRow('architect', 'working'), statusRow('triage', 'error')]}
+        statusReadModel={[
+          statusRow('architect', 'working', true),
+          statusRow('triage', 'error', true),
+        ]}
       />
     );
 
@@ -373,23 +437,23 @@ describe('AgentPanel', () => {
     expect(screen.getByText('1 errored')).toBeInTheDocument();
   });
 
-  it('returns an agent to the group when its status changes', () => {
+  it('returns an agent to the group when its assignment clears', () => {
     const { rerender } = render(
       <AgentPanel
         {...panelProps}
         teamStructure={duoStructure}
-        statusReadModel={[statusRow('architect', 'working')]}
+        statusReadModel={[statusRow('architect', 'working', true)]}
       />
     );
 
-    // Working renders below the group, so the row is visible while collapsed.
+    // Assigned, so the row is visible while collapsed.
     expect(screen.getByLabelText(/^architect:/i)).toBeInTheDocument();
 
     rerender(
       <AgentPanel
         {...panelProps}
         teamStructure={duoStructure}
-        statusReadModel={[statusRow('architect', 'waiting')]}
+        statusReadModel={[statusRow('architect', 'working', false)]}
       />
     );
 
@@ -402,7 +466,7 @@ describe('AgentPanel', () => {
     expect(screen.getByLabelText(/^architect:/i)).toBeInTheDocument();
   });
 
-  it('counts agents outside the group and sums to the ephemeral total', () => {
+  it('counts every ephemeral agent, inside or below the group, and sums to the total', () => {
     render(
       <AgentPanel
         {...panelProps}
@@ -429,7 +493,7 @@ describe('AgentPanel', () => {
       <AgentPanel
         {...panelProps}
         teamStructure={duoStructure}
-        statusReadModel={roles.map((role) => statusRow(role, 'working'))}
+        statusReadModel={roles.map((role) => statusRow(role, 'working', true))}
       />
     );
 
@@ -455,7 +519,7 @@ describe('AgentPanel', () => {
       <AgentPanel
         {...panelProps}
         teamStructure={duoStructure}
-        statusReadModel={[statusRow('architect', 'working')]}
+        statusReadModel={[statusRow('architect', 'working', true)]}
         onOpenAgent={onOpenAgent}
       />
     );

@@ -16,6 +16,8 @@ export interface AgentStatus {
   statusLabel: string;
   statusVariant: ChatroomAgentActivityVariant;
   isWorking: boolean;
+  /** An active (pending, acknowledged or in_progress) task is assigned to this role. */
+  hasAssignedTask: boolean;
 }
 
 export type AggregateStatus = 'working' | 'ready' | 'partial' | 'none';
@@ -49,9 +51,10 @@ export function useAgentStatuses(
         role,
         online: readModel ? isChatroomAgentActivityOnline(statusValue) : false,
         lastSeenAt: readModel?.lastSeenAt ?? null,
-      statusLabel: statusLabelForStatus(statusValue),
+        statusLabel: statusLabelForStatus(statusValue),
         statusVariant,
         isWorking: statusVariant === 'working',
+        hasAssignedTask: readModel?.hasAssignedTask ?? false,
       };
     });
   }, [roles, statusReadModelMap]);

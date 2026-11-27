@@ -52,7 +52,10 @@ export type AgentRoleStatusReadModel = Pick<
   | 'activeWork'
   | 'error'
   | 'projectedAt'
->;
+> & {
+  /** From `agents.listStatus`: an active (pending, acknowledged or in_progress) task is assigned to this role. */
+  hasAssignedTask: boolean;
+};
 
 // fallow-ignore-next-line complexity
 export function useAgentPanelDataSubscriptions(
