@@ -2,11 +2,15 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { FunctionReturnType } from 'convex/server';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react';
 
 import type { Workspace } from '../types/workspace';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
+
+/** The switch use case's result, as the mutation returns it. */
+export type SwitchWorkspaceResult = FunctionReturnType<typeof api.workspaces.switchWorkspace>;
 
 export interface ChatroomWorkspaceContextValue {
   chatroomId: Id<'chatroom_rooms'>;
@@ -15,6 +19,8 @@ export interface ChatroomWorkspaceContextValue {
   isLoading: boolean;
   setPrimaryWorkspace: (workspaceId: string) => Promise<void>;
   removeWorkspace: (workspaceId: string) => Promise<void>;
+  /** Moves the chatroom to machineId + workingDir. expectedWorkspaceId is read from activeWorkspace at call time. Errors propagate unchanged. */
+  switchWorkspace: (machineId: string, workingDir: string) => Promise<SwitchWorkspaceResult>;
 }
 
 const ChatroomWorkspaceContext = createContext<ChatroomWorkspaceContextValue | null>(null);
@@ -34,6 +40,7 @@ export function ChatroomWorkspaceProvider({
     api.workspaces.setPrimaryWorkspaceForChatroom
   );
   const removeWorkspaceMutation = useSessionMutation(api.workspaces.removeWorkspace);
+  const switchWorkspaceMutation = useSessionMutation(api.workspaces.switchWorkspace);
 
   const activeWorkspace = useMemo(() => {
     if (!primaryResult) return null;
@@ -59,6 +66,18 @@ export function ChatroomWorkspaceProvider({
     [removeWorkspaceMutation]
   );
 
+  const switchWorkspace = useCallback(
+    (machineId: string, workingDir: string) =>
+      switchWorkspaceMutation({
+        chatroomId,
+        machineId,
+        workingDir,
+        expectedWorkspaceId: (activeWorkspace?._registryId ??
+          null) as Id<'chatroom_workspaces'> | null,
+      }),
+    [activeWorkspace, chatroomId, switchWorkspaceMutation]
+  );
+
   const value = useMemo<ChatroomWorkspaceContextValue>(
     () => ({
       chatroomId,
@@ -67,6 +86,7 @@ export function ChatroomWorkspaceProvider({
       isLoading: isLoadingWorkspaces || primaryResult === undefined,
       setPrimaryWorkspace,
       removeWorkspace,
+      switchWorkspace,
     }),
     [
       activeWorkspace,
@@ -75,6 +95,7 @@ export function ChatroomWorkspaceProvider({
       primaryResult,
       removeWorkspace,
       setPrimaryWorkspace,
+      switchWorkspace,
       workspaces,
     ]
   );

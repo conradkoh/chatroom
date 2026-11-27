@@ -17,6 +17,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion -- legacy non-null assertions in git popover branches */
 
 import {
+  ArrowRightLeft,
   ChevronDown,
   ClipboardCopy,
   Code2,
@@ -28,13 +29,14 @@ import {
   Terminal,
 } from 'lucide-react';
 import type { ComponentType, CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
-import { memo, useState, useCallback, useMemo, useEffect } from 'react';
+import { memo, useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { SiGithub, SiGitlab, SiBitbucket } from 'react-icons/si';
 
 import { CommitStatusIndicator } from './CommitStatusIndicator';
 import { GitDiffStatClickable, InlineDiffStat } from './shared';
 import { getChatroomMobileFooterSafeAreaStyle } from '../../components/shared/chatroomMobileSafeArea';
 import { useChatroomWorkspace } from '../../context/ChatroomWorkspaceContext';
+import { SwitchWorkspaceDialog } from '../../features/switch-workspace/SwitchWorkspaceDialog';
 import type { Workspace } from '../../types/workspace';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import { useWorkspaceGit, useGitRefresh } from '../hooks/useWorkspaceGit';
@@ -553,6 +555,8 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
   onClose,
   onOpenGitPanel,
   onSwitchWorkspace,
+  onRequestSwitch,
+  switchDisabled,
   sendAction,
   onCopied,
   onCopyError,
@@ -562,6 +566,8 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
   onClose: () => void;
   onOpenGitPanel: () => void;
   onSwitchWorkspace: (workspaceId: string) => void;
+  onRequestSwitch: () => void;
+  switchDisabled: boolean;
   sendAction: (
     machineId: string,
     action: 'open-vscode' | 'open-finder' | 'open-github-desktop' | 'open-cursor',
@@ -962,6 +968,17 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                 </span>
               </div>
             )}
+
+            <button
+              type="button"
+              data-testid="switch-workspace-action-mobile"
+              disabled={switchDisabled}
+              onClick={onRequestSwitch}
+              className="flex items-center gap-2 px-3 py-2.5 rounded-none hover:bg-chatroom-bg-hover/50 transition-colors text-left w-full text-[12px] font-bold uppercase tracking-wider text-chatroom-text-primary border-t border-chatroom-border disabled:opacity-50"
+            >
+              <ArrowRightLeft size={14} className="text-chatroom-text-muted shrink-0" />
+              Switch workspace…
+            </button>
           </div>
         </FixedModalBody>
       </FixedModalContent>
@@ -1064,9 +1081,26 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
     workspaces,
     activeWorkspace: selectedWorkspace,
     setPrimaryWorkspace,
+    isLoading,
   } = useChatroomWorkspace();
   const [mobileModalOpen, setMobileModalOpen] = useState(false);
+  const [switchOpen, setSwitchOpen] = useState(false);
+  const desktopTriggerRef = useRef<HTMLButtonElement>(null);
+  const mobileTriggerRef = useRef<HTMLButtonElement>(null);
   const isDesktop = useIsDesktop(640);
+
+  const openSwitch = useCallback(() => {
+    setMobileModalOpen(false);
+    setSwitchOpen(true);
+  }, []);
+
+  // Restores focus to the trigger that is mounted for the current breakpoint.
+  const closeSwitch = useCallback(() => {
+    setSwitchOpen(false);
+    requestAnimationFrame(() =>
+      (isDesktop ? desktopTriggerRef : mobileTriggerRef).current?.focus()
+    );
+  }, [isDesktop]);
 
   const validWorkspaces = useMemo(
     () => workspaces.filter((ws): ws is WorkspaceWithMachine => ws.machineId !== null),
@@ -1116,6 +1150,7 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
             <DropdownMenu>
               <DropdownMenuTrigger
                 type="button"
+                ref={desktopTriggerRef}
                 className="flex items-center gap-2 px-3 h-full hover:bg-chatroom-bg-hover/50 transition-colors border-r border-chatroom-border-strong min-w-0"
                 title={activeWorkspace?.workingDir ?? ''}
               >
@@ -1215,6 +1250,16 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
                     </DropdownMenuSub>
                   );
                 })}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  data-testid="switch-workspace-action"
+                  disabled={isLoading || !activeWorkspace}
+                  onClick={openSwitch}
+                  className="text-[11px] cursor-pointer py-2"
+                >
+                  <ArrowRightLeft size={13} className="mr-2" />
+                  Switch workspace…
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -1230,6 +1275,7 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
           /* Mobile: entire bar is clickable → opens fullscreen modal */
           <button
             type="button"
+            ref={mobileTriggerRef}
             onClick={handleOpenMobileModal}
             className="flex items-center flex-1 min-w-0 h-full hover:bg-chatroom-bg-hover/50 transition-colors"
             title="View workspace details"
@@ -1248,11 +1294,15 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
           onClose={handleCloseMobileModal}
           onOpenGitPanel={handleOpenGitPanel}
           onSwitchWorkspace={handleSwitchWorkspace}
+          onRequestSwitch={openSwitch}
+          switchDisabled={isLoading}
           sendAction={sendAction}
           onCopied={onCopied}
           onCopyError={onCopyError}
         />
       )}
+
+      {switchOpen && <SwitchWorkspaceDialog onClose={closeSwitch} />}
     </>
   );
 });

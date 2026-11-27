@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -33,6 +34,15 @@ function serializeShellHierarchy(outer: HTMLElement) {
 }
 
 vi.mock('@/hooks/useIsDesktop', () => ({ useIsDesktop: () => mockUseIsDesktop() }));
+vi.mock('../../features/switch-workspace/SwitchWorkspaceDialog', () => ({
+  SwitchWorkspaceDialog: ({ onClose }: { onClose: () => void }) => (
+    <div data-testid="switch-dialog-stub">
+      <button type="button" onClick={onClose}>
+        close-switch
+      </button>
+    </div>
+  ),
+}));
 vi.mock('../../context/ChatroomWorkspaceContext', () => ({
   useChatroomWorkspace: () => mockUseChatroomWorkspace(),
 }));
@@ -508,5 +518,98 @@ describe('WorkspaceBottomBar workspace-path copy', () => {
     expect(onCopyError).toHaveBeenCalledWith('Failed to copy to clipboard');
     expect(onCopied).not.toHaveBeenCalled();
     expect(writeText).toHaveBeenCalledWith('/Users/alice/repo');
+  });
+});
+
+describe('WorkspaceBottomBar switch-workspace entry points', () => {
+  const workspace = {
+    id: 'm1::/code/app',
+    machineId: 'm1',
+    hostname: 'host-a',
+    workingDir: '/code/app',
+    agentRoles: [],
+    fileTreeSyncEnabled: true,
+  };
+
+  beforeEach(() => {
+    mockUseKeyboardInset.mockReturnValue(0);
+    mockUseViewportOffsetTop.mockReturnValue(0);
+    mockUseViewportScale.mockReturnValue(1);
+    mockUseMainChatComposerFocused.mockReturnValue(false);
+    mockUseChatroomWorkspace.mockReturnValue({
+      chatroomId: 'chatroom-1',
+      workspaces: [workspace],
+      activeWorkspace: workspace,
+      isLoading: false,
+      setPrimaryWorkspace: vi.fn().mockResolvedValue(undefined),
+      removeWorkspace: vi.fn().mockResolvedValue(undefined),
+      switchWorkspace: vi.fn(),
+    });
+  });
+
+  it('opens the switch dialog from the desktop picker', async () => {
+    const user = userEvent.setup();
+    mockUseIsDesktop.mockReturnValue(true);
+    render(<WorkspaceBottomBar />);
+
+    await user.click(screen.getByTitle('/code/app'));
+    await user.click(await screen.findByTestId('switch-workspace-action'));
+
+    expect(screen.getByTestId('switch-dialog-stub')).toBeInTheDocument();
+  });
+
+  it('restores focus to the desktop picker trigger on close', async () => {
+    const user = userEvent.setup();
+    mockUseIsDesktop.mockReturnValue(true);
+    render(<WorkspaceBottomBar />);
+
+    const trigger = screen.getByTitle('/code/app');
+    await user.click(trigger);
+    await user.click(await screen.findByTestId('switch-workspace-action'));
+    await user.click(screen.getByRole('button', { name: 'close-switch' }));
+
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+
+  it('opens the switch dialog from the mobile modal row', async () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    render(<WorkspaceBottomBar />);
+
+    fireEvent.click(screen.getByTitle('View workspace details'));
+    expect(await screen.findByText('Workspace')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('switch-workspace-action-mobile'));
+
+    expect(screen.getByTestId('switch-dialog-stub')).toBeInTheDocument();
+    expect(screen.queryByText('Workspace')).not.toBeInTheDocument();
+  });
+
+  it('disables both entry points while the context is loading', async () => {
+    const user = userEvent.setup();
+    mockUseIsDesktop.mockReturnValue(true);
+    mockUseChatroomWorkspace.mockReturnValue({
+      chatroomId: 'chatroom-1',
+      workspaces: [workspace],
+      activeWorkspace: workspace,
+      isLoading: true,
+      setPrimaryWorkspace: vi.fn().mockResolvedValue(undefined),
+      removeWorkspace: vi.fn().mockResolvedValue(undefined),
+      switchWorkspace: vi.fn(),
+    });
+    const { unmount } = render(<WorkspaceBottomBar />);
+
+    await user.click(screen.getByTitle('/code/app'));
+    expect(await screen.findByTestId('switch-workspace-action')).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+
+    unmount();
+
+    mockUseIsDesktop.mockReturnValue(false);
+    render(<WorkspaceBottomBar />);
+    fireEvent.click(screen.getByTitle('View workspace details'));
+
+    expect(await screen.findByTestId('switch-workspace-action-mobile')).toBeDisabled();
   });
 });
