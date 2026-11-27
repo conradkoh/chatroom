@@ -1,4 +1,7 @@
+// fallow-ignore-file complexity code-duplication
 import type { AgentHarness } from '@workspace/backend/src/domain/entities/agent.js';
+import type { ApplyAgentConfigResult } from '@workspace/backend/src/domain/usecase/agent/apply-agent-config.js';
+import type { AgentModelOptions } from '@workspace/backend/src/domain/usecase/agent/get-agent-model-options.js';
 
 import type { AgentDeps } from './deps.js';
 import { api, type Id } from '../../api.js';
@@ -12,6 +15,7 @@ interface AgentConfig {
   model: string;
   workingDir: string;
   machineId: string;
+  requestedAt?: number;
 }
 
 async function createDefaultDeps(): Promise<AgentDeps> {
@@ -74,38 +78,127 @@ export async function getAgentConfig(
   console.log(`  Machine ID: ${config.machineId ?? '(unset)'}`);
 }
 
+interface TeamHeader {
+  teamId: string;
+  teamName: string;
+  entryPoint: string;
+}
+
+interface StatusRow {
+  role: string;
+  roleKind: 'persistent' | 'ephemeral';
+  status: string;
+  machineId: string | null;
+  workingDir: string | null;
+}
+
+/** Runs the server-side apply decision and prints what it did. */
+function printApplyResult(result: ApplyAgentConfigResult): void {
+  const { role, outcome, running, previous, effective } = result;
+  if (outcome === 'unchanged') {
+    console.log(
+      `No change: ${role} already uses ${effective.agentHarness} / ${effective.model}; not restarted`
+    );
+  } else if (outcome === 'restarted') {
+    console.log(`✅ Restart requested for ${role}`);
+  } else {
+    console.log(running ? `✅ Saved ${role}` : `✅ Saved ${role} (not running)`);
+  }
+  // "(was …)" only when something changed; "none" when there was no previous config.
+  const was = (old: string | undefined) =>
+    outcome === 'unchanged' ? '' : ` (was ${old ?? 'none'})`;
+  console.log(`  Harness: ${effective.agentHarness}${was(previous?.agentHarness)}`);
+  console.log(`  Model: ${effective.model}${was(previous?.model)}`);
+  console.log(`  Machine ID: ${effective.machineId}`);
+  console.log(`  Working directory: ${effective.workingDir}`);
+  const note =
+    outcome === 'restarted'
+      ? 'Agent restarted with the new configuration.'
+      : outcome === 'saved' && !running
+        ? 'The agent is not running; the new configuration is used the next time it starts.'
+        : outcome === 'saved'
+          ? 'The running agent has no managed configuration and was not restarted.'
+          : null;
+  if (note) console.log(`  ${note}`);
+}
+
+/** Sets a role's harness and model; the backend decides save, restart or no-op. */
 export async function setAgentConfig(
   chatroomId: string,
-  options: {
-    role: string;
-    harness: string;
-    model: string;
-    workingDir?: string | undefined;
-  },
+  options: { role: string; harness: string; model: string },
   deps?: AgentDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
   const sessionId = await requireSession(d);
-  const machineId = await requireMachineId(d);
-  const machineConfig = await d.machine.loadMachineConfig();
-  const workingDir = options.workingDir ?? configuredWorkingDir(machineConfig) ?? process.cwd();
-  await d.backend.mutation(api.machines.sendCommand, {
+  const result = (await d.backend.mutation(api.agents.applyConfig, {
     sessionId,
-    machineId,
-    type: 'start-agent',
-    payload: {
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      role: options.role,
-      agentHarness: options.harness as AgentHarness,
-      model: options.model,
-      workingDir,
-    },
-  });
-  console.log(`✅ Start command sent for ${options.role}`);
-  console.log(`  Harness: ${options.harness}`);
-  console.log(`  Model: ${options.model}`);
-  console.log(`  Working directory: ${workingDir}`);
-  console.log(`  Machine ID: ${machineId}`);
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    role: options.role,
+    agentHarness: options.harness,
+    model: options.model,
+  })) as ApplyAgentConfigResult;
+  printApplyResult(result);
+}
+
+/** The newest launch request for a role (case-insensitive), or undefined. */
+function newestConfigFor(requests: readonly AgentConfig[], role: string): AgentConfig | undefined {
+  const key = role.trim().toLowerCase();
+  return requests
+    .filter((request) => request.role.trim().toLowerCase() === key)
+    .sort((a, b) => (b.requestedAt ?? 0) - (a.requestedAt ?? 0))[0];
+}
+
+/** Lists every team role with status, harness, model, machine and working directory. */
+export async function listAgents(chatroomId: string, deps?: AgentDeps): Promise<void> {
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = await requireSession(d);
+  const args = { sessionId, chatroomId: chatroomId as Id<'chatroom_rooms'> };
+  const [team, statuses, requests] = (await Promise.all([
+    d.backend.query(api.chatrooms.getTeamStructureForChatroom, args),
+    d.backend.query(api.agents.listStatus, args),
+    d.backend.query(api.agents.listLastSentLaunchRequests, args),
+  ])) as [TeamHeader | null, StatusRow[], AgentConfig[]];
+  if (!team) throw new Error(`Chatroom has no team structure: ${chatroomId}`);
+  console.log(
+    `Team: ${team.teamId} (${team.teamName})    Entry point: ${team.entryPoint}    Chatroom: ${chatroomId}`
+  );
+  for (const row of statuses) {
+    const config = newestConfigFor(requests, row.role);
+    console.log(`${row.role} (${row.roleKind === 'ephemeral' ? 'ephemeral' : 'permanent'})`);
+    console.log(`  Status: ${row.status}`);
+    console.log(`  Harness: ${config?.agentHarness ?? '(not configured)'}`);
+    console.log(`  Model: ${config?.model ?? '(not configured)'}`);
+    console.log(`  Machine ID: ${config?.machineId ?? row.machineId ?? '(unset)'}`);
+    console.log(`  Working directory: ${config?.workingDir ?? row.workingDir ?? '(unset)'}`);
+  }
+}
+
+/** Lists the harnesses and models the role's machine offers, marking the current harness. */
+export async function listAgentModels(
+  chatroomId: string,
+  options: { team: string; role: string; harness?: string | undefined },
+  deps?: AgentDeps
+): Promise<void> {
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = await requireSession(d);
+  const result = (await d.backend.query(api.agents.getAgentModelOptions, {
+    sessionId,
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    teamId: options.team,
+    role: options.role,
+    ...(options.harness ? { harness: options.harness } : {}), // omit the key when no filter
+  })) as AgentModelOptions;
+  const current = result.current
+    ? `${result.current.agentHarness} / ${result.current.model}`
+    : 'not configured';
+  console.log(
+    `Models for ${result.role} (team ${result.teamId}) on machine ${result.machineId}; current: ${current}`
+  );
+  for (const option of result.harnesses) {
+    console.log(`Harness: ${option.harness}${option.isCurrent ? ' (current)' : ''}`);
+    if (option.models.length === 0) console.log('  (no models reported; any model id is accepted)');
+    for (const model of option.models) console.log(`  ${model}`);
+  }
 }
 
 // fallow-ignore-next-line complexity

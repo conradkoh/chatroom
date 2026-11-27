@@ -7,6 +7,7 @@ import { AgentSettingsModal } from './AgentSettingsModal';
 
 const mocks = vi.hoisted(() => ({
   favoritesByKey: {} as Record<string, { agentHarness: string; model: string }[] | undefined>,
+  applyConfig: vi.fn(),
   saveConfig: vi.fn(),
   genericMutation: vi.fn(),
   teamStructure: undefined as unknown,
@@ -33,7 +34,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: (ref: unknown) =>
     String(ref).includes('getTeamStructureForChatroom') ? mocks.teamStructure : undefined,
   useSessionMutation: (ref: unknown) =>
-    String(ref).includes('saveConfig') ? mocks.saveConfig : mocks.genericMutation,
+    String(ref).includes('applyConfig') ? mocks.applyConfig : mocks.genericMutation,
 }));
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
@@ -41,7 +42,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     machineConfigFavorites: {
       getMachineConfigFavorites: 'machineConfigFavorites:getMachineConfigFavorites',
     },
-    agents: { saveConfig: 'agents:saveConfig' },
+    agents: { applyConfig: 'agents:applyConfig', saveConfig: 'agents:saveConfig' },
     chatrooms: {
       getTeamStructureForChatroom: 'chatrooms:getTeamStructureForChatroom',
       updateTeam: 'chatrooms:updateTeam',
@@ -180,7 +181,7 @@ describe('AgentSettingsModal agents apply top favourites', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.favoritesByKey = {};
-    mocks.saveConfig.mockResolvedValue(null);
+    mocks.applyConfig.mockResolvedValue({ outcome: 'restarted' });
     mocks.genericMutation.mockResolvedValue(undefined);
     mocks.teamStructure = getTeamStructure({ teamId: 'duo' });
     mocks.onClose = vi.fn();
@@ -200,27 +201,23 @@ describe('AgentSettingsModal agents apply top favourites', () => {
 
     fireEvent.click(button);
 
-    await waitFor(() => expect(mocks.saveConfig).toHaveBeenCalledTimes(2));
-    expect(mocks.saveConfig).toHaveBeenCalledWith({
+    await waitFor(() => expect(mocks.applyConfig).toHaveBeenCalledTimes(2));
+    expect(mocks.applyConfig).toHaveBeenCalledWith({
       chatroomId: 'room-1',
       workspaceId: 'ws-1',
       role: 'planner',
-      machineId: 'm1',
       agentHarness: 'claude-sdk',
       model: 'opus',
-      workingDir: '/repo',
     });
-    expect(mocks.saveConfig).toHaveBeenCalledWith({
+    expect(mocks.applyConfig).toHaveBeenCalledWith({
       chatroomId: 'room-1',
       workspaceId: 'ws-1',
       role: 'builder',
-      machineId: 'm1',
       agentHarness: 'opencode-sdk',
       model: 'gpt-5',
-      workingDir: '/repo',
     });
     const feedback = await screen.findByText(
-      'Applied top favourite model to 2 agent(s). Restart agents to use it.'
+      'Applied top favourite model to 2 agent(s): 2 restarted.'
     );
     expect(feedback).toHaveAttribute('role', 'status');
   });
@@ -265,15 +262,13 @@ describe('AgentSettingsModal agents apply top favourites', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Apply top favourites' }));
 
-    await waitFor(() => expect(mocks.saveConfig).toHaveBeenCalledTimes(1));
-    expect(mocks.saveConfig).toHaveBeenCalledWith({
+    await waitFor(() => expect(mocks.applyConfig).toHaveBeenCalledTimes(1));
+    expect(mocks.applyConfig).toHaveBeenCalledWith({
       chatroomId: 'room-1',
       workspaceId: 'ws-1',
       role: 'solo',
-      machineId: 'm1',
       agentHarness: 'claude-sdk',
       model: 'sonnet',
-      workingDir: '/repo',
     });
   });
 });

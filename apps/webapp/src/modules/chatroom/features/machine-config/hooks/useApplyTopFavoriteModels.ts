@@ -6,7 +6,10 @@ import { useQueries } from 'convex/react';
 import { useSessionId, useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
-import { applyFavoriteConfigs, type ApplyFavoriteConfigItem } from '../lib/applyFavoriteConfigs';
+import {
+  applyFavoriteConfigsAndRestart,
+  type ApplyFavoriteConfigItem,
+} from '../lib/applyFavoriteConfigs';
 import { buildMachineFavoriteScopeKey } from '../lib/machineConfigScopeKey';
 import {
   resolveTopFavoritePerRole,
@@ -80,7 +83,7 @@ export function useApplyTopFavoriteModels(target: ApplyTopFavoritesTarget | null
     target !== null &&
     (!sessionId || (roles ?? []).some((role) => favoriteResults[role] === undefined));
 
-  const saveConfig = useSessionMutation(api.agents.saveConfig);
+  const applyConfig = useSessionMutation(api.agents.applyConfig);
   const inFlightRef = useRef(false);
   const [isApplying, setIsApplying] = useState(false);
 
@@ -89,12 +92,12 @@ export function useApplyTopFavoriteModels(target: ApplyTopFavoritesTarget | null
     inFlightRef.current = true;
     setIsApplying(true);
     try {
-      return await applyFavoriteConfigs(saveConfig, toApplyItems(target, topFavorites));
+      return await applyFavoriteConfigsAndRestart(applyConfig, toApplyItems(target, topFavorites));
     } finally {
       inFlightRef.current = false;
       setIsApplying(false);
     }
-  }, [target, topFavorites, saveConfig]);
+  }, [target, topFavorites, applyConfig]);
 
   return { topFavorites, isLoading, isApplying, apply };
 }

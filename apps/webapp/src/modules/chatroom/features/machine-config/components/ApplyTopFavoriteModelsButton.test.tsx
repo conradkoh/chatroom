@@ -7,6 +7,7 @@ import { ApplyTopFavoriteModelsButton } from './ApplyTopFavoriteModelsButton';
 const mocks = vi.hoisted(() => ({
   /** Key: `${machineId}|${teamRoleKey}`. `undefined` means the query is still loading. */
   favoritesByKey: {} as Record<string, { agentHarness: string; model: string }[] | undefined>,
+  applyConfig: vi.fn(),
   saveConfig: vi.fn(),
   teamStructure: undefined as unknown,
   workspaceContext: null as unknown,
@@ -24,7 +25,8 @@ vi.mock('convex/react', () => ({
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionId: () => ['session-1'],
-  useSessionMutation: () => mocks.saveConfig,
+  useSessionMutation: (ref: unknown) =>
+    ref === 'agents:applyConfig' ? mocks.applyConfig : mocks.saveConfig,
   useSessionQuery: (ref: unknown) =>
     ref === 'chatrooms:getTeamStructureForChatroom' ? mocks.teamStructure : undefined,
 }));
@@ -34,7 +36,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     machineConfigFavorites: {
       getMachineConfigFavorites: 'machineConfigFavorites:getMachineConfigFavorites',
     },
-    agents: { saveConfig: 'agents:saveConfig' },
+    agents: { applyConfig: 'agents:applyConfig', saveConfig: 'agents:saveConfig' },
     chatrooms: { getTeamStructureForChatroom: 'chatrooms:getTeamStructureForChatroom' },
     machines: { listMachines: 'machines:listMachines' },
   },
@@ -81,8 +83,9 @@ function seedTeam(
 describe('ApplyTopFavoriteModelsButton', () => {
   beforeEach(() => {
     mocks.favoritesByKey = {};
+    mocks.applyConfig.mockReset();
     mocks.saveConfig.mockReset();
-    mocks.saveConfig.mockResolvedValue(null);
+    mocks.applyConfig.mockResolvedValue({ outcome: 'restarted' });
     mocks.workspaceContext = workspaceContext;
     mocks.teamStructure = getTeamStructure({ teamId: 'duo' });
   });
@@ -100,31 +103,25 @@ describe('ApplyTopFavoriteModelsButton', () => {
 
     fireEvent.click(button);
 
-    await waitFor(() => expect(mocks.saveConfig).toHaveBeenCalledTimes(2));
-    expect(mocks.saveConfig).toHaveBeenCalledWith({
+    await waitFor(() => expect(mocks.applyConfig).toHaveBeenCalledTimes(2));
+    expect(mocks.applyConfig).toHaveBeenCalledWith({
       chatroomId: 'room-1',
       workspaceId: 'ws-1',
       role: 'planner',
-      machineId: 'm1',
       agentHarness: 'claude-sdk',
       model: 'opus',
-      workingDir: '/repo',
     });
-    expect(mocks.saveConfig).toHaveBeenCalledWith({
+    expect(mocks.applyConfig).toHaveBeenCalledWith({
       chatroomId: 'room-1',
       workspaceId: 'ws-1',
       role: 'builder',
-      machineId: 'm1',
       agentHarness: 'opencode-sdk',
       model: 'gpt-5',
-      workingDir: '/repo',
     });
     expect(await screen.findByRole('status')).toHaveTextContent(
-      'Applied top favourite model to 2 agent(s). Restart agents to use it.'
+      'Applied top favourite model to 2 agent(s): 2 restarted.'
     );
-    await waitFor(() =>
-      expect(screen.getByRole('status')).toHaveTextContent('Restart agents to use it.')
-    );
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('2 restarted.'));
   });
 
   it('applies the same top favourites from the icon button', async () => {
@@ -140,9 +137,9 @@ describe('ApplyTopFavoriteModelsButton', () => {
 
     fireEvent.click(button);
 
-    await waitFor(() => expect(mocks.saveConfig).toHaveBeenCalledTimes(2));
-    expect(mocks.saveConfig.mock.calls.map(([args]) => args.role)).toEqual(['planner', 'builder']);
-    expect(mocks.saveConfig.mock.calls.map(([args]) => args.model)).toEqual(['opus', 'gpt-5']);
+    await waitFor(() => expect(mocks.applyConfig).toHaveBeenCalledTimes(2));
+    expect(mocks.applyConfig.mock.calls.map(([args]) => args.role)).toEqual(['planner', 'builder']);
+    expect(mocks.applyConfig.mock.calls.map(([args]) => args.model)).toEqual(['opus', 'gpt-5']);
   });
 
   it('is disabled with a visible reason when no role has a favourite', async () => {
@@ -156,7 +153,7 @@ describe('ApplyTopFavoriteModelsButton', () => {
 
     fireEvent.click(button);
 
-    expect(mocks.saveConfig).not.toHaveBeenCalled();
+    expect(mocks.applyConfig).not.toHaveBeenCalled();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.queryByRole('status')).toBeNull();
   });
@@ -166,10 +163,10 @@ describe('ApplyTopFavoriteModelsButton', () => {
       planner: [{ agentHarness: 'claude-sdk', model: 'opus' }],
       builder: [{ agentHarness: 'opencode-sdk', model: 'gpt-5' }],
     });
-    const resolvers: ((value: null) => void)[] = [];
-    mocks.saveConfig.mockImplementation(
+    const resolvers: ((value: { outcome: 'restarted' }) => void)[] = [];
+    mocks.applyConfig.mockImplementation(
       () =>
-        new Promise<null>((resolve) => {
+        new Promise<{ outcome: 'restarted' }>((resolve) => {
           resolvers.push(resolve);
         })
     );
@@ -181,20 +178,20 @@ describe('ApplyTopFavoriteModelsButton', () => {
     const applying = screen.getByRole('button', { name: 'Applying…' });
     expect(applying).toBeDisabled();
     expect(applying).toHaveAttribute('aria-busy', 'true');
-    expect(mocks.saveConfig).toHaveBeenCalledTimes(2);
+    expect(mocks.applyConfig).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole('status')).toBeNull();
 
     fireEvent.click(applying);
-    expect(mocks.saveConfig).toHaveBeenCalledTimes(2);
+    expect(mocks.applyConfig).toHaveBeenCalledTimes(2);
 
     await waitFor(() => expect(resolvers).toHaveLength(2));
-    resolvers.forEach((resolve) => resolve(null));
+    resolvers.forEach((resolve) => resolve({ outcome: 'restarted' }));
 
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Apply top favourites' })).toBeEnabled()
     );
     expect(await screen.findByRole('status')).toHaveTextContent(
-      'Applied top favourite model to 2 agent(s). Restart agents to use it.'
+      'Applied top favourite model to 2 agent(s): 2 restarted.'
     );
   });
 
@@ -203,8 +200,10 @@ describe('ApplyTopFavoriteModelsButton', () => {
       planner: [{ agentHarness: 'claude-sdk', model: 'opus' }],
       builder: [{ agentHarness: 'opencode-sdk', model: 'gpt-5' }],
     });
-    mocks.saveConfig.mockImplementation((args: { role: string }) =>
-      args.role === 'planner' ? Promise.reject(new Error('harness missing')) : Promise.resolve(null)
+    mocks.applyConfig.mockImplementation((args: { role: string }) =>
+      args.role === 'planner'
+        ? Promise.reject(new Error('harness missing'))
+        : Promise.resolve({ outcome: 'restarted' })
     );
 
     render(<ApplyTopFavoriteModelsButton variant="labelled" />);
@@ -212,7 +211,7 @@ describe('ApplyTopFavoriteModelsButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Apply top favourites' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Failed to apply top favourite model for planner (harness missing). Applied to 1 other agent(s).'
+      'Failed to apply top favourite model for planner (harness missing). Applied to 1 other agent(s): 1 restarted.'
     );
   });
 
@@ -227,11 +226,11 @@ describe('ApplyTopFavoriteModelsButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Apply top favourites' }));
 
     expect(await screen.findByRole('status')).toHaveTextContent(
-      'Applied top favourite model to 2 agent(s). Restart agents to use it.'
+      'Applied top favourite model to 2 agent(s): 2 restarted.'
     );
 
     // The second apply never resolves, so the cleared hint is observable while it is in flight.
-    mocks.saveConfig.mockImplementation(() => new Promise(() => {}));
+    mocks.applyConfig.mockImplementation(() => new Promise(() => {}));
 
     fireEvent.click(screen.getByRole('button', { name: 'Apply top favourites' }));
 
@@ -243,8 +242,10 @@ describe('ApplyTopFavoriteModelsButton', () => {
       planner: [{ agentHarness: 'claude-sdk', model: 'opus' }],
       builder: [{ agentHarness: 'opencode-sdk', model: 'gpt-5' }],
     });
-    mocks.saveConfig.mockImplementation((args: { role: string }) =>
-      args.role === 'planner' ? Promise.reject(new Error('harness missing')) : Promise.resolve(null)
+    mocks.applyConfig.mockImplementation((args: { role: string }) =>
+      args.role === 'planner'
+        ? Promise.reject(new Error('harness missing'))
+        : Promise.resolve({ outcome: 'restarted' })
     );
     const onFeedbackChange = vi.fn();
 
@@ -258,7 +259,7 @@ describe('ApplyTopFavoriteModelsButton', () => {
       expect(onFeedbackChange).toHaveBeenLastCalledWith({
         kind: 'error',
         message:
-          'Failed to apply top favourite model for planner (harness missing). Applied to 1 other agent(s).',
+          'Failed to apply top favourite model for planner (harness missing). Applied to 1 other agent(s): 1 restarted.',
       })
     );
     expect(onFeedbackChange).toHaveBeenNthCalledWith(1, null);
@@ -290,17 +291,15 @@ describe('ApplyTopFavoriteModelsButton', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Apply top favourites' }));
 
-    await waitFor(() => expect(mocks.saveConfig).toHaveBeenCalledTimes(1));
-    expect(mocks.saveConfig).toHaveBeenCalledWith({
+    await waitFor(() => expect(mocks.applyConfig).toHaveBeenCalledTimes(1));
+    expect(mocks.applyConfig).toHaveBeenCalledWith({
       chatroomId: 'room-1',
       workspaceId: 'ws-1',
       role: 'solo',
-      machineId: 'm1',
       agentHarness: 'claude-sdk',
       model: 'sonnet',
-      workingDir: '/repo',
     });
-    expect(mocks.saveConfig.mock.calls.map(([args]) => args.role)).not.toContain('planner');
-    expect(mocks.saveConfig.mock.calls.map(([args]) => args.role)).not.toContain('builder');
+    expect(mocks.applyConfig.mock.calls.map(([args]) => args.role)).not.toContain('planner');
+    expect(mocks.applyConfig.mock.calls.map(([args]) => args.role)).not.toContain('builder');
   });
 });

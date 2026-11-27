@@ -1,3 +1,4 @@
+// fallow-ignore-file complexity code-duplication
 /** Canonical web-facing agent configuration and status reads. */
 
 import { normalizeAgentRole } from '@workspace/shared/domain/agent-role';
@@ -22,8 +23,10 @@ import { validateWorkingDir } from './workspacePathSecurity';
 import { AgentStartReasonCode } from '../src/domain/entities/agent';
 import { ACTIVE_TASK_HEADER_READ_LIMIT } from '../src/domain/entities/task';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
+import { applyAgentConfig } from '../src/domain/usecase/agent/apply-agent-config';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
+import { getAgentModelOptions as getAgentModelOptionsUseCase } from '../src/domain/usecase/agent/get-agent-model-options';
 import {
   getLastSentLaunchRequestForRole,
   listLastSentLaunchRequestsForChatroom,
@@ -34,6 +37,7 @@ import {
   requestChatroomWorkspaceAgentStop,
   requestWorkspaceAgentStop,
 } from '../src/domain/usecase/agent/request-chatroom-workspace-agent-stop';
+import { resolveAgentConfigTarget } from '../src/domain/usecase/agent/resolve-agent-config-target';
 import { saveAgentConfig } from '../src/domain/usecase/agent/save-agent-config';
 import { selectWakeableAgentRoles } from '../src/domain/usecase/agent/select-wakeable-agent-roles';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
@@ -290,7 +294,10 @@ export const requestRestart = mutation({
   },
 });
 
-/** Persist an agent configuration without starting an agent process. */
+/**
+ * Save-only: persists an agent configuration without starting or restarting anything. The
+ * start-with-favourites flow relies on this. Use `applyConfig` to save and restart a changed agent.
+ */
 export const saveConfig = mutation({
   args: {
     ...SessionIdArg,
@@ -324,6 +331,68 @@ export const saveConfig = mutation({
       workingDir: saved.workingDir,
       updatedAt: saved.requestedAt,
     };
+  },
+});
+
+/**
+ * Saves a role's harness and model and restarts the agent only when the effective harness or model
+ * changed. Unchanged → no write; changed and not running → saved; changed and running → restarted.
+ */
+export const applyConfig = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    agentHarness: v.string(),
+    model: v.string(),
+    workspaceId: v.optional(v.id('chatroom_workspaces')),
+  },
+  handler: async (ctx, args) => {
+    const access = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const target = await resolveAgentConfigTarget(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+      workspaceId: args.workspaceId,
+    });
+    await requireMachineOwner(ctx, args.sessionId, target.machineId);
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', target.machineId))
+      .first();
+    if (!machine) throw new Error('Machine not found');
+    return applyAgentConfig(ctx, {
+      target,
+      chatroomId: args.chatroomId,
+      agentHarness: args.agentHarness,
+      model: args.model,
+      requestedBy: access.session.userId,
+      machine,
+    });
+  },
+});
+
+/** Read-only options for `chatroom agent config models`: the role's machine catalog and current config. */
+export const getAgentModelOptions = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    teamId: v.string(),
+    role: v.string(),
+    harness: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const target = await resolveAgentConfigTarget(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+      teamId: args.teamId,
+    });
+    await requireMachineOwner(ctx, args.sessionId, target.machineId);
+    return getAgentModelOptionsUseCase(ctx, {
+      target,
+      chatroomId: args.chatroomId,
+      harness: args.harness,
+    });
   },
 });
 

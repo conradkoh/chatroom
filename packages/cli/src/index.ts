@@ -267,6 +267,17 @@ teamCommand
     await listTeamPresets();
   });
 
+/** Runs an agent admin command. Failures print a readable message and exit 1. */
+async function runAgentCommand(run: () => Promise<void>): Promise<void> {
+  try {
+    await run();
+  } catch (error) {
+    const { getErrorMessage } = await import('./utils/convex-error.js');
+    console.error(`❌ ${getErrorMessage(error)}`);
+    process.exit(1);
+  }
+}
+
 const agentCommand = program.command('agent').description('Manage agent harness and lifecycle');
 const agentConfigCommand = agentCommand.command('config').description('Agent configuration');
 
@@ -283,24 +294,60 @@ agentConfigCommand
 
 agentConfigCommand
   .command('set')
-  .description('Send a one-time agent start request with the harness and model')
+  .description("Set an agent's harness and model; restarts the agent only if they changed")
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Agent role')
   .requiredOption('--harness <harness>', 'Agent harness')
   .requiredOption('--model <model>', 'Model identifier')
-  .option('--working-dir <dir>', 'Agent working directory')
+  .action(async (options: { chatroomId: string; role: string; harness: string; model: string }) =>
+    runAgentCommand(async () => {
+      await maybeRequireAuth();
+      const { setAgentConfig } = await import('./commands/agent/index.js');
+      await setAgentConfig(options.chatroomId, {
+        role: options.role,
+        harness: options.harness,
+        model: options.model,
+      });
+    })
+  );
+
+agentConfigCommand
+  .command('models')
+  .description('List the harnesses and models available to an agent role on its machine')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--team <teamId>', 'Team the role belongs to')
+  .requiredOption('--role <role>', 'Agent role')
+  .option('--harness <harness>', 'Only list models for this harness')
   .action(
     async (options: {
       chatroomId: string;
+      team: string;
       role: string;
-      harness: string;
-      model: string;
-      workingDir?: string | undefined;
-    }) => {
+      harness?: string | undefined;
+    }) =>
+      runAgentCommand(async () => {
+        await maybeRequireAuth();
+        const { listAgentModels } = await import('./commands/agent/index.js');
+        await listAgentModels(options.chatroomId, {
+          team: options.team,
+          role: options.role,
+          harness: options.harness,
+        });
+      })
+  );
+
+agentCommand
+  .command('list')
+  .description(
+    'List the chatroom team roles with status, harness, model, machine and working directory'
+  )
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .action(async (options: { chatroomId: string }) =>
+    runAgentCommand(async () => {
       await maybeRequireAuth();
-      const { setAgentConfig } = await import('./commands/agent/index.js');
-      await setAgentConfig(options.chatroomId, options);
-    }
+      const { listAgents } = await import('./commands/agent/index.js');
+      await listAgents(options.chatroomId);
+    })
   );
 
 agentCommand
@@ -1404,6 +1451,9 @@ harnessCommand
 // This replaces the per-handler sendLifecycleHeartbeat calls and also covers
 // commands like `messages pages`, `messages download` and `backlog` that previously had no coverage.
 program.hook('preAction', async (_thisCommand, actionCommand) => {
+  // `agent config *` names a target role, not the caller: it must not mark that role as seen.
+  if (actionCommand.parent?.name() === 'config' && actionCommand.parent.parent?.name() === 'agent')
+    return;
   const opts = actionCommand.opts();
   const chatroomId = opts['chatroomId'] as string | undefined;
   const role = opts['role'] as string | undefined;

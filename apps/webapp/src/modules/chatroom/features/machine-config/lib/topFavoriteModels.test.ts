@@ -41,31 +41,63 @@ describe('resolveTopFavoritePerRole', () => {
 });
 
 describe('describeApplyTopFavoritesResult', () => {
-  it('reports success when every role applied', () => {
+  it('reports success with restarted and saved counts', () => {
     const result: ApplyTopFavoritesResult = {
       applied: [
-        { role: 'planner', entry: plannerTop },
-        { role: 'builder', entry: builderTop },
+        { role: 'planner', entry: plannerTop, outcome: 'restarted' },
+        { role: 'builder', entry: builderTop, outcome: 'saved' },
+        { role: 'reviewer', entry: builderTop, outcome: 'unchanged' },
       ],
       failed: [],
     };
 
     expect(describeApplyTopFavoritesResult(result)).toEqual({
       kind: 'success',
-      message: 'Applied top favourite model to 2 agent(s). Restart agents to use it.',
+      message:
+        'Applied top favourite model to 3 agent(s): 1 restarted, 1 saved (not running), 1 already up to date.',
     });
   });
 
-  it('reports a partial failure with the count of other agents applied', () => {
+  it('reports two restarted agents', () => {
     const result: ApplyTopFavoritesResult = {
-      applied: [{ role: 'builder', entry: builderTop }],
+      applied: [
+        { role: 'planner', entry: plannerTop, outcome: 'restarted' },
+        { role: 'builder', entry: builderTop, outcome: 'restarted' },
+      ],
+      failed: [],
+    };
+
+    expect(describeApplyTopFavoritesResult(result)).toEqual({
+      kind: 'success',
+      message: 'Applied top favourite model to 2 agent(s): 2 restarted.',
+    });
+  });
+
+  it('reports when every agent is already up to date', () => {
+    const result: ApplyTopFavoritesResult = {
+      applied: [
+        { role: 'planner', entry: plannerTop, outcome: 'unchanged' },
+        { role: 'builder', entry: builderTop, outcome: 'unchanged' },
+      ],
+      failed: [],
+    };
+
+    expect(describeApplyTopFavoritesResult(result)).toEqual({
+      kind: 'success',
+      message: 'Every agent already uses its top favourite model.',
+    });
+  });
+
+  it('reports a partial failure with the outcome breakdown of other agents', () => {
+    const result: ApplyTopFavoritesResult = {
+      applied: [{ role: 'builder', entry: builderTop, outcome: 'restarted' }],
       failed: [{ role: 'planner', message: 'boom' }],
     };
 
     expect(describeApplyTopFavoritesResult(result)).toEqual({
       kind: 'error',
       message:
-        'Failed to apply top favourite model for planner (boom). Applied to 1 other agent(s).',
+        'Failed to apply top favourite model for planner (boom). Applied to 1 other agent(s): 1 restarted.',
     });
   });
 
