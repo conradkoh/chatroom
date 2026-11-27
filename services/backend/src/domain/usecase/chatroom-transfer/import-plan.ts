@@ -181,11 +181,15 @@ type FieldRules = ReturnType<typeof rulesOf>;
 export async function validateExportFile(json: string): Promise<ImportValidation> {
   const parsed = parseJson(json);
   if (!parsed.ok) return parsed.failure;
-  return validateParsedExport(parsed.value);
+  return validateExportValue(parsed.value);
 }
 
-/** The ordered checks after the text parsed: header, checksum, then row integrity. */
-async function validateParsedExport(value: unknown): Promise<ImportValidation> {
+/**
+ * The ordered checks on an already-parsed value: header, checksum, then row
+ * integrity. Shared with the offline bundle listing, which validates one
+ * payload at a time without re-serializing it.
+ */
+export async function validateExportValue(value: unknown): Promise<ImportValidation> {
   const header = exportHeader(value);
   if (!header.ok) return header.failure;
 
@@ -302,7 +306,8 @@ function failure(code: TransferErrorCode, message: string, details: string[] = [
   return { ok: false, code, message, details };
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+/** Shared with the offline listing so "plain export object" means one thing. */
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 

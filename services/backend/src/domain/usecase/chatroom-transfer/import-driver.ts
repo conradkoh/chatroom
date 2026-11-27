@@ -20,7 +20,11 @@ import {
   type ImportPlan,
   type ImportTarget,
 } from './import-plan';
-import { ChatroomTransferError, TRANSFER_ERROR_CODES } from '../../entities/chatroom-transfer-file';
+import {
+  ChatroomTransferError,
+  TRANSFER_ERROR_CODES,
+  type ChatroomExportFileV1,
+} from '../../entities/chatroom-transfer-file';
 
 export interface ChatroomImportPort {
   preflight(a: {
@@ -57,8 +61,16 @@ export interface RunImportArgs {
   onStarted?: (chatroomId: string) => void;
   /** Checked before each chunk and before finalize. An abort rolls the import back. */
   signal?: AbortSignal;
+  /** Called after each chunk is applied; `total` is `plan.chunks.length`. */
+  onChunk?: (done: number, total: number) => void;
 }
 
+/** Everything the write path needs once the file text has been validated. */
+export type ImportWriteArgs = Omit<RunImportArgs, 'json'>;
+
+// Public per-chatroom engine: the CLI selection driver wraps it, and the
+// round-trip spec exercises it directly.
+// fallow-ignore-next-line unused-export
 export async function runImport(
   port: ChatroomImportPort,
   args: RunImportArgs
@@ -67,7 +79,20 @@ export async function runImport(
   if (!validation.ok) {
     throw new ChatroomTransferError(validation.code, validation.message, validation.details);
   }
-  const file = validation.file;
+  const { json: _json, ...rest } = args;
+  return importValidatedFile(port, validation.file, rest);
+}
+
+/**
+ * The write path for an already-validated payload. The bundle runs this once
+ * per selected chatroom, so validation happens once during listing and never
+ * again here.
+ */
+export async function importValidatedFile(
+  port: ChatroomImportPort,
+  file: ChatroomExportFileV1,
+  args: ImportWriteArgs
+): Promise<ImportOutcome> {
   const preflight = await port.preflight({
     machineId: args.machineId,
     teamStructureId: String(file.room.teamStructureId),
@@ -88,13 +113,13 @@ export async function runImport(
 async function writePlan(
   port: ChatroomImportPort,
   plan: ImportPlan,
-  args: RunImportArgs
+  args: ImportWriteArgs
 ): Promise<ImportOutcome> {
   const { chatroomId } = await port.begin({ header: plan.header, machineId: args.machineId });
   args.onStarted?.(chatroomId);
 
   try {
-    await applyChunks(port, plan, chatroomId, args.signal);
+    await applyChunks(port, plan, chatroomId, args);
     throwIfAborted(args.signal);
     await port.finalize({ chatroomId, ...plan.finalize });
     return { status: 'imported', chatroomId, plan };
@@ -108,17 +133,19 @@ async function applyChunks(
   port: ChatroomImportPort,
   plan: ImportPlan,
   chatroomId: string,
-  signal: AbortSignal | undefined
+  args: ImportWriteArgs
 ): Promise<void> {
   const created = new Map<string, string>();
-  for (const chunk of plan.chunks) {
-    throwIfAborted(signal);
+  const total = plan.chunks.length;
+  for (const [index, chunk] of plan.chunks.entries()) {
+    throwIfAborted(args.signal);
     const result = await port.applyChunk({
       chatroomId,
       chunk: { ...chunk, refs: refsFor(chunk, created) } as ImportChunk,
     });
     assertCreatedCount(chunk, result.created);
     for (const [key, id] of Object.entries(result.created)) created.set(key, id);
+    args.onChunk?.(index + 1, total);
   }
 }
 

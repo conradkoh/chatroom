@@ -229,6 +229,10 @@ export const TRANSFER_ERROR_CODES = {
   IMPORT_ROLLED_BACK: 'IMPORT_ROLLED_BACK',
   IMPORT_ROLLBACK_FAILED: 'IMPORT_ROLLBACK_FAILED',
   IMPORT_TARGET_NOT_IMPORTING: 'IMPORT_TARGET_NOT_IMPORTING',
+  // Client-side selection codes. These never cross the wire, so they are not
+  // registered in services/backend/config/errorCodes.ts.
+  IMPORT_SELECTION_REQUIRED: 'IMPORT_SELECTION_REQUIRED',
+  IMPORT_SELECTION_INVALID: 'IMPORT_SELECTION_INVALID',
 } as const;
 export type TransferErrorCode = (typeof TRANSFER_ERROR_CODES)[keyof typeof TRANSFER_ERROR_CODES];
 
