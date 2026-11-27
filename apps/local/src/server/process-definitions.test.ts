@@ -125,6 +125,7 @@ describe('buildProcessDefinitions', () => {
       '3847'
     );
     expect(defs.find((def) => def.id === 'daemon')?.env.CHATROOM_CONVEX_URL).toBe(hostedUrl);
+    expect(defs.find((def) => def.id === 'daemon')?.env.CHATROOM_REPO_ROOT).toBe(repoRoot);
     expect(defs.find((def) => def.id === 'daemon')?.args[1]).toContain(
       'turbo run build --filter=chatroom-cli --cache=local:r,remote:r'
     );

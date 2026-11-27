@@ -125,6 +125,7 @@ function buildDaemonDefinition(repoRoot: string, convexUrl: string, webappUrl: s
     env: {
       CHATROOM_CONVEX_URL: convexUrl,
       CHATROOM_WEB_URL: webappUrl,
+      CHATROOM_REPO_ROOT: repoRoot,
     },
     shell: false,
   };
