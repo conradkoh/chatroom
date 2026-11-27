@@ -3,7 +3,7 @@
 import { useRef } from 'react';
 
 import { LedgerNotice } from './LedgerNotice';
-import { backupWarningCopy } from '../lib/backupCopy';
+import { backupMetaLine, backupWarningCopy } from '../lib/backupCopy';
 
 import {
   AlertDialog,
@@ -16,13 +16,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { chatroomIndustrialButtonPrimaryClassName } from '@/modules/chatroom/components/shared/industrialDialogStyles';
-import { formatFileSize } from '@/modules/chatroom/features/file-attachments/lib/formatFileSize';
-import { formatTimestampFull } from '@/modules/chatroom/utils/chatroomTimestamp';
 
 export interface BackupDownloadWarningDialogProps {
   filename: string;
-  sizeBytes: number;
-  modifiedAt: number;
+  /** Null when a retry has no inventory entry left; the line then shows only the filename. */
+  sizeBytes: number | null;
+  /** Null when a retry has no inventory entry left. */
+  modifiedAt: number | null;
   machineName: string;
   onConfirm(): void;
   onClose(): void;
@@ -57,7 +57,7 @@ export function BackupDownloadWarningDialog({
           <AlertDialogTitle>Download this backup?</AlertDialogTitle>
           <AlertDialogDescription render={<div className="space-y-3 text-left" />}>
             <p className="break-all border border-chatroom-border bg-chatroom-bg-tertiary px-2 py-1.5 font-mono text-[10px]">
-              {filename} · {formatFileSize(sizeBytes)} · {formatTimestampFull(modifiedAt)}
+              {backupMetaLine({ filename, sizeBytes, modifiedAt })}
             </p>
             <LedgerNotice testId="backup-warning">{backupWarningCopy(machineName)}</LedgerNotice>
             <section className="space-y-1">

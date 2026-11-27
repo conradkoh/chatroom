@@ -323,8 +323,8 @@ export function useMachineBackups(
     failure ?? downloadRowView(trackedRow ?? activeRow, now, receivedBytes);
   const activeFilename = downloadFilename(activeRow);
 
-  // Unmount (collapse or navigation) aborts the stream only; the prepared copy stays valid and the
-  // cron removes it when its one-hour window ends.
+  // Unmount (collapse or navigation) aborts the stream; the row stays `downloading` until it is
+  // saved again, cancelled, or expires.
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const refresh = useCallback(async () => {
@@ -365,7 +365,8 @@ export function useMachineBackups(
 
   // fallow-ignore-next-line complexity
   const save = useCallback(async () => {
-    if (download.kind !== 'ready' || savingRef.current) return;
+    const savable = download.kind === 'ready' || download.kind === 'downloading';
+    if (!savable || savingRef.current) return;
     const { requestId, filename } = download;
     const serverRequestId = requestId as RequestId;
     savingRef.current = true;

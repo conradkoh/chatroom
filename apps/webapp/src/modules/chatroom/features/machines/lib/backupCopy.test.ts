@@ -4,10 +4,13 @@ import {
   BACKUP_LIMIT_LABEL,
   BACKUP_TIMED_OUT_COPY,
   backupFailureCopy,
+  backupMetaLine,
   backupWarningCopy,
   elapsedLabel,
   minutesLeftLabel,
 } from './backupCopy';
+
+import { formatTimestampFull } from '@/modules/chatroom/utils/chatroomTimestamp';
 
 describe('backupCopy', () => {
   it('formats the shared 256 MB limit', () => {
@@ -57,5 +60,30 @@ describe('backupCopy', () => {
     expect(copy).toContain('bot tokens');
     expect(copy).toContain('MacBook Pro');
     expect(copy).toContain('session data');
+  });
+
+  it('joins the known metadata parts with a middle dot', () => {
+    const modifiedAt = Date.UTC(2026, 2, 1, 14, 15, 2);
+    expect(
+      backupMetaLine({
+        filename: 'backup-20260301-141502.zip',
+        sizeBytes: 138 * 1024 * 1024,
+        modifiedAt,
+      })
+    ).toBe(`backup-20260301-141502.zip · 138 MB · ${formatTimestampFull(modifiedAt)}`);
+  });
+
+  it('drops the unknown parts of the metadata line', () => {
+    const modifiedAt = Date.UTC(2026, 2, 1, 14, 15, 2);
+    expect(
+      backupMetaLine({ filename: 'backup-20260301-141502.zip', sizeBytes: null, modifiedAt })
+    ).toBe(`backup-20260301-141502.zip · ${formatTimestampFull(modifiedAt)}`);
+    expect(
+      backupMetaLine({
+        filename: 'backup-20260301-141502.zip',
+        sizeBytes: null,
+        modifiedAt: null,
+      })
+    ).toBe('backup-20260301-141502.zip');
   });
 });

@@ -38,6 +38,19 @@ type ReadyView = Extract<BackupInventoryView, { kind: 'ready' }>;
 type BackupEntry = ReadyView['backups'][number];
 type IdleView = Extract<BackupInventoryView, { kind: 'idle' }>;
 
+type PendingBackup = { filename: string; sizeBytes: number | null; modifiedAt: number | null };
+
+/** The inventory entry for a filename, or a filename-only stand-in when the list no longer has it. */
+function retryBackup(filename: string, snapshot: ReadyView | null): PendingBackup {
+  return (
+    snapshot?.backups.find((backup) => backup.filename === filename) ?? {
+      filename,
+      sizeBytes: null,
+      modifiedAt: null,
+    }
+  );
+}
+
 export interface MachineBackupsProps {
   machineId: string;
   displayName: string;
@@ -357,7 +370,7 @@ export function MachineBackups({ machineId, displayName, connected }: MachineBac
   const backups = useMachineBackups(machineId, { connected });
   const { inventory, download, activeFilename, saving, refresh, requestDownload, save, cancel } =
     backups;
-  const [pending, setPending] = useState<BackupEntry | null>(null);
+  const [pending, setPending] = useState<PendingBackup | null>(null);
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
   const lastReady = useRef<ReadyView | null>(null);
   const statusRef = useRef<HTMLDivElement>(null);
@@ -371,6 +384,9 @@ export function MachineBackups({ machineId, displayName, connected }: MachineBac
     if (requestId !== null) statusRef.current?.focus();
   }, [requestId]);
 
+  const snapshot = inventory.kind === 'ready' ? inventory : lastReady.current;
+  const asking = inventory.kind === 'asking';
+
   const viewKey = downloadViewKey(download);
 
   // Starting (or retrying) a download must reveal a terminal block the user dismissed earlier;
@@ -378,6 +394,12 @@ export function MachineBackups({ machineId, displayName, connected }: MachineBac
   const startDownload = (filename: string) => {
     setDismissedKey(null);
     void requestDownload(filename);
+  };
+
+  /** Retry goes through the same credentials warning as a first request. */
+  const retryDownload = (filename: string) => {
+    setDismissedKey(null);
+    setPending(retryBackup(filename, snapshot));
   };
 
   const status =
@@ -390,16 +412,13 @@ export function MachineBackups({ machineId, displayName, connected }: MachineBac
         onCancel={() => void cancel()}
         onRetry={() => {
           if (download.kind === 'failed' || download.kind === 'expired') {
-            startDownload(download.filename);
+            retryDownload(download.filename);
           }
         }}
         onDismiss={() => setDismissedKey(viewKey)}
         statusRef={statusRef}
       />
     ) : null;
-
-  const snapshot = inventory.kind === 'ready' ? inventory : lastReady.current;
-  const asking = inventory.kind === 'asking';
 
   return (
     <div data-testid="machine-backups">

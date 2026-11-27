@@ -24,6 +24,11 @@ const CANCEL_HELP = 'Stops the download and deletes the temporary copy.';
 const DISCARD_HELP = (displayName: string) =>
   `Discard removes only the temporary copy. The backup on ${displayName} is not touched.`;
 
+/** True when a prepared copy waits to be saved: ready, or downloading with no stream running. */
+function canSave(view: BackupDownloadView, saving: boolean): boolean {
+  return view.kind === 'ready' || (view.kind === 'downloading' && !saving);
+}
+
 export interface BackupDownloadStatusProps {
   view: BackupDownloadView;
   displayName: string;
@@ -46,7 +51,8 @@ function activeCopy(
   view: Extract<BackupDownloadView, { kind: 'requested' | 'preparing' | 'ready' | 'downloading' }>,
   displayName: string,
   fastNow: number,
-  slowNow: number
+  slowNow: number,
+  saving: boolean
 ): ActiveCopy {
   const spinner = (
     <Loader2 size={14} className="animate-spin text-chatroom-text-muted" aria-hidden />
@@ -71,6 +77,13 @@ function activeCopy(
         counter: `expires in ${minutesLeftLabel(view.expiresAt, slowNow)}`,
       };
     case 'downloading':
+      if (!saving) {
+        return {
+          icon: <Check size={14} className="text-chatroom-status-success" aria-hidden />,
+          title: 'Ready to save',
+          counter: '',
+        };
+      }
       return {
         icon: spinner,
         title: `Downloading ${view.filename}`,
@@ -91,7 +104,7 @@ function activeActions(
   saving: boolean,
   handlers: { onSave(): void; onCancel(): void }
 ): ReactNode {
-  if (view.kind === 'ready') {
+  if (canSave(view, saving)) {
     return (
       <>
         <Button size="sm" disabled={saving} onClick={handlers.onSave}>
@@ -137,13 +150,10 @@ function ActiveStatus({
   // only while ready. `useNow(0)` installs no timer, so the other states do not re-render.
   const fastNow = useNow(view.kind === 'preparing' ? 1000 : 0);
   const slowNow = useNow(view.kind === 'ready' ? 30_000 : 0);
-  const copy = activeCopy(view, displayName, fastNow, slowNow);
+  const savable = canSave(view, saving);
+  const copy = activeCopy(view, displayName, fastNow, slowNow, saving);
   const detail =
-    view.kind === 'preparing'
-      ? preparingDetail(view.sizeBytes)
-      : view.kind === 'ready'
-        ? READY_DETAIL
-        : null;
+    view.kind === 'preparing' ? preparingDetail(view.sizeBytes) : savable ? READY_DETAIL : null;
 
   return (
     <div
@@ -166,7 +176,7 @@ function ActiveStatus({
         </span>
       </div>
       {detail && <p className="text-chatroom-text-muted">{detail}</p>}
-      {view.kind === 'downloading' && (
+      {view.kind === 'downloading' && saving && (
         <Progress
           value={view.receivedBytes}
           max={view.sizeBytes}

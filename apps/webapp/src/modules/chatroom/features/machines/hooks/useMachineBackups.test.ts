@@ -423,6 +423,30 @@ describe('useMachineBackups', () => {
     });
   });
 
+  it('saves a downloading row again when no stream is running', async () => {
+    const filename = 'backup-20260301-141502.zip';
+    setRow(downloadRow({ status: 'downloading', sizeBytes: 6, expiresAt: BASE + HOUR_MS }), true);
+    mocks.createAccess.mockResolvedValue({
+      ok: true,
+      url: 'https://storage.example/temporary-copy',
+      sizeBytes: 6,
+      filename,
+    });
+    mocks.stream.mockResolvedValue({ ok: true, blob: new Blob(['abcdef']) });
+
+    const { result } = renderBackups();
+    expect(result.current.download.kind).toBe('downloading');
+    expect(result.current.saving).toBe(false);
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    expect(mocks.createAccess).toHaveBeenCalledWith({ requestId: 'dl-1' });
+    expect(mocks.saveFile).toHaveBeenCalledWith(filename, expect.any(Blob));
+    expect(mocks.confirm).toHaveBeenCalledWith({ requestId: 'dl-1', receivedBytes: 6 });
+  });
+
   it('marks the idle view offline when the server rejects the request', async () => {
     mocks.createInventory.mockRejectedValue({ data: { code: 'MACHINE_OFFLINE' } });
     const { result } = renderBackups();

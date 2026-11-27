@@ -9,6 +9,7 @@
 import { BACKUP_MAX_BYTES } from '@workspace/shared/domain/machine-backup';
 
 import { formatFileSize } from '@/modules/chatroom/features/file-attachments/lib/formatFileSize';
+import { formatTimestampFull } from '@/modules/chatroom/utils/chatroomTimestamp';
 
 export const BACKUP_LIMIT_LABEL = formatFileSize(BACKUP_MAX_BYTES); // "256 MB"
 
@@ -37,7 +38,23 @@ export function backupWarningCopy(machineName: string): string {
   return `${BACKUP_WARNING_INTRO} “${machineName}”, including tables that chatroom export never carries — for example bot tokens and session data. Anyone who gets this file can use those credentials. Store it somewhere private.`;
 }
 
+/** `filename · size · modified`, with only the parts the caller knows. */
+export function backupMetaLine(parts: {
+  filename: string;
+  sizeBytes: number | null;
+  modifiedAt: number | null;
+}): string {
+  return [
+    parts.filename,
+    parts.sizeBytes === null ? null : formatFileSize(parts.sizeBytes),
+    parts.modifiedAt === null ? null : formatTimestampFull(parts.modifiedAt),
+  ]
+    .filter((part): part is string => part !== null)
+    .join(' · ');
+}
+
 const INTERRUPTED_COPY = 'The download was interrupted. Try again.';
+
 const DEFAULT_FAILURE = { message: 'Could not download the backup. Try again.', retryable: true };
 
 /** Literal failure copy per daemon, browser, or backend code. */

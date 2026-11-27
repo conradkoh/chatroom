@@ -377,6 +377,63 @@ describe('MachineBackups', () => {
     expect(screen.queryByTestId('backup-download-status')).toBeNull();
   });
 
+  it('warns before retrying a failed download and shows the inventory entry', async () => {
+    setRow(downloadRow('failed', { errorCode: 'network' }));
+    renderSection();
+    await loadInventory();
+
+    fireEvent.click(screen.getByText('Try again'));
+
+    const dialog = await screen.findByTestId('backup-warning-dialog');
+    expect(within(dialog).getByText(/bot tokens/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/backup-20260301-141502\.zip/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/138 MB/)).toBeInTheDocument();
+    expect(mocks.createDownload).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByTestId('backup-warning-confirm'));
+    expect(mocks.createDownload).toHaveBeenCalledWith({ machineId: 'machine-1', filename: SMALL });
+  });
+
+  it('warns before re-requesting an expired download', async () => {
+    setRow(downloadRow('expired'));
+    renderSection();
+    await loadInventory();
+
+    fireEvent.click(screen.getByText('Request again'));
+
+    expect(await screen.findByTestId('backup-warning-dialog')).toBeInTheDocument();
+    expect(mocks.createDownload).not.toHaveBeenCalled();
+  });
+
+  it('saves a downloading row again after a stream failure', async () => {
+    setRow(downloadRow('downloading', { sizeBytes: SMALL_BYTES, expiresAt: now + HOUR_MS }));
+    mocks.createAccess.mockResolvedValue({
+      ok: true,
+      url: 'https://storage.example/temporary-copy',
+      sizeBytes: SMALL_BYTES,
+      filename: SMALL,
+    });
+    mocks.stream.mockResolvedValue({ ok: true, blob: new Blob(['backup']) });
+    renderSection();
+    await loadInventory();
+
+    expect(screen.getByTestId('backup-download-status')).toHaveAttribute(
+      'data-state',
+      'downloading'
+    );
+    expect(screen.getByText('Ready to save')).toBeInTheDocument();
+    expect(screen.getByText('Save file')).toBeInTheDocument();
+    expect(screen.getByText('Discard copy')).toBeInTheDocument();
+    expect(screen.queryByText('Cancel download')).toBeNull();
+    expect(screen.queryByLabelText('Download progress')).toBeNull();
+
+    fireEvent.click(screen.getByText('Save file'));
+    await flush();
+
+    expect(mocks.createAccess).toHaveBeenCalledWith({ requestId: DOWNLOAD_ID });
+    expect(mocks.saveFile).toHaveBeenCalledWith(SMALL, expect.any(Blob));
+  });
+
   it('cancels a prepared copy through cancelRequest', async () => {
     setRow(downloadRow('ready'));
     renderSection();
