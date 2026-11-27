@@ -3,6 +3,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
+import { registerWorkspace as registerWorkspaceUseCase } from '../../src/domain/usecase/workspace/register-workspace';
 import { t } from '../../test.setup';
 import {
   createDuoTeamChatroom,
@@ -183,14 +184,15 @@ describe('agents.requestChatroomAgentOperation', () => {
     await registerMachineWithDaemon(sessionId, machineId);
 
     for (const workingDir of ['/workspace/one', '/workspace/two']) {
-      await t.mutation(api.workspaces.registerWorkspace, {
-        sessionId,
-        chatroomId,
-        machineId,
-        workingDir,
-        hostname: 'test-host',
-        registeredBy: 'builder',
-      });
+      await t.run((ctx) =>
+        registerWorkspaceUseCase(ctx, {
+          chatroomId,
+          machineId,
+          workingDir,
+          hostname: 'test-host',
+          registeredBy: 'builder',
+        })
+      );
     }
 
     const result = await t.mutation(api.agents.requestChatroomAgentOperation, {

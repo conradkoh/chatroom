@@ -110,6 +110,15 @@ status: stable
   roots is the first body section and mounts only while the card is expanded.
 - Future machine-level actions plug into that per-row area and must reuse the backend invariants above: owner check, offline guard where the action mutates a live daemon, and registry registration for any new machine-keyed data.
 
+## Workspace binding
+
+- A chatroom has one active workspace (`MAX_ACTIVE_WORKSPACES_PER_CHATROOM = 1`).
+  `workspaces.switchWorkspace` is the only rebind path; `registerWorkspace` refuses a second distinct
+  active workspace with `WORKSPACE_ALREADY_BOUND`.
+- The webapp switch flow lives in
+  `apps/webapp/src/modules/chatroom/features/switch-workspace/`. It reuses the setup chooser and
+  routes the setup checklist's Back path through the same flow once a workspace exists.
+
 ## Architecture references
 
 - [Daemon request lifecycle](/architecture/daemon-request-lifecycle.md)

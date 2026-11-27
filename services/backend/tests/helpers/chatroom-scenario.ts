@@ -12,6 +12,7 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { generateHandoffOutput } from '../../prompts/generator';
 import { resolveSessionAugmentationForTask } from '../../src/domain/handoff/parse-session-augmentation';
+import { registerWorkspace as registerWorkspaceUseCase } from '../../src/domain/usecase/workspace/register-workspace';
 import { t } from '../../test.setup';
 
 const DEFAULT_CONVEX_URL = 'http://127.0.0.1:3210';
@@ -127,14 +128,18 @@ export class ChatroomScenario {
     await t.mutation(api.machines.markDaemonOnline, { sessionId: this.sessionId, machineId });
     await joinParticipant(this.sessionId, this.chatroomId, role);
 
-    const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
-      sessionId: this.sessionId,
-      chatroomId: this.chatroomId,
-      machineId,
-      workingDir,
-      hostname: 'test-host',
-      registeredBy: role,
-    });
+    // Configured roles each get their own machine and folder on one chatroom, which the
+    // one-workspace policy refuses at the registerWorkspace mutation. Seed through the
+    // uncapped use case; the rows are identical.
+    const workspaceId = await t.run((ctx) =>
+      registerWorkspaceUseCase(ctx, {
+        chatroomId: this.chatroomId,
+        machineId,
+        workingDir,
+        hostname: 'test-host',
+        registeredBy: role,
+      })
+    );
     await t.mutation(api.agents.saveConfig, {
       sessionId: this.sessionId,
       chatroomId: this.chatroomId,

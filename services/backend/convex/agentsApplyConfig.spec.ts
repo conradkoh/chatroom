@@ -13,6 +13,7 @@ import { describe, expect, test } from 'vitest';
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import { registerWorkspace as registerWorkspaceUseCase } from '../src/domain/usecase/workspace/register-workspace';
 
 type ChatroomId = Id<'chatroom_rooms'>;
 type WorkspaceId = Id<'chatroom_workspaces'>;
@@ -476,14 +477,15 @@ describe('agents.applyConfig', () => {
 
   test('workspace precedence: explicit → newest config → primary', async () => {
     const seeded = await setup('workspace-precedence');
-    const secondWorkspaceId = await t.mutation(api.workspaces.registerWorkspace, {
-      sessionId: seeded.sessionId,
-      chatroomId: seeded.chatroomId,
-      machineId: seeded.machineId,
-      workingDir: '/work/other',
-      hostname: 'test-host',
-      registeredBy: 'coordinator',
-    });
+    const secondWorkspaceId = await t.run((ctx) =>
+      registerWorkspaceUseCase(ctx, {
+        chatroomId: seeded.chatroomId,
+        machineId: seeded.machineId,
+        workingDir: '/work/other',
+        hostname: 'test-host',
+        registeredBy: 'coordinator',
+      })
+    );
     await saveAs(seeded, {
       workspaceId: secondWorkspaceId,
       workingDir: '/work/other',

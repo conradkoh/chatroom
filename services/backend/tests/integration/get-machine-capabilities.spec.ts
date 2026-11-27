@@ -35,6 +35,7 @@ describe('getMachineCapabilities', () => {
     expect(result).toEqual({
       availableHarnesses: ['opencode-sdk'],
       harnessVersions,
+      reported: true,
     });
 
     // Models are stored off the capabilities row so this reader never carries them.
@@ -113,7 +114,47 @@ describe('getMachineCapabilities', () => {
       machineId: 'machine-capabilities-unknown',
     });
 
-    expect(foreignResult).toEqual({ availableHarnesses: [], harnessVersions: {} });
-    expect(unknownResult).toEqual({ availableHarnesses: [], harnessVersions: {} });
+    expect(foreignResult).toEqual({ availableHarnesses: [], harnessVersions: {}, reported: false });
+    expect(unknownResult).toEqual({ availableHarnesses: [], harnessVersions: {}, reported: false });
+  });
+
+  test('reports false for an owned machine with no capability row', async () => {
+    const { sessionId } = await createTestSession('test-machine-capabilities-norow');
+    const machineId = 'machine-capabilities-norow';
+    await t.mutation(api.machines.register, {
+      sessionId,
+      machineId,
+      hostname: 'test-host',
+      os: 'darwin',
+      availableHarnesses: ['opencode-sdk'],
+    });
+    // Remove the row register just wrote, so the owned machine has no capability report.
+    await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query('chatroom_machineCapabilities')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      if (row) await ctx.db.delete('chatroom_machineCapabilities', row._id);
+    });
+
+    const result = await t.query(api.machines.getMachineCapabilities, { sessionId, machineId });
+
+    expect(result).toEqual({ availableHarnesses: [], harnessVersions: {}, reported: false });
+  });
+
+  test('reports true for a reported empty harness list', async () => {
+    const { sessionId } = await createTestSession('test-machine-capabilities-empty');
+    const machineId = 'machine-capabilities-empty';
+    await t.mutation(api.machines.register, {
+      sessionId,
+      machineId,
+      hostname: 'test-host',
+      os: 'darwin',
+      availableHarnesses: [],
+    });
+
+    const result = await t.query(api.machines.getMachineCapabilities, { sessionId, machineId });
+
+    expect(result).toEqual({ availableHarnesses: [], harnessVersions: {}, reported: true });
   });
 });

@@ -11,6 +11,8 @@ interface SetupMachinePickerProps {
   onSelectMachine: (machineId: string) => void;
   /** Machines that cannot be selected. They render dimmed with an "Offline" label. */
   disabledMachineIds?: ReadonlySet<string>;
+  /** Labelled "Offline" but still selectable. Not dimmed. Used where the daemon is not required. */
+  offlineMachineIds?: ReadonlySet<string>;
 }
 
 function machineRowClassName(disabled: boolean, selected: boolean): string {
@@ -26,11 +28,14 @@ function MachineRow({
   machine,
   selected,
   disabled,
+  offline,
   onSelect,
 }: {
   machine: UserMachine;
   selected: boolean;
   disabled: boolean;
+  /** Shows the "Offline" label. Independent of `disabled`: an offline machine may stay selectable. */
+  offline: boolean;
   onSelect: (machineId: string) => void;
 }) {
   return (
@@ -45,7 +50,7 @@ function MachineRow({
       <span className="text-sm font-medium text-chatroom-text-primary">
         {getMachineDisplayName(machine)}
       </span>
-      {disabled && (
+      {offline && (
         <span className="ml-auto text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Offline
         </span>
@@ -54,11 +59,23 @@ function MachineRow({
   );
 }
 
+/** The "Offline" label applies to disabled rows and to offline-selectable rows alike. */
+function isOfflineMachine(
+  machineId: string,
+  disabledMachineIds: ReadonlySet<string> | undefined,
+  offlineMachineIds: ReadonlySet<string> | undefined
+): boolean {
+  return (
+    (disabledMachineIds?.has(machineId) ?? false) || (offlineMachineIds?.has(machineId) ?? false)
+  );
+}
+
 export function SetupMachinePicker({
   machines,
   selectedMachineId,
   onSelectMachine,
   disabledMachineIds,
+  offlineMachineIds,
 }: SetupMachinePickerProps) {
   return (
     <div>
@@ -72,6 +89,7 @@ export function SetupMachinePicker({
             machine={machine}
             selected={selectedMachineId === machine.machineId}
             disabled={disabledMachineIds?.has(machine.machineId) ?? false}
+            offline={isOfflineMachine(machine.machineId, disabledMachineIds, offlineMachineIds)}
             onSelect={onSelectMachine}
           />
         ))}

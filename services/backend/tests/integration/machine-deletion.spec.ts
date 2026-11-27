@@ -18,6 +18,7 @@ import {
   purgeMachineBatch,
   type PurgeKey,
 } from '../../src/domain/usecase/machine/machine-scoped-tables';
+import { registerWorkspace as registerWorkspaceUseCase } from '../../src/domain/usecase/workspace/register-workspace';
 import { t } from '../../test.setup';
 import {
   createDuoTeamChatroom,
@@ -51,6 +52,23 @@ async function registerWorkspace(
     hostname: 'test-host',
     registeredBy: 'builder',
   });
+}
+
+/** Seed an additional workspace when the chatroom already has its one active workspace. */
+async function seedWorkspace(
+  chatroomId: Id<'chatroom_rooms'>,
+  machineId: string,
+  workingDir: string
+): Promise<Id<'chatroom_workspaces'>> {
+  return t.run((ctx) =>
+    registerWorkspaceUseCase(ctx, {
+      chatroomId,
+      machineId,
+      workingDir,
+      hostname: 'test-host',
+      registeredBy: 'builder',
+    })
+  );
 }
 
 async function userIdFor(sessionId: string): Promise<Id<'users'>> {
@@ -366,7 +384,7 @@ describe('machines.deleteMachine happy path', () => {
     const chatroomA = await createDuoTeamChatroom(sessionId);
     const chatroomB = await createDuoTeamChatroom(sessionId);
     await registerWorkspace(sessionId, chatroomA, machineId, '/work/a');
-    await registerWorkspace(sessionId, chatroomA, machineId, '/work/b');
+    await seedWorkspace(chatroomA, machineId, '/work/b');
     await registerWorkspace(sessionId, chatroomB, machineId, '/work/c');
 
     const result = await t.mutation(api.machines.deleteMachine, { sessionId, machineId });
@@ -637,7 +655,11 @@ describe('batched purge', () => {
     const chatroomId = await createDuoTeamChatroom(sessionId);
 
     for (let i = 0; i < 10; i++) {
-      await registerWorkspace(sessionId, chatroomId, machineId, `/work/batch-${i}`);
+      if (i === 0) {
+        await registerWorkspace(sessionId, chatroomId, machineId, `/work/batch-${i}`);
+      } else {
+        await seedWorkspace(chatroomId, machineId, `/work/batch-${i}`);
+      }
     }
     await t.run(async (ctx) => {
       const now = Date.now();

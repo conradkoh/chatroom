@@ -14,6 +14,7 @@ import { describe, expect, test, vi } from 'vitest';
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
+import { registerWorkspace as registerWorkspaceUseCase } from '../src/domain/usecase/workspace/register-workspace';
 import { getInboxCommandsForMachine } from '../tests/helpers/machine-command-inbox';
 import { TEST_MODEL_OPENCODE } from '../tests/helpers/test-models';
 
@@ -501,14 +502,15 @@ describe('_sendMessageHandler — queued user message routing', () => {
         machineId,
         '/tmp/test'
       );
-      const otherWorkspaceId = await t.mutation(api.workspaces.registerWorkspace, {
-        sessionId,
-        chatroomId,
-        machineId,
-        workingDir: '/tmp/other',
-        hostname: 'test-host',
-        registeredBy: 'builder',
-      });
+      const otherWorkspaceId = await t.run((ctx) =>
+        registerWorkspaceUseCase(ctx, {
+          chatroomId,
+          machineId,
+          workingDir: '/tmp/other',
+          hostname: 'test-host',
+          registeredBy: 'builder',
+        })
+      );
       await saveRoleConfig(sessionId, chatroomId, primaryWorkspaceId, machineId, 'architect');
       await t.run(async (ctx) => {
         await ctx.db.insert('chatroom_agentRoleStatusReadModel', {

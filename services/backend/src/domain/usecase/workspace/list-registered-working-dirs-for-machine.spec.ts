@@ -8,6 +8,7 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
 import { listRegisteredWorkingDirsForMachine } from './list-registered-working-dirs-for-machine';
+import { registerWorkspace as registerWorkspaceUseCase } from './register-workspace';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
@@ -63,6 +64,23 @@ async function registerWorkspace(
   });
 }
 
+/** Seed an additional workspace when the chatroom already has its one active workspace. */
+async function seedAdditionalWorkspace(
+  chatroomId: Id<'chatroom_rooms'>,
+  machineId: string,
+  workingDir: string
+) {
+  return t.run((ctx) =>
+    registerWorkspaceUseCase(ctx, {
+      chatroomId,
+      machineId,
+      workingDir,
+      hostname: 'test-host',
+      registeredBy: 'builder',
+    })
+  );
+}
+
 async function recordObservation(chatroomId: Id<'chatroom_rooms'>, lastObservedAt: number) {
   await t.run(async (ctx) => {
     await ctx.db.insert('chatroom_observation', { chatroomId, lastObservedAt });
@@ -115,8 +133,8 @@ describe('listRegisteredWorkingDirsForMachine', () => {
     const { sessionId, machineId } = await setupMachine('sorted');
     const chatroomId = await createChatroom(sessionId);
     await registerWorkspace(sessionId, chatroomId, machineId, '/tmp/reg-c');
-    await registerWorkspace(sessionId, chatroomId, machineId, '/tmp/reg-a');
-    await registerWorkspace(sessionId, chatroomId, machineId, '/tmp/reg-b');
+    await seedAdditionalWorkspace(chatroomId, machineId, '/tmp/reg-a');
+    await seedAdditionalWorkspace(chatroomId, machineId, '/tmp/reg-b');
 
     expect(await registeredDirsFor(machineId)).toEqual(['/tmp/reg-a', '/tmp/reg-b', '/tmp/reg-c']);
   });

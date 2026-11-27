@@ -15,18 +15,22 @@ export interface SetupMachineSectionProps {
   selectedMachineId: string | null;
   onSelectMachine: (machineId: string) => void;
   detectedHarnesses: AgentHarness[];
+  /** Offline machines are labelled and stay selectable. Used by the switch flow, where the backend does not need the target online. */
+  offlineSelectable?: boolean;
 }
 
 /**
  * The machine picker for a setup step. While no machine is connected it also shows the
  * prerequisites, with the commands to fix them.
  */
+// fallow-ignore-next-line complexity
 export function SetupMachineSection({
   machines,
   connectedMachineIds,
   selectedMachineId,
   onSelectMachine,
   detectedHarnesses,
+  offlineSelectable = false,
 }: SetupMachineSectionProps) {
   const hasConnectedMachine = connectedMachineIds.size > 0;
   const offlineMachineIds = useMemo(
@@ -36,10 +40,12 @@ export function SetupMachineSection({
       ),
     [machines, connectedMachineIds]
   );
+  // In offlineSelectable mode the prerequisites panel appears only when no machine is registered.
+  const showPrerequisites = offlineSelectable ? machines.length === 0 : !hasConnectedMachine;
 
   return (
     <>
-      {!hasConnectedMachine && (
+      {showPrerequisites && (
         <SetupWorkspacePrerequisitesPanel
           daemonDone={false}
           harnessDone={detectedHarnesses.length > 0}
@@ -58,7 +64,9 @@ export function SetupMachineSection({
           machines={machines}
           selectedMachineId={selectedMachineId}
           onSelectMachine={onSelectMachine}
-          disabledMachineIds={offlineMachineIds}
+          {...(offlineSelectable
+            ? { offlineMachineIds }
+            : { disabledMachineIds: offlineMachineIds })}
         />
       )}
     </>

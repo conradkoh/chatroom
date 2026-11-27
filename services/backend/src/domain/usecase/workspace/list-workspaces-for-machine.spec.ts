@@ -6,6 +6,7 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { listWorkspacesForMachine } from './list-workspaces-for-machine';
+import { registerWorkspace as registerWorkspaceUseCase } from './register-workspace';
 import { OBSERVATION_TTL_MS } from '../../../../config/reliability';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
@@ -66,6 +67,23 @@ async function registerWorkspace(
     hostname: 'test-host',
     registeredBy: 'builder',
   });
+}
+
+/** Seed an additional workspace when the chatroom already has its one active workspace. */
+async function seedAdditionalWorkspace(
+  chatroomId: Id<'chatroom_rooms'>,
+  machineId: string,
+  workingDir: string
+) {
+  await t.run((ctx) =>
+    registerWorkspaceUseCase(ctx, {
+      chatroomId,
+      machineId,
+      workingDir,
+      hostname: 'test-host',
+      registeredBy: 'builder',
+    })
+  );
 }
 
 describe('listWorkspacesForMachine (recency filter)', () => {
@@ -149,7 +167,7 @@ describe('listWorkspacesForMachine (recency filter)', () => {
     const machineId = 'multi-machine';
     await registerMachine(sessionId, machineId);
     await registerWorkspace(sessionId, chatroomId, machineId, '/tmp/ws1');
-    await registerWorkspace(sessionId, chatroomId, machineId, '/tmp/ws2');
+    await seedAdditionalWorkspace(chatroomId, machineId, '/tmp/ws2');
     await t.mutation(api.chatrooms.recordChatroomObservation, { sessionId, chatroomId });
 
     const result = await t.run(async (ctx) => listWorkspacesForMachine(ctx, { machineId }));

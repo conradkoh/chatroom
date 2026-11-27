@@ -11,6 +11,7 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
 import { findActiveChatroomForWorkingDir } from './find-active-chatroom-for-working-dir';
+import { registerWorkspace as registerWorkspaceUseCase } from './register-workspace';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
@@ -119,14 +120,15 @@ describe('findActiveChatroomForWorkingDir', () => {
     );
     const otherMachineId = 'machine-find-active-8-other';
     await registerMachineWithDaemon(sessionId, otherMachineId);
-    await t.mutation(api.workspaces.registerWorkspace, {
-      sessionId,
-      chatroomId,
-      machineId: otherMachineId,
-      workingDir: '/work/only-on-other-machine',
-      hostname: 'test-host',
-      registeredBy: 'builder',
-    });
+    await t.run((ctx) =>
+      registerWorkspaceUseCase(ctx, {
+        chatroomId,
+        machineId: otherMachineId,
+        workingDir: '/work/only-on-other-machine',
+        hostname: 'test-host',
+        registeredBy: 'builder',
+      })
+    );
 
     expect(await find(ownerId, 'machine-find-active-8', '/work/only-on-other-machine')).toBeNull();
   });

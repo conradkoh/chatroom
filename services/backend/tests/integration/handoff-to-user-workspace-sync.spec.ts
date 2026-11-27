@@ -9,6 +9,8 @@
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
+import { registerWorkspace as registerWorkspaceUseCase } from '../../src/domain/usecase/workspace/register-workspace';
 import { t } from '../../test.setup';
 import {
   createPlannerBuilderDuoChatroom,
@@ -39,6 +41,23 @@ async function registerChatroomWorkspace(
   });
 }
 
+/** Seed an additional workspace when the chatroom already has its one active workspace. */
+async function seedAdditionalWorkspace(
+  chatroomId: Id<'chatroom_rooms'>,
+  machineId: string,
+  workingDir: string
+): Promise<Id<'chatroom_workspaces'>> {
+  return t.run((ctx) =>
+    registerWorkspaceUseCase(ctx, {
+      chatroomId,
+      machineId,
+      workingDir,
+      hostname: 'test-host',
+      registeredBy: 'builder',
+    })
+  );
+}
+
 describe('Handoff-to-user workspace sync', () => {
   test('handoff-to-user enqueues no gitRefresh for any workspace', async () => {
     const { sessionId } = await createTestSession('handoff-sync-user-1');
@@ -48,7 +67,7 @@ describe('Handoff-to-user workspace sync', () => {
 
     // Registration itself enqueues one gitRefresh per workspace, so measure handoff effects as deltas.
     await registerChatroomWorkspace(sessionId, chatroomId, 'sync-machine-1', '/sync/ws-1');
-    await registerChatroomWorkspace(sessionId, chatroomId, 'sync-machine-1', '/sync/ws-2');
+    await seedAdditionalWorkspace(chatroomId, 'sync-machine-1', '/sync/ws-2');
     const ws1Baseline = (await findGitRefreshCommands('sync-machine-1', '/sync/ws-1')).length;
     const ws2Baseline = (await findGitRefreshCommands('sync-machine-1', '/sync/ws-2')).length;
     // A freshly registered workspace already has a pending gitRefresh, with no handoff yet
@@ -91,8 +110,7 @@ describe('Handoff-to-user workspace sync', () => {
       'sync-machine-2',
       '/sync/ws-active'
     );
-    const removedWs = await registerChatroomWorkspace(
-      sessionId,
+    const removedWs = await seedAdditionalWorkspace(
       chatroomId,
       'sync-machine-2',
       '/sync/ws-removed'
