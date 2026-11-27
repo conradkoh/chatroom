@@ -3,9 +3,9 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { CheckCircle, MoreVertical } from 'lucide-react';
 import React, { memo, useCallback, useState } from 'react';
 
+import { ChatroomActionsMenu } from './ChatroomActionsMenu';
 import { ChatroomFavoriteButton } from './ChatroomFavoriteButton';
 import { isChatroomShownInTab, type TabType } from './chatroomSelectorModel';
 import { ChatroomStatusIndicator } from './ChatroomStatusIndicator';
@@ -15,46 +15,13 @@ import { getChatroomDisplayName } from '../../viewModels/chatroomViewModel';
 import { createChatroomSelectKeyDown } from '../chatroom-select-keydown';
 import { LifecycleConfirmDialog } from '../LifecycleConfirmDialog';
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { ExportFeedback } from '@/modules/chatroom/features/transfer/components/ExportFeedback';
+import { useChatroomExportAction } from '@/modules/chatroom/features/transfer/hooks/useChatroomExportAction';
 
 export interface ChatroomCardProps {
   chatroom: ChatroomWithStatus;
   onSelect: (chatroomId: string) => void;
   activeTab: TabType;
-}
-
-/** Archive menu. Hidden for completed chatrooms, which have nothing left to archive. */
-function ChatroomCardActions({
-  showMenu,
-  onArchive,
-}: {
-  showMenu: boolean;
-  onArchive: (e: React.MouseEvent) => void;
-}) {
-  if (!showMenu) return null;
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        type="button"
-        className="w-7 h-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-all duration-100"
-        onClick={(e) => e.stopPropagation()}
-        aria-label="Chatroom actions"
-      >
-        <MoreVertical size={14} />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-[140px]">
-        <DropdownMenuItem onClick={onArchive}>
-          <CheckCircle size={14} className="mr-2" />
-          Archive Chat
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
 }
 
 /** Live activity and state for one chatroom. Both are undefined until the status arrives. */
@@ -64,6 +31,7 @@ function useCardStatus(chatroomId: string) {
 }
 
 /** One chatroom in the grid. Renders nothing when the chatroom belongs to the other tab. */
+// fallow-ignore-next-line complexity
 export const ChatroomCard = memo(function ChatroomCard({
   chatroom,
   onSelect,
@@ -72,6 +40,8 @@ export const ChatroomCard = memo(function ChatroomCard({
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const toggleFavorite = useSessionMutation(api.chatrooms.toggleFavorite);
   const { activityStatus, state } = useCardStatus(chatroom._id);
+  const exportAction = useChatroomExportAction(chatroom._id, chatroom.name ?? null);
+  const { start: startExport } = exportAction;
 
   const handleToggleFavorite = useCallback(
     async (e: React.MouseEvent) => {
@@ -91,6 +61,14 @@ export const ChatroomCard = memo(function ChatroomCard({
     e.stopPropagation(); // Prevent card click
     setArchiveDialogOpen(true);
   }, []);
+
+  const handleExport = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation(); // Prevent card click
+      startExport();
+    },
+    [startExport]
+  );
 
   if (!isChatroomShownInTab(chatroom, state, activeTab)) {
     return null;
@@ -120,11 +98,27 @@ export const ChatroomCard = memo(function ChatroomCard({
                 isFavorite={chatroom.isFavorite}
                 onClick={handleToggleFavorite}
               />
-              <ChatroomCardActions showMenu={state !== 'completed'} onArchive={handleArchive} />
+              <ChatroomActionsMenu
+                canArchive={state !== 'completed'}
+                exporting={exportAction.exporting}
+                triggerHoverClassName="hover:bg-chatroom-bg-hover"
+                onExport={handleExport}
+                onArchive={handleArchive}
+              />
             </div>
           </div>
         </div>
       </div>
+
+      <ExportFeedback
+        exporting={exportAction.exporting}
+        label={exportAction.label}
+        feedback={exportAction.feedback}
+        onDismiss={exportAction.dismiss}
+        onRetry={exportAction.retryable ? exportAction.start : undefined}
+        className="mt-1"
+        data-testid="chatroom-export-feedback"
+      />
 
       <LifecycleConfirmDialog
         open={archiveDialogOpen}

@@ -5,6 +5,7 @@ import { getFunctionName } from 'convex/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MachineList } from './MachineList';
+import { MACHINE_EMPTY_COPY } from '../../transfer/lib/transferCopy';
 import type { MachineRowModel } from '../hooks/useMachineRows';
 
 import type { MachineUsage } from '@/hooks/useMachineUsage';
@@ -22,9 +23,15 @@ const mocks = vi.hoisted(() => ({
   ledgerRequest: vi.fn(),
   ledgerDiscard: vi.fn(),
   createMany: vi.fn(),
+  query: vi.fn(),
+}));
+
+vi.mock('convex/react', () => ({
+  useConvex: () => ({ query: mocks.query }),
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionId: () => ['session-1'],
   useSessionQuery: (query: unknown, args?: { machineId?: string } | 'skip') => {
     const name = getFunctionName(query as FunctionReference<'query'>);
     if (name === 'machines:getMachineCapabilities') {
@@ -108,6 +115,11 @@ describe('MachineList / MachineCard', () => {
     mocks.ledgerRequest.mockReset();
     mocks.ledgerDiscard.mockReset();
     mocks.createMany.mockReset();
+    mocks.query.mockReset();
+    mocks.query.mockImplementation(async (ref: { name?: string }) => {
+      if (ref.name === 'listForMachine') return [];
+      throw new Error(`Unexpected query: ${ref.name}`);
+    });
   });
 
   it('shows Online for a connected machine', () => {
@@ -262,5 +274,30 @@ describe('MachineList / MachineCard', () => {
     rerender(<MachineList rows={[row]} expandedMachineId={null} onToggle={() => {}} />);
 
     expect(screen.queryByTestId('machine-repositories-section')).toBeNull();
+  });
+
+  it('renders no export notice until an export starts', () => {
+    renderRow(makeRow({ connected: true }));
+
+    expect(screen.queryByTestId('machine-export-notice')).toBeNull();
+  });
+
+  it('starts the listing phase from the Export chatrooms action, even while offline', async () => {
+    let releaseList: (rows: unknown[]) => void = () => {};
+    const listGate = new Promise<unknown[]>((resolve) => {
+      releaseList = resolve;
+    });
+    mocks.query.mockReturnValueOnce(listGate);
+
+    renderRow(makeRow({ connected: false, usage: USAGE }));
+    const user = await openActions();
+    await user.click(screen.getByTestId('machine-action-export'));
+
+    expect(await screen.findByText('Finding chatrooms on this machine…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+
+    releaseList([]);
+
+    expect(await screen.findByText(MACHINE_EMPTY_COPY)).toBeInTheDocument();
   });
 });
