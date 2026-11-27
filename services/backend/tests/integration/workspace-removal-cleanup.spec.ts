@@ -220,9 +220,16 @@ describe('workspace removal cleanup', () => {
     // Register TWO workspaces for the same machine in the same chatroom
     const workspaceId1 = await registerWorkspace(sid, chatroomId, machineId, '/test/workspace-a');
     await seedAdditionalWorkspace(chatroomId, machineId, '/test/workspace-b');
+    await t.mutation(api.workspaces.setPrimaryWorkspaceForChatroom, {
+      sessionId: sid,
+      chatroomId,
+      workspaceId: workspaceId1,
+    });
 
-    // Create a teamAgentConfig for this machine+chatroom
-    await setupRemoteAgentConfig(sid, chatroomId, machineId, 'builder');
+    // Create a teamAgentConfig for this machine+chatroom on its active workspace
+    await setupRemoteAgentConfig(sid, chatroomId, machineId, 'builder', {
+      workingDir: '/test/workspace-a',
+    });
 
     // Verify config exists before removal
     const requestsBefore = await getLaunchRequests(chatroomId);
@@ -251,11 +258,21 @@ describe('workspace removal cleanup', () => {
 
     // Register a workspace for each machine
     const workspaceIdA = await registerWorkspace(sid, chatroomId, machineIdA, '/workspace-a');
-    await seedAdditionalWorkspace(chatroomId, machineIdB, '/workspace-b');
+    const workspaceIdB = await seedAdditionalWorkspace(chatroomId, machineIdB, '/workspace-b');
 
-    // Create configs for both machines
+    // Create configs for both machines, switching the active workspace to match each target
+    await t.mutation(api.workspaces.setPrimaryWorkspaceForChatroom, {
+      sessionId: sid,
+      chatroomId,
+      workspaceId: workspaceIdA,
+    });
     await setupRemoteAgentConfig(sid, chatroomId, machineIdA, 'builder', {
       workingDir: '/workspace-a',
+    });
+    await t.mutation(api.workspaces.setPrimaryWorkspaceForChatroom, {
+      sessionId: sid,
+      chatroomId,
+      workspaceId: workspaceIdB,
     });
     await setupRemoteAgentConfig(sid, chatroomId, machineIdB, 'planner', {
       workingDir: '/workspace-b',
