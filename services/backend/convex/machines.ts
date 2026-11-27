@@ -30,6 +30,7 @@ import {
   type ModelFilter,
 } from '../src/domain/entities/harness/model-filter';
 import { applyAgentActivityHeartbeat } from '../src/domain/usecase/agent/apply-agent-activity-heartbeat';
+import { assertAgentTargetIsActiveWorkspace } from '../src/domain/usecase/agent/assert-agent-target-in-active-workspace';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { authorizeAgentStart as authorizeAgentStartUseCase } from '../src/domain/usecase/agent/authorize-agent-start';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
@@ -1165,6 +1166,12 @@ export const sendCommand = mutation({
         );
       }
 
+      await assertAgentTargetIsActiveWorkspace(ctx, {
+        chatroomId: args.payload.chatroomId,
+        machineId: args.machineId,
+        workingDir: resolvedWorkingDir,
+      });
+
       const allowNewMachine = resolveAllowNewMachineForStart(args.payload, existingConfig);
       await assertMachineBelongsToChatroom(ctx, {
         chatroomId: args.payload.chatroomId,
@@ -1207,6 +1214,12 @@ export const sendCommand = mutation({
         args.payload.role,
         args.payload.workspaceId
       );
+
+      await assertAgentTargetIsActiveWorkspace(ctx, {
+        chatroomId: args.payload.chatroomId,
+        machineId: args.machineId,
+        workingDir,
+      });
 
       const allowNewMachine = resolveAllowNewMachineForStart(args.payload, existingConfig);
       await assertMachineBelongsToChatroom(ctx, {

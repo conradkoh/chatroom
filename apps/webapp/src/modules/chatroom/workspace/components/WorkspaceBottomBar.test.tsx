@@ -624,9 +624,17 @@ describe('WorkspaceBottomBar switch-workspace entry points', () => {
 
   it('mobile: no switch entry is reachable without an active workspace', () => {
     mockUseIsDesktop.mockReturnValue(false);
+    const workspace = {
+      id: 'machine-1::/Users/alice/repo',
+      machineId: 'machine-1',
+      hostname: 'host-a',
+      workingDir: '/Users/alice/repo',
+      agentRoles: [],
+      fileTreeSyncEnabled: true,
+    };
     mockUseChatroomWorkspace.mockReturnValue({
       chatroomId: 'chatroom-1',
-      workspaces: [],
+      workspaces: [workspace],
       activeWorkspace: null,
       isLoading: false,
       setPrimaryWorkspace: vi.fn().mockResolvedValue(undefined),
@@ -635,8 +643,10 @@ describe('WorkspaceBottomBar switch-workspace entry points', () => {
     });
     render(<WorkspaceBottomBar />);
 
-    // Without an active workspace the mobile bar does not render, so the entry point does not exist.
-    expect(screen.queryByTitle('View workspace details')).not.toBeInTheDocument();
+    // One workspace is listed, so the mobile bar renders its trigger. Asserting it first proves the bar is not returning null.
+    fireEvent.click(screen.getByTitle('View workspace details'));
+
+    // With no active workspace the mobile modal does not mount, so the switch entry does not exist.
     expect(screen.queryByTestId('switch-workspace-action-mobile')).not.toBeInTheDocument();
   });
 });
