@@ -612,4 +612,31 @@ describe('WorkspaceBottomBar switch-workspace entry points', () => {
 
     expect(await screen.findByTestId('switch-workspace-action-mobile')).toBeDisabled();
   });
+
+  it('mobile: switch entry is enabled when a workspace is active and idle', () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    render(<WorkspaceBottomBar />);
+
+    fireEvent.click(screen.getByTitle('View workspace details'));
+
+    expect(screen.getByTestId('switch-workspace-action-mobile')).not.toBeDisabled();
+  });
+
+  it('mobile: no switch entry is reachable without an active workspace', () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    mockUseChatroomWorkspace.mockReturnValue({
+      chatroomId: 'chatroom-1',
+      workspaces: [],
+      activeWorkspace: null,
+      isLoading: false,
+      setPrimaryWorkspace: vi.fn().mockResolvedValue(undefined),
+      removeWorkspace: vi.fn().mockResolvedValue(undefined),
+      switchWorkspace: vi.fn(),
+    });
+    render(<WorkspaceBottomBar />);
+
+    // Without an active workspace the mobile bar does not render, so the entry point does not exist.
+    expect(screen.queryByTitle('View workspace details')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('switch-workspace-action-mobile')).not.toBeInTheDocument();
+  });
 });
