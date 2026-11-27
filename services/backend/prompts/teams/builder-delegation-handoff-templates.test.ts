@@ -45,6 +45,23 @@ describe('getBuilderDelegationBriefTemplate', () => {
     expect(body.indexOf('## Verification flags')).toBeLessThan(body.indexOf('## What to avoid'));
   });
 
+  test('single-pass brief carries no slice or sequencing vocabulary', () => {
+    const body = getBuilderDelegationBriefTemplate({
+      delegatorRole: 'specifier',
+      gatesOwner: 'coordinator',
+      singlePass: true,
+    });
+
+    expect(body).not.toMatch(/slice/i);
+    expect(body).not.toContain('sequencing');
+    expect(body).toContain(
+      'You (specifier) own turning the work package into one complete file-level builder brief.'
+    );
+    expect(body).toContain(
+      'If the work package depends on a fact, design decision, or bug diagnosis'
+    );
+  });
+
   test.each([false, true])(
     'end-to-end line names alternative evidence when e2e is not applicable (singlePass=%s)',
     (singlePass) => {

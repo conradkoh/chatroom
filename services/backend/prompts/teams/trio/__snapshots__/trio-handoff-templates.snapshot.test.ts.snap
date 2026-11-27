@@ -173,9 +173,9 @@ Handoff template \`specifier\` → \`builder\` (copy only the body sections belo
 
 **Delegation Brief** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
 
-**Before you delegate:** the \`coordinator\` clears research, triage, architecture, UI/UX, and asset gates before work reaches you. If a slice depends on a fact, design decision, or bug diagnosis that the work package does not settle, hand back to \`coordinator\` with the open question instead of guessing. Do not hand off to \`researcher\`, \`triage\`, \`architect\`, or any other specialist yourself.
+**Before you delegate:** the \`coordinator\` clears research, triage, architecture, UI/UX, and asset gates before work reaches you. If the work package depends on a fact, design decision, or bug diagnosis that the work package does not settle, hand back to \`coordinator\` with the open question instead of guessing. Do not hand off to \`researcher\`, \`triage\`, \`architect\`, or any other specialist yourself.
 
-**Division of labor:** You (specifier) own turning the work package into file-level builder slices and sequencing them. Copy any UI/UX target markup, classes, styles, and drawings from the work package into UI implementation briefs; the builder implements the components.
+**Division of labor:** You (specifier) own turning the work package into one complete file-level builder brief. Copy any UI/UX target markup, classes, styles, and drawings from the work package into UI implementation briefs; the builder implements the components.
 
 **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
@@ -587,9 +587,9 @@ Handoff template \`specifier\` → \`builder\` (copy only the body sections belo
 
 **Delegation Brief** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
 
-**Before you delegate:** the \`coordinator\` clears research, triage, architecture, UI/UX, and asset gates before work reaches you. If a slice depends on a fact, design decision, or bug diagnosis that the work package does not settle, hand back to \`coordinator\` with the open question instead of guessing. Do not hand off to \`researcher\`, \`triage\`, \`architect\`, or any other specialist yourself.
+**Before you delegate:** the \`coordinator\` clears research, triage, architecture, UI/UX, and asset gates before work reaches you. If the work package depends on a fact, design decision, or bug diagnosis that the work package does not settle, hand back to \`coordinator\` with the open question instead of guessing. Do not hand off to \`researcher\`, \`triage\`, \`architect\`, or any other specialist yourself.
 
-**Division of labor:** You (specifier) own turning the work package into file-level builder slices and sequencing them. Copy any UI/UX target markup, classes, styles, and drawings from the work package into UI implementation briefs; the builder implements the components.
+**Division of labor:** You (specifier) own turning the work package into one complete file-level builder brief. Copy any UI/UX target markup, classes, styles, and drawings from the work package into UI implementation briefs; the builder implements the components.
 
 **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 

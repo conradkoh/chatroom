@@ -19,6 +19,8 @@ export interface BuilderDelegationBriefOptions {
 interface BriefVariantFragments {
   roundGuidance: string;
   verificationFlagsSection: string;
+  /** Who owns the brief: one complete brief (single pass) or sliced sequencing. */
+  divisionOfLabor: string;
 }
 
 function getVerificationKindFlagLine(kind: VerificationKind): string {
@@ -66,20 +68,37 @@ function getVerificationFlagsSection(singlePass: boolean): string {
  * single-pass brief. Kept out of the template function so the two paths stay
  * easy to read and the rendering function stays simple.
  */
-function getBriefVariantFragments(singlePass: boolean): BriefVariantFragments {
+function getBriefVariantFragments(
+  singlePass: boolean,
+  delegatorRole: string
+): BriefVariantFragments {
   const roundGuidance = singlePass
     ? "This is the work package's only builder brief — the specifier makes one builder pass and cannot send rework. Cover the whole package: order the ### file blocks by dependency, and set the `## Verification flags` scope to `full`."
     : 'Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once. In the brief body, set the `## Verification flags` scope to `focused` for each slice and to `round-final` for the final slice, which runs the full pass once.';
 
+  /** Trio's single pass has one complete brief; the default incremental path keeps slicing/sequencing. */
+  const divisionOfLabor = singlePass
+    ? `**Division of labor:** You (${delegatorRole}) own turning the work package into one complete file-level builder brief.`
+    : `**Division of labor:** You (${delegatorRole}) own turning the work package into file-level builder slices and sequencing them.`;
+
   return {
     roundGuidance,
     verificationFlagsSection: getVerificationFlagsSection(singlePass),
+    divisionOfLabor,
   };
 }
 
 /** Returns the markdown delegation-brief template body. */
 export function getBuilderDelegationBriefTemplate(options: BuilderDelegationBriefOptions): string {
   const { delegatorRole, gatesOwner, singlePass = false } = options;
+
+  /** Trio's single pass must not imply multiple slices; duo keeps "slice". */
+  const unit = singlePass ? 'work package' : 'slice';
+
+  const { roundGuidance, verificationFlagsSection, divisionOfLabor } = getBriefVariantFragments(
+    singlePass,
+    delegatorRole
+  );
 
   const prelude =
     gatesOwner === 'self'
@@ -88,14 +107,9 @@ export function getBuilderDelegationBriefTemplate(options: BuilderDelegationBrie
 **Bug fixes:** if this slice fixes a reported bug, delegate only after a \`triage\` report for that bug has returned, and build the brief from its root cause and proposed fix. The \`triage\` handoff template defines the investigation.
 
 **Division of labor:** For backend contract, API, or schema/persistence changes, the architect designs first and you delegate only after its design returns. You (${delegatorRole}) own slicing and sequencing of builder work. The UI/UX engineer owns UI/UX design. Include its target markup, classes, styles, and screen and flow drawings in UI implementation briefs; the builder implements the components.`
-      : `**Before you delegate:** the \`${gatesOwner}\` clears research, triage, architecture, UI/UX, and asset gates before work reaches you. If a slice depends on a fact, design decision, or bug diagnosis that the work package does not settle, hand back to \`${gatesOwner}\` with the open question instead of guessing. Do not hand off to \`researcher\`, \`triage\`, \`architect\`, or any other specialist yourself.
+      : `**Before you delegate:** the \`${gatesOwner}\` clears research, triage, architecture, UI/UX, and asset gates before work reaches you. If ${singlePass ? 'the work package' : 'a slice'} depends on a fact, design decision, or bug diagnosis that the work package does not settle, hand back to \`${gatesOwner}\` with the open question instead of guessing. Do not hand off to \`researcher\`, \`triage\`, \`architect\`, or any other specialist yourself.
 
-**Division of labor:** You (${delegatorRole}) own turning the work package into file-level builder slices and sequencing them. Copy any UI/UX target markup, classes, styles, and drawings from the work package into UI implementation briefs; the builder implements the components.`;
-
-  const { roundGuidance, verificationFlagsSection } = getBriefVariantFragments(singlePass);
-
-  /** Trio's single pass must not imply multiple slices; duo keeps "slice". */
-  const unit = singlePass ? 'work package' : 'slice';
+${divisionOfLabor} Copy any UI/UX target markup, classes, styles, and drawings from the work package into UI implementation briefs; the builder implements the components.`;
 
   return `${getDelegationBriefIntro()}
 
