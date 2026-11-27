@@ -11,34 +11,36 @@ The section strip (`Chatrooms | Machines`) is shared with the chatroom list and 
 
 ## Layout
 
-| Path                                 | Role                                                                                                                      |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| `MachinesPage.tsx`                   | Page shell: section strip, heading, error boundary around the querying content.                                           |
-| `components/MachineList.tsx`         | Ordered card list. Order comes from `useMachineRows`.                                                                     |
-| `components/MachineCard.tsx`         | One machine: status dot, alias field, status line, usage, harness chips, actions menu and the expandable body.            |
-| `components/MachineHarnessChips.tsx` | Per-card harness chips from `useMachineCapabilities`.                                                                     |
-| `components/MachineProjectRoots.tsx` | Expanded card's first section: roots list, add form, offline/limit notes.                                                 |
-| `components/AddProjectRootForm.tsx`  | Typed or Browse-picked path field, add state, error and success notes.                                                    |
-| `components/ProjectRootRow.tsx`      | One root path with a remove button and an inline retry error.                                                             |
-| `components/MachineRepositories.tsx` | Expanded card's second section: snapshot states, filter, virtualised rows and the bulk-create dialog.                     |
-| `components/RepositoryBanners.tsx`   | Snapshot warning banners: truncated, root issues, changed roots, offline and omitted entries.                             |
-| `components/RepositoryRow.tsx`       | One 72 px repository row: name, branch, path, status badge and open/create action.                                        |
-| `components/RepositoryFilterBar.tsx` | Filter input for the loaded snapshot; Escape or the clear button empties it.                                              |
-| `components/BulkCreateButton.tsx`    | Bulk trigger for the visible no-chatroom rows, or the done line when every shown row has a chatroom.                      |
-| `components/BulkCreateDialog.tsx`    | Confirm, pending, summary and error phases for one bulk-create session, walking batches of 50.                            |
-| `components/LedgerNotice.tsx`        | Warning/error callout shared by ledger failures and snapshot banners.                                                     |
-| `components/MachineActionsMenu.tsx`  | Descriptor-driven card menu. Safe actions first, destructive actions after a separator.                                   |
-| `components/machineActions.ts`       | `MachineAction` descriptor type and `buildMachineActions` (the extension point).                                          |
-| `components/DeleteMachineDialog.tsx` | Blocked and confirm variants for deletion, with the live online→offline flip.                                             |
-| `components/MachineAliasField.tsx`   | Inline alias editor shared with `AgentSettingsModal`.                                                                     |
-| `components/MachinesStates.tsx`      | Loading skeletons, empty state with the daemon start command, and the error-boundary fallback.                            |
-| `hooks/useMachineRows.ts`            | Joins the registry with connectivity, last-seen and usage into row models.                                                |
-| `hooks/useRepositoryLedger.ts`       | Owns the on-demand snapshot lifecycle and its view states; discards only the requests it created, on collapse or unmount. |
-| `hooks/useBulkCreateChatrooms.ts`    | Calls `chatrooms.createManyWithWorkspace`; `createOne` is the same call with one directory.                               |
-| `lib/machineDisplay.ts`              | Pure display helpers: OS label, relative last seen, registered date, usage summary and registry-only sorting.             |
-| `lib/machineErrorCopy.ts`            | Maps `ConvexError.data.code` and payload messages to user-facing copy.                                                    |
-| `lib/bulkCreate.ts`                  | Batch planning, running totals, button-disabled reasons and count copy for bulk create.                                   |
-| `lib/repositoryFilter.ts`            | Case-insensitive name/path/branch filter over the loaded entries, in list order.                                          |
+| Path                                                                                                  | Role                                                                                                           |
+| ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `MachinesPage.tsx`                                                                                    | Page shell: section strip, heading, error boundary around the querying content.                                |
+| `components/MachineList.tsx`                                                                          | Ordered card list. Order comes from `useMachineRows`.                                                          |
+| `components/MachineCard.tsx`                                                                          | One machine: status dot, alias field, status line, usage, harness chips, actions menu and the expandable body. |
+| `components/MachineHarnessChips.tsx`                                                                  | Per-card harness chips from `useMachineCapabilities`.                                                          |
+| `components/MachineProjectRoots.tsx`                                                                  | Expanded card's first section: roots list, add form, offline/limit notes.                                      |
+| `components/AddProjectRootForm.tsx`                                                                   | Typed or Browse-picked path field, add state, error and success notes.                                         |
+| `components/ProjectRootRow.tsx`                                                                       | One root path with a remove button and an inline retry error.                                                  |
+| `components/MachineRepositories.tsx`                                                                  | Expanded card's second section: snapshot states, filter, virtualised rows and the bulk-create dialog.          |
+| `components/RepositoryBanners.tsx`                                                                    | Snapshot warning banners: truncated, root issues, changed roots, offline and omitted entries.                  |
+| `components/RepositoryRow.tsx`                                                                        | One 72 px repository row: name, branch, path, status badge and open/create action.                             |
+| `components/RepositoryFilterBar.tsx`                                                                  | Filter input for the loaded snapshot; Escape or the clear button empties it.                                   |
+| `components/BulkCreateButton.tsx`                                                                     | Bulk trigger for the visible no-chatroom rows, or the done line when every shown row has a chatroom.           |
+| `components/BulkCreateDialog.tsx`                                                                     | Confirm, pending, summary and error phases for one bulk-create session, walking batches of 50.                 |
+| `components/LedgerNotice.tsx`                                                                         | Warning/error callout shared by ledger failures and snapshot banners.                                          |
+| `components/MachineActionsMenu.tsx`                                                                   | Descriptor-driven card menu. Safe actions first, destructive actions after a separator.                        |
+| `components/machineActions.ts`                                                                        | `MachineAction` descriptor type and `buildMachineActions` (descriptor ids: `rename, export, import, delete`).  |
+| `components/DeleteMachineDialog.tsx`                                                                  | Blocked and confirm variants for deletion, with the live online→offline flip.                                  |
+| `../transfer/components/ImportDialog.tsx` and `../transfer/components/import/ImportTargetMachine.tsx` | Import dialog mounted by the card, locked target strip.                                                        |
+
+| `components/MachineAliasField.tsx` | Inline alias editor shared with `AgentSettingsModal`. |
+| `components/MachinesStates.tsx` | Loading skeletons, empty state with the daemon start command, and the error-boundary fallback. |
+| `hooks/useMachineRows.ts` | Joins the registry with connectivity, last-seen and usage into row models. |
+| `hooks/useRepositoryLedger.ts` | Owns the on-demand snapshot lifecycle and its view states; discards only the requests it created, on collapse or unmount. |
+| `hooks/useBulkCreateChatrooms.ts` | Calls `chatrooms.createManyWithWorkspace`; `createOne` is the same call with one directory. |
+| `lib/machineDisplay.ts` | Pure display helpers: OS label, relative last seen, registered date, usage summary and registry-only sorting. |
+| `lib/machineErrorCopy.ts` | Maps `ConvexError.data.code` and payload messages to user-facing copy. |
+| `lib/bulkCreate.ts` | Batch planning, running totals, button-disabled reasons and count copy for bulk create. |
+| `lib/repositoryFilter.ts` | Case-insensitive name/path/branch filter over the loaded entries, in list order. |
 
 Shared hooks in `apps/webapp/src/hooks/`:
 
@@ -176,6 +178,13 @@ Backend invariants (tombstone-first deletion, the `MACHINE_SCOPED_TABLES` regist
 batches and retention) are documented in
 [memory/architecture/machine-management.md](../../../../../../../memory/architecture/machine-management.md)
 and [docs/cleanup-policies.md](../../../../../../../docs/cleanup-policies.md).
+
+## Import
+
+- The **Import chatrooms…** item sits between Export and Delete (`machine-action-import`). It is never disabled, so it works for online, offline and still-checking machines.
+- `MachineCard` owns `ImportDialog` the way it owns `DeleteMachineDialog`: mounted only while open, outside `MachineCardBody` so collapsing the card cannot unmount it mid-flow, with `finalFocusRef={menuTriggerRef}`. The dialog is locked to the card's machine and shows the `import-target` strip on every step.
+- `InterruptedImportNotice` is mounted at page level, above the list and outside the error boundary, so it shows in loading, empty and error states. It names no machine: the stored record has none.
+- `MachinesEmptyState` carries one hint line (`machines-empty-import-hint`) that points to the card menu.
 
 ## Action-area extension point
 

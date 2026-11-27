@@ -449,7 +449,8 @@ mark. No product mutation edits message content, so this cannot be triggered thr
 ### Export
 
 - Entry points: the chatroom sidebar row's context menu, the chatroom selector card menu, the
-  selector table menu, and the Machines tab's per-machine card menu.
+  selector table menu, and the Machines tab's per-machine card menu (Export chatrooms, Import
+  chatrooms…).
 - The browser builds the same payload bytes and file names as the CLI by calling the shared
   `runExport` / `runExportBundle` code, then saves the file with an anchor download. Nothing is
   uploaded to Convex.
@@ -462,23 +463,26 @@ mark. No product mutation edits message content, so this cannot be triggered thr
 
 ### Import
 
-- Entry points: the chatroom sidebar header, the chatroom selector header, and the selector's empty
-  state.
+- Entry point: a machine card's **Import chatrooms…** menu item on the Machines tab
+  (`/app/machines`). The dialog is locked to that card's machine and shows an **Import to** strip.
+  There is no import button on the chatroom landing page or sidebar.
 - The dialog has four steps: **File**, **Select**, **Progress** and **Results**. The file is chosen
   with a native file input and read with the browser's file API; it is never uploaded.
 - The dialog calls the same `parseTransferFile`/`selectEntries` code as the CLI, so listing,
   validation, `not importable` entries and checksums behave identically. The size gate runs before
   the file is read.
-- Select shows the same per-entry fields as the CLI listing, a select-all control, and a target
-  machine picker. Results show each imported chatroom as a link to
+- Select shows the same per-entry fields as the CLI listing, a select-all control, and the target
+  machine shown in the strip (the card's machine; it may be offline). Results show each imported
+  chatroom as a link to
   `/app/chatroom?id=<new id>`, each failure with its code and message, and allow retrying the
   failed/skipped entries while leaving successful ones unselectable.
 - Stop/cancel aborts the import in progress and waits for its rollback; close is blocked while the
   rollback runs. The engine writes through `chatroomImport.begin/applyChunk/finalize/rollback`
   only; there is no upload route or Convex action for a transfer file.
 - A killed tab cannot run rollback. The dialog records the in-progress import in `localStorage`
-  with a heartbeat; the next visit shows an interrupted-import notice that can remove or keep the
-  record. A room finalized as `active` cannot be rolled back, exactly as in the CLI.
+  with a heartbeat; the next visit shows an interrupted-import notice on the Machines page, the
+  chatroom sidebar and the chatroom list. The notice does not name a machine. A room finalized as
+  `active` cannot be rolled back, exactly as in the CLI.
 
 ## Machine backups
 
