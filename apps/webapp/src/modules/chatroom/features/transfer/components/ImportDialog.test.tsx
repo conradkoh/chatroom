@@ -7,13 +7,12 @@ import type { ChatroomExportPort } from '@workspace/backend/src/domain/usecase/c
 import type { ImportChunk } from '@workspace/backend/src/domain/usecase/chatroom-transfer/import-apply';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { ImportTarget } from './import/ImportTargetMachine';
 import { ImportDialog } from './ImportDialog';
 
 const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   mutation: vi.fn(),
-  machines: [] as unknown[],
-  machinesLoading: false,
 }));
 
 vi.mock('convex/react', () => ({
@@ -34,10 +33,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       rollback: { name: 'rollback' },
     },
   },
-}));
-
-vi.mock('@/modules/chatroom/features/machines/hooks/useMachineRows', () => ({
-  useMachineRows: () => ({ rows: mocks.machines, isLoading: mocks.machinesLoading }),
 }));
 
 const AT = new Date('2026-01-02T03:04:05.000Z');
@@ -111,16 +106,6 @@ function fileFrom(text: string, name = 'chatroom-all-export.json'): File {
   return file;
 }
 
-function machineRow(machineId: string, displayName: string, connected: boolean | undefined) {
-  return {
-    machine: { machineId, hostname: `${machineId}-host`, os: 'darwin', registeredAt: 1 },
-    displayName,
-    connected,
-    lastSeenAt: null,
-    usage: undefined,
-  };
-}
-
 function chunkResult(chunk: ImportChunk): { created: Record<string, string> } {
   if (chunk.phase === 'links') return { created: {} };
   return { created: Object.fromEntries(chunk.rows.map((row, index) => [row.key, `id-${index}`])) };
@@ -144,9 +129,19 @@ function installConvex(): void {
   mocks.query.mockImplementation(async () => PREFLIGHT);
 }
 
-function renderDialog(onClose = vi.fn()) {
+function renderDialog(
+  onClose = vi.fn(),
+  target: ImportTarget = {
+    machineId: 'machine-1',
+    displayName: 'Studio Mac',
+    hostname: 'studio-mac',
+    connected: true,
+  }
+) {
   const finalFocusRef = { current: null };
-  const view = render(<ImportDialog onClose={onClose} finalFocusRef={finalFocusRef} />);
+  const view = render(
+    <ImportDialog target={target} onClose={onClose} finalFocusRef={finalFocusRef} />
+  );
   return { ...view, onClose, finalFocusRef };
 }
 
@@ -176,8 +171,6 @@ beforeEach(() => {
   beginCount = 0;
   mocks.query.mockReset();
   mocks.mutation.mockReset();
-  mocks.machines = [machineRow('machine-1', 'MacBook Pro', true)];
-  mocks.machinesLoading = false;
   window.localStorage.clear();
   installConvex();
 });
@@ -314,53 +307,61 @@ describe('ImportDialog — select step', () => {
 
     fireEvent.click(selectAllCheckbox());
     expect(start).toBeEnabled();
-    expect(screen.getByText('3 of 3 selected → MacBook Pro')).toBeInTheDocument();
+    expect(screen.getByText('3 of 3 selected → Studio Mac')).toBeInTheDocument();
   });
 
-  it('preselects the only owned machine and lets an offline machine be chosen', async () => {
-    mocks.machines = [machineRow('machine-1', 'Cloud box', false)];
+  it('shows the locked target strip on the file step', async () => {
     renderDialog();
     await upload(fileFrom(await bundleJson()));
 
-    expect(await screen.findByText('Offline')).toBeInTheDocument();
-    expect(screen.getByText('Cloud box')).toBeInTheDocument();
+    expect(await screen.findByTestId('import-target')).toBeInTheDocument();
+    expect(screen.getByTestId('import-target-name').textContent).toBe('Studio Mac');
+    expect(screen.getByTestId('import-target-status').textContent).toBe('Online');
+    expect(screen.queryByText('Choose a machine.')).toBeNull();
+    expect(screen.queryByRole('radio')).toBeNull();
+  });
+
+  it('shows the offline note on the file and select steps, and still imports', async () => {
+    renderDialog(vi.fn(), {
+      machineId: 'machine-1',
+      displayName: 'Cloud box',
+      hostname: 'cloud-box',
+      connected: false,
+    });
+    await upload(fileFrom(await bundleJson()));
+
+    expect(await screen.findByTestId('import-target-status')).toHaveTextContent('Offline');
     expect(
       screen.getByText(
         'Cloud box is offline. The chatrooms are created now; agents cannot start until its daemon runs.'
       )
     ).toBeInTheDocument();
-    expect(screen.getByTestId('import-start')).toBeDisabled();
-  });
 
-  it('asks for a machine when several are owned', async () => {
-    mocks.machines = [
-      machineRow('machine-1', 'MacBook Pro', true),
-      machineRow('machine-2', 'Cloud box', undefined),
-    ];
-    renderDialog();
-    await upload(fileFrom(await bundleJson()));
     await screen.findByTestId('import-start');
-    fireEvent.click(selectAllCheckbox());
+    expect(
+      screen.getByText(
+        'Cloud box is offline. The chatrooms are created now; agents cannot start until its daemon runs.'
+      )
+    ).toBeInTheDocument();
 
-    expect(screen.getByText('Checking…')).toBeInTheDocument();
-    expect(screen.getByText('Choose a machine.')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('radio', { name: /Cloud box/ }));
+    fireEvent.click(selectAllCheckbox());
+    expect(screen.getByText('3 of 3 selected → Cloud box')).toBeInTheDocument();
     expect(screen.getByTestId('import-start')).toBeEnabled();
   });
 
-  it('shows the register link when no machine is owned', async () => {
-    mocks.machines = [];
+  it('enables Import after select-all with no machine interaction', async () => {
     renderDialog();
     await upload(fileFrom(await bundleJson()));
+    await screen.findByTestId('import-start');
 
-    expect(await screen.findByText('Register a machine')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Register a machine' })).toHaveAttribute(
-      'href',
-      '/app/machines'
-    );
+    expect(screen.getByTestId('import-start')).toBeDisabled();
+    fireEvent.click(selectAllCheckbox());
+
+    expect(screen.getByTestId('import-start')).toBeEnabled();
+    expect(screen.getByText('3 of 3 selected → Studio Mac')).toBeInTheDocument();
   });
 
-  it('shows an empty file message without the machine section', async () => {
+  it('shows an empty file message with the target strip', async () => {
     const emptyBundle = await runExportBundle(EXPORT_PORT, {
       chatroomIds: [],
       machineId: 'machine-src',
@@ -373,7 +374,8 @@ describe('ImportDialog — select step', () => {
     expect((await screen.findAllByText('This file contains no chatrooms.')).length).toBeGreaterThan(
       0
     );
-    expect(screen.queryByText('Import to machine')).not.toBeInTheDocument();
+    expect(screen.getByTestId('import-target')).toBeInTheDocument();
+    expect(screen.queryByText(/is offline/)).toBeNull();
   });
 });
 
@@ -465,6 +467,7 @@ describe('ImportDialog — progress and results', () => {
     const failed = screen.getByTestId('import-results-failed');
     expect(within(failed).getByText(/IMPORT_CHUNK_FAILED/)).toBeInTheDocument();
     expect(within(failed).getByText('Nothing was created.')).toBeInTheDocument();
+    expect(screen.queryByText(/^Target machine:/)).toBeNull();
 
     fireEvent.click(screen.getByTestId('import-retry'));
     expect(await screen.findByTestId('import-entry-list')).toBeInTheDocument();

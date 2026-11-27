@@ -14,6 +14,7 @@ import { ImportFileStep } from './import/ImportFileStep';
 import { ImportProgressStep } from './import/ImportProgressStep';
 import { ImportResultStep } from './import/ImportResultStep';
 import { ImportSelectStep } from './import/ImportSelectStep';
+import { ImportTargetMachine, type ImportTarget } from './import/ImportTargetMachine';
 
 import {
   Dialog,
@@ -24,6 +25,8 @@ import {
 } from '@/components/ui/dialog';
 
 export interface ImportDialogProps {
+  /** The machine this dialog imports into. The owning machine card supplies it. */
+  target: ImportTarget;
   onClose(): void;
   /** The trigger that opened the dialog; focus returns here on close. */
   finalFocusRef: RefObject<HTMLElement | null>;
@@ -35,8 +38,8 @@ export interface ImportDialogProps {
  * room is rolled back by an accidental Escape or overlay click.
  */
 // fallow-ignore-next-line complexity
-export function ImportDialog({ onClose, finalFocusRef }: ImportDialogProps) {
-  const transfer = useTransferImport();
+export function ImportDialog({ target, onClose, finalFocusRef }: ImportDialogProps) {
+  const transfer = useTransferImport(target.machineId);
   const { state } = transfer;
   const [confirmingStop, setConfirmingStop] = useState(false);
   const locked = state.kind === 'importing';
@@ -47,6 +50,8 @@ export function ImportDialog({ onClose, finalFocusRef }: ImportDialogProps) {
   const chooseDifferentRef = useRef<HTMLButtonElement>(null);
 
   const importableCount = state.kind === 'listed' ? countImportable(state) : 0;
+  const showTargetHelp =
+    isFileStep(state) || (state.kind === 'listed' && state.listing.entries.length > 0);
 
   const requestClose = () => {
     // While stopping, the dialog is locked until the rollback resolves.
@@ -94,6 +99,7 @@ export function ImportDialog({ onClose, finalFocusRef }: ImportDialogProps) {
             {descriptionFor(state)}
           </DialogDescription>
         </DialogHeader>
+        <ImportTargetMachine target={target} showHelp={showTargetHelp} />
         {(state.kind === 'idle' || state.kind === 'reading' || state.kind === 'rejected') && (
           <ImportFileStep
             state={state}
@@ -106,12 +112,10 @@ export function ImportDialog({ onClose, finalFocusRef }: ImportDialogProps) {
         {state.kind === 'listed' && (
           <ImportSelectStep
             state={state}
-            machines={transfer.machines}
-            machinesLoading={transfer.machinesLoading}
+            machineName={target.displayName}
             onToggle={transfer.toggle}
             onSelectAll={transfer.selectAll}
             onClear={transfer.clear}
-            onChooseMachine={transfer.chooseMachine}
             onStart={transfer.start}
             onReset={transfer.reset}
             onClose={requestClose}
@@ -135,7 +139,6 @@ export function ImportDialog({ onClose, finalFocusRef }: ImportDialogProps) {
         {state.kind === 'done' && (
           <ImportResultStep
             state={state}
-            machines={transfer.machines}
             onRetry={transfer.retryRemaining}
             onClose={requestClose}
           />

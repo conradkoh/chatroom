@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { FunctionReference } from 'convex/server';
 import { getFunctionName } from 'convex/server';
@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MachinesPage } from './MachinesPage';
 import type { UserMachine } from '../../types/machine';
+import { writeInflightImport } from '../transfer/lib/inflightImport';
 
 import { getDaemonStartCommand } from '@/lib/environment';
 
@@ -316,5 +317,90 @@ describe('MachinesPage', () => {
 
     await user.click(expanders[1]);
     expect(mocks.rootsMachineIds).toEqual(['m-alpha', 'm-bravo']);
+  });
+});
+
+describe('MachinesPage import entry point', () => {
+  let consoleError: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    mocks.registry = undefined;
+    mocks.connectivity = undefined;
+    mocks.usage = undefined;
+    mocks.lastSeen = undefined;
+    mocks.capabilities = undefined;
+    mocks.shouldThrow = false;
+    mocks.rootsMachineIds = [];
+    mocks.setMachineAlias.mockReset();
+    mocks.setMachineAlias.mockResolvedValue({ success: true });
+    consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    window.localStorage.clear();
+    consoleError.mockRestore();
+  });
+
+  it('shows the interrupted import notice above the machine list', async () => {
+    writeInflightImport('room-1', Date.now() - 60_000);
+    mocks.registry = { machines: [ALPHA] };
+    render(<MachinesPage />);
+
+    const notice = await screen.findByTestId('interrupted-import-notice');
+    const list = screen.getByTestId('machine-list');
+    expect(notice.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+  });
+
+  it('shows the interrupted import notice in the loading state', async () => {
+    writeInflightImport('room-1', Date.now() - 60_000);
+    render(<MachinesPage />);
+
+    expect(screen.getByTestId('machines-loading')).toBeDefined();
+    expect(await screen.findByTestId('interrupted-import-notice')).toBeInTheDocument();
+  });
+
+  it('shows the interrupted import notice in the empty state', async () => {
+    writeInflightImport('room-1', Date.now() - 60_000);
+    mocks.registry = { machines: [] };
+    render(<MachinesPage />);
+
+    expect(screen.getByTestId('machines-empty')).toBeDefined();
+    expect(await screen.findByTestId('interrupted-import-notice')).toBeInTheDocument();
+  });
+
+  it('shows the interrupted import notice in the error state', async () => {
+    writeInflightImport('room-1', Date.now() - 60_000);
+    mocks.shouldThrow = true;
+    render(<MachinesPage />);
+
+    expect(screen.getByTestId('machines-error')).toBeDefined();
+    expect(await screen.findByTestId('interrupted-import-notice')).toBeInTheDocument();
+  });
+
+  it('points the empty state at the machine card menu', () => {
+    mocks.registry = { machines: [] };
+    render(<MachinesPage />);
+
+    expect(screen.getByTestId('machines-empty-import-hint').textContent).toContain(
+      'Importing a chatroom export needs a registered machine.'
+    );
+  });
+
+  it('unmounts an open import dialog when its card is removed', async () => {
+    const user = userEvent.setup();
+    mocks.registry = { machines: [ALPHA, BRAVO] };
+    const { rerender } = render(<MachinesPage />);
+
+    await user.click(screen.getAllByTestId('machine-actions-trigger')[0]);
+    await user.click(await screen.findByTestId('machine-action-import'));
+    expect(screen.getByTestId('import-dialog')).toBeInTheDocument();
+
+    mocks.registry = { machines: [BRAVO] };
+    rerender(<MachinesPage />);
+
+    await waitFor(() => expect(screen.queryByTestId('import-dialog')).toBeNull());
   });
 });

@@ -48,6 +48,13 @@ export function MachinesEmptyState() {
           variant="compact"
         />
       </div>
+      <p
+        data-testid="machines-empty-import-hint"
+        className="max-w-md text-xs text-chatroom-text-muted"
+      >
+        Importing a chatroom export needs a registered machine. Once one appears, open its menu and
+        choose Import chatrooms….
+      </p>
     </div>
   );
 }

@@ -20,29 +20,24 @@ import { InlineFeedback } from '@/components/inline-feedback';
 import { Button } from '@/components/ui/button';
 import { DialogFooter, DialogScrollBody } from '@/components/ui/dialog';
 import { chatroomIndustrialDialogFooterClassName } from '@/modules/chatroom/components/shared/industrialDialogStyles';
-import type { MachineRowModel } from '@/modules/chatroom/features/machines/hooks/useMachineRows';
 
 type DoneState = Extract<ImportViewState, { kind: 'done' }>;
 
 interface ImportResultStepProps {
   state: DoneState;
-  machines: MachineRowModel[];
   onRetry(): void;
   /** A result link was clicked on a plain click. */
   onClose(): void;
 }
 
-/** The results step: counts, target machine, and one section per outcome. */
+/** The results step: counts and one section per outcome. */
 // fallow-ignore-next-line complexity
-export function ImportResultStep({ state, machines, onRetry, onClose }: ImportResultStepProps) {
+export function ImportResultStep({ state, onRetry, onClose }: ImportResultStepProps) {
   const { summary } = state;
   const rows = deriveImportRows(state.listing, state.keys, null, summary.results, false);
   const imported = rows.filter((row) => row.status.kind === 'imported');
   const failed = rows.filter((row) => row.status.kind === 'failed');
   const skipped = rows.filter((row) => row.status.kind === 'skipped');
-  const machineName =
-    machines.find((row) => row.machine.machineId === state.machineId)?.displayName ??
-    state.machineId;
 
   return (
     <>
@@ -59,7 +54,6 @@ export function ImportResultStep({ state, machines, onRetry, onClose }: ImportRe
             skipped: summary.skipped,
           })}
         </p>
-        <p className="text-xs text-chatroom-text-muted">Target machine: {machineName}</p>
         {summary.fatal !== null && (
           <InlineFeedback
             feedback={{

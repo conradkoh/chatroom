@@ -19,21 +19,21 @@ vi.mock('../../features/new-chatroom/NewChatroomWizard', () => ({
 }));
 
 describe('ChatroomSelectorHeader', () => {
-  it('shows the import button next to + New', () => {
+  it('shows only the + New action, with no import entry point', () => {
     render(<ChatroomSelectorHeader onCreate={vi.fn()} />);
 
-    const importButton = screen.getByTestId('import-open-header');
-    expect(importButton).toBeInTheDocument();
-    expect(importButton).toHaveTextContent('Import');
     expect(screen.getByRole('button', { name: '+ New' })).toBeInTheDocument();
+    expect(screen.queryByTestId('import-open-header')).toBeNull();
+    expect(screen.queryByRole('button', { name: /import/i })).toBeNull();
   });
 });
 
 describe('ChatroomSelector empty state', () => {
-  it('offers import from file under Create New Chatroom', () => {
+  it('offers Create New Chatroom only, with no import entry point', () => {
     render(<ChatroomSelector onSelect={vi.fn()} />);
 
     expect(screen.getByRole('button', { name: 'Create New Chatroom' })).toBeInTheDocument();
-    expect(screen.getByTestId('import-open-empty')).toBeInTheDocument();
+    expect(screen.queryByTestId('import-open-empty')).toBeNull();
+    expect(screen.queryByText('Import from file')).toBeNull();
   });
 });

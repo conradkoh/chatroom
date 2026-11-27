@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatroomSidebar } from './ChatroomSidebar';
 import type { ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { useChatroomListing } from '../context/ChatroomListingContext';
+import { writeInflightImport } from '../features/transfer/lib/inflightImport';
 
 import type { ChatroomRemoteAgentStatus, ChatroomStatus } from '@/domain/entities/chatroom-status';
 
@@ -978,23 +979,17 @@ describe('ChatroomSidebar import entry point', () => {
     window.localStorage.clear();
   });
 
-  it('shows the import button in the header', () => {
+  it('has no import trigger in the header', () => {
     renderSidebar([makeChatroom()]);
-    expect(screen.getByRole('button', { name: 'Import chatrooms' })).toBeInTheDocument();
+    expect(screen.queryByTestId('import-open-sidebar')).toBeNull();
   });
 
   it('mounts the interrupted import notice above the list for a stale record', async () => {
-    window.localStorage.setItem(
-      'chatroom.import.inflight',
-      JSON.stringify({
-        chatroomId: 'room-1',
-        startedAt: Date.now() - 60_000,
-        heartbeatAt: Date.now() - 60_000,
-      })
-    );
+    writeInflightImport('room-1', Date.now() - 60_000);
 
     renderSidebar([makeChatroom()]);
 
     expect(await screen.findByTestId('interrupted-import-notice')).toBeInTheDocument();
+    expect(screen.queryByTestId('import-open-sidebar')).toBeNull();
   });
 });
