@@ -99,6 +99,14 @@ vi.mock('./repository-ledger-runtime.js', () => ({
   getRepositoryLedgerService: mockGetRepositoryLedgerService,
 }));
 
+// The machine backup runtime is the other module boundary; dispatch starts its jobs and returns.
+const mockServeInventory = vi.hoisted(() => vi.fn());
+const mockServeUpload = vi.hoisted(() => vi.fn());
+const mockGetMachineBackupService = vi.hoisted(() => vi.fn());
+vi.mock('./machine-backup-runtime.js', () => ({
+  getMachineBackupService: mockGetMachineBackupService,
+}));
+
 vi.mock('../infrastructure/git/git-reader.js', () => ({
   isGitRepo: vi.fn().mockResolvedValue(false),
   getBranch: vi.fn().mockResolvedValue({ status: 'not_found' }),
@@ -258,6 +266,8 @@ function createDedupTracker() {
     gitCloneIds: new Map<string, number>(),
     syncProjectRootsIds: new Map<string, number>(),
     reportRepositoryLedgerIds: new Map<string, number>(),
+    reportMachineBackupsIds: new Map<string, number>(),
+    uploadMachineBackupIds: new Map<string, number>(),
   };
 }
 
@@ -764,5 +774,150 @@ describe('dispatchCommandEventEffect daemon.reportRepositoryLedger', () => {
     await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
 
     expect(mockServeSnapshot).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// I. daemon.reportMachineBackups (background inventory, never blocks)
+// ---------------------------------------------------------------------------
+
+describe('dispatchCommandEventEffect daemon.reportMachineBackups', () => {
+  const BACKUP_REQUEST_ID = 'req-backup-1';
+
+  function reportMachineBackupsEvent(id: string) {
+    return { _id: id, type: 'daemon.reportMachineBackups', requestId: BACKUP_REQUEST_ID } as any;
+  }
+
+  beforeEach(() => {
+    mockServeInventory.mockReset();
+    mockServeInventory.mockReturnValue('started');
+    mockServeUpload.mockReset();
+    mockServeUpload.mockReturnValue('started');
+    mockGetMachineBackupService.mockReset();
+    mockGetMachineBackupService.mockReturnValue({
+      serveInventory: mockServeInventory,
+      serveUpload: mockServeUpload,
+    });
+  });
+
+  it('starts the inventory job without awaiting it', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const tracker = createDedupTracker();
+    const event = reportMachineBackupsEvent('evt-mb-inventory');
+
+    await runDispatch(
+      dispatchCommandEventEffect(event, tracker, nativeDelivery),
+      withDeps(createMockDaemonDeps())
+    );
+
+    expect(mockServeInventory).toHaveBeenCalledWith({ requestId: BACKUP_REQUEST_ID });
+    expect(tracker.reportMachineBackupsIds.has('evt-mb-inventory')).toBe(true);
+  });
+
+  it('starts one inventory when the same event id is dispatched twice', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const tracker = createDedupTracker();
+    const event = reportMachineBackupsEvent('evt-mb-inventory-dedupe');
+    const overrides = withDeps(createMockDaemonDeps());
+
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
+
+    expect(mockServeInventory).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs a throwing service and resolves the dispatch', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const tracker = createDedupTracker();
+    const event = reportMachineBackupsEvent('evt-mb-inventory-throw');
+    mockGetMachineBackupService.mockImplementationOnce(() => {
+      throw new Error('service init failed');
+    });
+
+    await expect(
+      runDispatch(
+        dispatchCommandEventEffect(event, tracker, nativeDelivery),
+        withDeps(createMockDaemonDeps())
+      )
+    ).resolves.toBeUndefined();
+
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Machine backup command failed to start: service init failed')
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// J. daemon.uploadMachineBackup (background upload, never blocks)
+// ---------------------------------------------------------------------------
+
+describe('dispatchCommandEventEffect daemon.uploadMachineBackup', () => {
+  const BACKUP_REQUEST_ID = 'req-backup-1';
+  const FILENAME = 'backup-20260101-000000.zip';
+
+  function uploadMachineBackupEvent(id: string) {
+    return {
+      _id: id,
+      type: 'daemon.uploadMachineBackup',
+      requestId: BACKUP_REQUEST_ID,
+      filename: FILENAME,
+    } as any;
+  }
+
+  beforeEach(() => {
+    mockServeUpload.mockReset();
+    mockServeUpload.mockReturnValue('started');
+    mockServeInventory.mockReset();
+    mockServeInventory.mockReturnValue('started');
+    mockGetMachineBackupService.mockReset();
+    mockGetMachineBackupService.mockReturnValue({
+      serveInventory: mockServeInventory,
+      serveUpload: mockServeUpload,
+    });
+  });
+
+  it('starts the upload job with the request id and filename', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const tracker = createDedupTracker();
+    const event = uploadMachineBackupEvent('evt-mb-upload');
+
+    await runDispatch(
+      dispatchCommandEventEffect(event, tracker, nativeDelivery),
+      withDeps(createMockDaemonDeps())
+    );
+
+    expect(mockServeUpload).toHaveBeenCalledWith({
+      requestId: BACKUP_REQUEST_ID,
+      filename: FILENAME,
+    });
+    expect(tracker.uploadMachineBackupIds.has('evt-mb-upload')).toBe(true);
+  });
+
+  it('starts one upload when the same event id is dispatched twice', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const tracker = createDedupTracker();
+    const event = uploadMachineBackupEvent('evt-mb-upload-dedupe');
+    const overrides = withDeps(createMockDaemonDeps());
+
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
+
+    expect(mockServeUpload).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolves when the service reports a duplicate without starting another job', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const tracker = createDedupTracker();
+    const event = uploadMachineBackupEvent('evt-mb-upload-duplicate');
+    mockServeUpload.mockReturnValue('duplicate');
+    const overrides = withDeps(createMockDaemonDeps());
+
+    await expect(
+      runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides)
+    ).resolves.toBeUndefined();
+
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
+
+    expect(mockServeUpload).toHaveBeenCalledTimes(1);
   });
 });

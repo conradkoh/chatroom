@@ -10,6 +10,8 @@ export const DAEMON_COMMAND_EVENT_TYPES = [
   'daemon.syncProjectRoots',
   'daemon.refreshCapabilities',
   'daemon.reportRepositoryLedger',
+  'daemon.reportMachineBackups',
+  'daemon.uploadMachineBackup',
 ] as const;
 
 export type DaemonCommandEventType = (typeof DAEMON_COMMAND_EVENT_TYPES)[number];

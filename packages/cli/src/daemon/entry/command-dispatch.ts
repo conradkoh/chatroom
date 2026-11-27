@@ -19,6 +19,7 @@ import type {
   DaemonSessionServiceShape,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
+import { getMachineBackupService } from './machine-backup-runtime.js';
 import { getRepositoryLedgerService } from './repository-ledger-runtime.js';
 import type { ClaimedMachineCommand } from '../infrastructure/convex/subscribers/machine-command-inbox.js';
 import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
@@ -55,6 +56,8 @@ export interface DedupTracker {
   gitCloneIds: Map<string, number>;
   syncProjectRootsIds: Map<string, number>;
   reportRepositoryLedgerIds: Map<string, number>;
+  reportMachineBackupsIds: Map<string, number>;
+  uploadMachineBackupIds: Map<string, number>;
 }
 
 /** Union of services required to dispatch any command event. */
@@ -81,6 +84,8 @@ export function evictStaleDedupEntries(tracker: DedupTracker): void {
   evictStaleEntries(tracker.gitCloneIds, evictBefore);
   evictStaleEntries(tracker.syncProjectRootsIds, evictBefore);
   evictStaleEntries(tracker.reportRepositoryLedgerIds, evictBefore);
+  evictStaleEntries(tracker.reportMachineBackupsIds, evictBefore);
+  evictStaleEntries(tracker.uploadMachineBackupIds, evictBefore);
   processManager.evictStalePendingStops();
 }
 
@@ -95,6 +100,8 @@ export function createDedupTracker(): DedupTracker {
     gitCloneIds: new Map<string, number>(),
     syncProjectRootsIds: new Map<string, number>(),
     reportRepositoryLedgerIds: new Map<string, number>(),
+    reportMachineBackupsIds: new Map<string, number>(),
+    uploadMachineBackupIds: new Map<string, number>(),
   };
 }
 
@@ -331,6 +338,53 @@ function handleReportRepositoryLedgerEffect(
   });
 }
 
+function logMachineBackupWarning(error: unknown): void {
+  console.warn(
+    `[${formatTimestamp()}] ⚠️  Machine backup command failed to start: ${getErrorMessage(error)}`
+  );
+}
+
+function handleReportMachineBackupsEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.reportMachineBackupsIds.has(eventId)) return;
+    tracker.reportMachineBackupsIds.set(eventId, Date.now());
+    const typedEvent = event as Extract<CommandEvent, { type: 'daemon.reportMachineBackups' }>;
+    const session = yield* DaemonSessionService;
+    try {
+      // Not awaited: the inbox serializes command work. 'duplicate' means the job already runs.
+      getMachineBackupService(session).serveInventory({ requestId: typedEvent.requestId });
+    } catch (error) {
+      logMachineBackupWarning(error);
+    }
+  });
+}
+
+function handleUploadMachineBackupEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.uploadMachineBackupIds.has(eventId)) return;
+    tracker.uploadMachineBackupIds.set(eventId, Date.now());
+    const typedEvent = event as Extract<CommandEvent, { type: 'daemon.uploadMachineBackup' }>;
+    const session = yield* DaemonSessionService;
+    try {
+      // Same contract as the inventory handler: start and return; the job reports its own outcome.
+      getMachineBackupService(session).serveUpload({
+        requestId: typedEvent.requestId,
+        filename: typedEvent.filename,
+      });
+    } catch (error) {
+      logMachineBackupWarning(error);
+    }
+  });
+}
+
 function handleRefreshCapabilitiesEffect(
   event: CommandEvent,
   tracker: DedupTracker
@@ -391,6 +445,8 @@ const commandEventHandlers: {
   'daemon.gitClone': handleGitCloneCommandEffect,
   'daemon.syncProjectRoots': handleSyncProjectRootsEffect,
   'daemon.reportRepositoryLedger': handleReportRepositoryLedgerEffect,
+  'daemon.reportMachineBackups': handleReportMachineBackupsEffect,
+  'daemon.uploadMachineBackup': handleUploadMachineBackupEffect,
   'daemon.refreshCapabilities': handleRefreshCapabilitiesEffect,
 };
 
