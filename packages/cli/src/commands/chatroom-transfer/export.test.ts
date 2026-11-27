@@ -1,11 +1,11 @@
 /**
- * `exportChatroom` tests.
+ * `exportMachineChatrooms` tests.
  *
  * The Convex transport is substituted at `BackendOps`, the session at
  * `SessionOps`, and the file system at `ChatroomTransferFs`; the real
- * `runExport` driver and `buildExportFile` run against canned stamps and pages.
- * Failures are rendered by the same `[CODE] message` + `exit(1)` contract that
- * `register.ts` applies.
+ * `runExportBundle`/`runExport` drivers and `buildExportFile` run against canned
+ * stamps and pages. Failures are rendered by the same `[CODE] message` +
+ * `exit(1)` contract that `register.ts` applies.
  */
 
 import { join } from 'node:path';
@@ -25,31 +25,15 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ChatroomTransferDeps, ChatroomTransferFs } from './deps.js';
-import { exportChatroom, formatTransferError } from './export.js';
+import { exportMachineChatrooms, formatTransferError } from './export.js';
 import type { BackendOps, SessionOps } from '../../infrastructure/deps/index.js';
 
-/** The clock both the file's `exportedAt` and its name use. */
+/** The clock both the bundle's `exportedAt` and its name use. */
 const NOW = '2026-11-25T13:04:05Z';
-const NAME = 'chatroom-abc-20261125T130405Z.json';
 const WARNING =
   'warning: this file is plaintext and contains conversation content. Keep it private.';
 /** The ignore file the default exports directory gets. */
 const GITIGNORE = join('/work', '.chatroom', 'exports', '.gitignore');
-
-const ALL_CATEGORIES: readonly ExportCategory[] = [
-  'room',
-  'workspaces',
-  'agentConfigs',
-  'messages',
-  'messageQueue',
-  'tasks',
-  'backlog',
-  'artifacts',
-  'contexts',
-  'scheduledPrompts',
-  'savedCommands',
-  'skillCustomizations',
-];
 
 /** A stamp that matches an untouched, attachment-free chatroom. */
 function defaultStamp(overrides: Partial<ExportStamp> = {}): ExportStamp {
@@ -302,11 +286,11 @@ function createHarness(
 
 /** Runs the command body with the wrapper `register.ts` applies around it. */
 async function runExport(
-  opts: { chatroomId?: string; all?: boolean; path?: string | undefined },
+  opts: { path?: string | undefined },
   deps: ChatroomTransferDeps
 ): Promise<void> {
   try {
-    await exportChatroom(opts, deps);
+    await exportMachineChatrooms(opts, deps);
   } catch (error) {
     const formatted = formatTransferError(error);
     deps.err(`❌ [${formatted.code}] ${formatted.message}`);
@@ -314,162 +298,10 @@ async function runExport(
   }
 }
 
-describe('exportChatroom (success)', () => {
-  it('writes one file under <cwd>/.chatroom/exports and prints the report', async () => {
-    const h = createHarness({ cwd: '/work' });
-
-    await runExport({ chatroomId: 'abc' }, h.deps);
-
-    const final = join('/work', '.chatroom', 'exports', NAME);
-    expect(h.fs.files.has(final)).toBe(true);
-    expect(JSON.parse(h.fs.files.get(final) ?? '{}')).toMatchObject({
-      formatVersion: 1,
-      kind: 'chatroom-export',
-      source: { chatroomId: 'abc', cliVersion: '1.0.0-test' },
-      room: { _key: 'r0', name: 'Test chatroom' },
-    });
-    expect(h.out[0]).toBe('Exported chatroom abc');
-    expect(h.out[1]).toBe(`  file: ${final}`);
-    expect(h.out).toContain('  counts:');
-    for (const category of ALL_CATEGORIES) {
-      expect(h.out).toContain(`    ${category}: ${category === 'room' ? 1 : 0}`);
-    }
-    expect(h.out).toContain('  omitted (not in file):');
-    expect(h.out).toContain(
-      '    workspace_caches: Workspace caches are rebuilt by the target daemon.'
-    );
-    expect(h.out).not.toContain('    chatroom_workspaceGitState:');
-    expect(h.out.at(-1)).toBe(WARNING);
-    expect(h.err).toEqual([]);
-    expect(h.exits).toEqual([]);
-  });
-
-  it('resolves a relative --path against cwd', async () => {
-    const h = createHarness({ cwd: '/work' });
-
-    await runExport({ chatroomId: 'abc', path: 'custom/dir' }, h.deps);
-
-    expect(h.fs.files.has(join('/work', 'custom', 'dir', NAME))).toBe(true);
-  });
-
-  it('exports a chatroom with an attachment and reports it as not included', async () => {
-    const backend = createFakeBackend({
-      stamps: [defaultStamp({ attachmentRows: { count: 1, capped: false, totalBytes: 5 } })],
-    });
-    const h = createHarness({ cwd: '/work', backend });
-
-    await runExport({ chatroomId: 'abc' }, h.deps);
-
-    const final = join('/work', '.chatroom', 'exports', NAME);
-    expect(h.fs.files.has(final)).toBe(true);
-    expect(h.out).toContain('1 attachment(s) not included (5 B)');
-    expect(h.out.at(-1)).toBe(WARNING);
-    expect(h.err).toEqual([]);
-    expect(h.exits).toEqual([]);
-  });
-});
-
-describe('exportChatroom (default exports directory)', () => {
-  it('writes a ".gitignore" containing "*" into the default directory', async () => {
-    const h = createHarness({ cwd: '/work' });
-
-    await runExport({ chatroomId: 'abc' }, h.deps);
-
-    expect(h.fs.files.get(GITIGNORE)).toBe('*\n');
-    expect(h.fs.writes).toContainEqual({ path: GITIGNORE, data: '*\n', mode: 0o644 });
-    expect(h.fs.files.has(join('/work', '.chatroom', 'exports', NAME))).toBe(true);
-  });
-
-  it('writes no ignore file for a custom --path', async () => {
-    const h = createHarness({ cwd: '/work' });
-
-    await runExport({ chatroomId: 'abc', path: 'custom/dir' }, h.deps);
-
-    const customIgnore = join('/work', 'custom', 'dir', '.gitignore');
-    expect(h.fs.files.has(customIgnore)).toBe(false);
-    expect(h.fs.writes.map((write) => write.path)).not.toContain(customIgnore);
-  });
-
-  it('preserves an existing .gitignore in the default directory', async () => {
-    const h = createHarness({ cwd: '/work' });
-    h.fs.files.set(GITIGNORE, 'custom\n');
-
-    await runExport({ chatroomId: 'abc' }, h.deps);
-
-    expect(h.fs.files.get(GITIGNORE)).toBe('custom\n');
-    expect(h.fs.calls).toContain(`write:${GITIGNORE}`);
-    expect(h.fs.files.has(join('/work', '.chatroom', 'exports', NAME))).toBe(true);
-  });
-});
-
-describe('exportChatroom (refusals)', () => {
-  it('refuses when the stamp changes between the first and second read', async () => {
-    const backend = createFakeBackend({
-      stamps: [defaultStamp(), defaultStamp({ lastActivityAt: 2 })],
-    });
-    const h = createHarness({ cwd: '/work', backend });
-
-    await runExport({ chatroomId: 'abc' }, h.deps);
-
-    expect(h.err).toHaveLength(1);
-    expect(h.err[0]).toContain('❌ [EXPORT_CHATROOM_CHANGED]');
-    expect(h.exits).toEqual([1]);
-    expect(h.fs.files.size).toBe(0);
-  });
-
-  it('a failed export creates no default directory and no ignore file', async () => {
-    const backend = createFakeBackend({
-      stamps: [defaultStamp(), defaultStamp({ lastActivityAt: 2 })],
-    });
-    const h = createHarness({ cwd: '/work', backend });
-
-    await runExport({ chatroomId: 'abc' }, h.deps);
-
-    expect(h.err[0]).toContain('❌ [EXPORT_CHATROOM_CHANGED]');
-    expect(h.exits).toEqual([1]);
-    expect(h.fs.dirs).toEqual([]);
-    expect(h.fs.files.size).toBe(0);
-  });
-
-  it('reports a file-name collision and keeps the existing file', async () => {
-    const h = createHarness({ cwd: '/work' });
-    const final = join('/work', '.chatroom', 'exports', NAME);
-    h.fs.files.set(final, 'previous');
-
-    await runExport({ chatroomId: 'abc' }, h.deps);
-
-    expect(h.err[0]).toContain('❌ [EXPORT_FILE_EXISTS]');
-    expect(h.exits).toEqual([1]);
-    expect(h.fs.files.get(final)).toBe('previous');
-  });
-
-  it('exits 1 without calling the backend when there is no session', async () => {
-    const h = createHarness({ sessionId: null });
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    try {
-      await runExport({ chatroomId: 'abc' }, h.deps);
-
-      const written = errorSpy.mock.calls.map((call) => String(call[0])).join('\n');
-      expect(written).toContain('https://example.test');
-      expect(written).toContain('chatroom auth login');
-      expect(h.exits).toEqual([1]);
-    } finally {
-      errorSpy.mockRestore();
-    }
-    expect(h.queries).toEqual([]);
-    expect(h.fs.calls).toEqual([]);
-  });
-});
-
-/** `chatroom-<id>-20261125T130405Z.json`, the per-chatroom name `--all` no longer writes. */
-function exportName(chatroomId: string): string {
-  return `chatroom-${chatroomId}-20261125T130405Z.json`;
-}
-
-/** `chatroom-all-<machine>-20261125T130405Z.json`, the one file `--all` writes. */
+/** `chatroom-all-<machine>-20261125T130405Z.json`, the one file `chatroom export` writes. */
 const BUNDLE_NAME = 'chatroom-all-machine-1-20261125T130405Z.json';
 
-/** The rooms the `--all` cases export, in list order. */
+/** The chatrooms each case exports, in list order. */
 function rooms(...ids: string[]): ExportableChatroom[] {
   return ids.map((chatroomId) => ({
     chatroomId: chatroomId as ExportableChatroom['chatroomId'],
@@ -488,34 +320,17 @@ function stampReads(queries: readonly RecordedQuery[], chatroomId: string): numb
   }).length;
 }
 
-describe('exportChatroom (--all)', () => {
-  it('refuses when neither --chatroom-id nor --all is given', async () => {
-    const h = createHarness();
-
-    const error: unknown = await exportChatroom({}, h.deps).catch((caught: unknown) => caught);
-
-    expect(error).toBeInstanceOf(ChatroomTransferError);
-    expect((error as ChatroomTransferError).code).toBe(TRANSFER_ERROR_CODES.EXPORT_TARGET_REQUIRED);
-    expect(h.queries).toEqual([]);
-    expect(h.fs.calls).toEqual([]);
+describe('exportMachineChatrooms', () => {
+  it('has no chatroom selector in its options type', () => {
+    // @ts-expect-error — `chatroomId` is not an export option; the single-chatroom mode is deleted.
+    const rejected: Parameters<typeof exportMachineChatrooms>[0] = { chatroomId: 'c1' };
+    expect(rejected).toEqual({ chatroomId: 'c1' });
   });
 
-  it('refuses --all together with --chatroom-id', async () => {
-    const h = createHarness();
-
-    const error: unknown = await exportChatroom({ all: true, chatroomId: 'c1' }, h.deps).catch(
-      (caught: unknown) => caught
-    );
-
-    expect(error).toBeInstanceOf(ChatroomTransferError);
-    expect((error as ChatroomTransferError).code).toBe(TRANSFER_ERROR_CODES.EXPORT_TARGET_CONFLICT);
-    expect(h.queries).toEqual([]);
-  });
-
-  it('refuses --all when the machine has no identity', async () => {
+  it('refuses when the machine has no identity', async () => {
     const h = createHarness({ machineId: null, rooms: rooms('c1') });
 
-    const error: unknown = await exportChatroom({ all: true }, h.deps).catch(
+    const error: unknown = await exportMachineChatrooms({}, h.deps).catch(
       (caught: unknown) => caught
     );
 
@@ -532,11 +347,10 @@ describe('exportChatroom (--all)', () => {
   it('writes exactly one bundle in list order and prints one summary', async () => {
     const h = createHarness({ rooms: rooms('c1', 'c2') });
 
-    await exportChatroom({ all: true }, h.deps);
+    await runExport({}, h.deps);
 
     const final = join('/work', '.chatroom', 'exports', BUNDLE_NAME);
     expect(h.fs.files.has(final)).toBe(true);
-    expect(h.fs.files.has(join('/work', '.chatroom', 'exports', exportName('c1')))).toBe(false);
 
     const bundle = JSON.parse(h.fs.files.get(final) ?? '{}') as {
       kind: string;
@@ -551,7 +365,6 @@ describe('exportChatroom (--all)', () => {
     }
 
     expect(h.out.filter((line) => line.startsWith('  file: '))).toEqual([`  file: ${final}`]);
-    expect(h.out.some((line) => line.startsWith('Exported chatroom '))).toBe(false);
     expect(h.out).toContain('Exported 2 chatrooms from machine machine-1');
     expect(h.out.some((line) => line.startsWith('  size: '))).toBe(true);
     expect(h.out.at(-1)).toBe(WARNING);
@@ -568,7 +381,7 @@ describe('exportChatroom (--all)', () => {
   it('writes nothing and reports when the machine has no chatrooms', async () => {
     const h = createHarness({ rooms: [] });
 
-    await exportChatroom({ all: true }, h.deps);
+    await runExport({}, h.deps);
 
     expect(h.out).toEqual(['No chatrooms found for machine machine-1 that you own.']);
     expect(h.fs.calls).toEqual([]);
@@ -578,7 +391,7 @@ describe('exportChatroom (--all)', () => {
   it('retries a chatroom once and writes the bundle when the retry succeeds', async () => {
     const h = createHarness({ rooms: rooms('c1', 'c2'), transientChatroomIds: ['c2'] });
 
-    await exportChatroom({ all: true }, h.deps);
+    await runExport({}, h.deps);
 
     expect(h.fs.files.has(join('/work', '.chatroom', 'exports', BUNDLE_NAME))).toBe(true);
     expect(h.err).toEqual([]);
@@ -590,7 +403,7 @@ describe('exportChatroom (--all)', () => {
   it('writes no file and reports every chatroom that failed twice', async () => {
     const h = createHarness({ rooms: rooms('c1', 'c2', 'c3'), failingChatroomIds: ['c2'] });
 
-    await runExport({ all: true }, h.deps);
+    await runExport({}, h.deps);
 
     expect(h.err[0]).toMatch(/^❌ \[EXPORT_ALL_INCOMPLETE\] c2: \[UNKNOWN\] injected: /);
     expect(h.err[1]).toMatch(/^❌ \[EXPORT_ALL_INCOMPLETE\] exported 2 of 3 chatrooms; 1 failed/);
@@ -604,7 +417,7 @@ describe('exportChatroom (--all)', () => {
   it('does not retry EXPORT_TOO_LARGE and fails the run', async () => {
     const h = createHarness({ rooms: rooms('c1', 'c2'), tooLargeChatroomIds: ['c2'] });
 
-    const error: unknown = await exportChatroom({ all: true }, h.deps).catch(
+    const error: unknown = await exportMachineChatrooms({}, h.deps).catch(
       (caught: unknown) => caught
     );
 
@@ -617,7 +430,7 @@ describe('exportChatroom (--all)', () => {
   it('prints the size and one attachment line in the summary', async () => {
     const h = createHarness({ rooms: rooms('c1', 'c2'), attachmentChatroomIds: ['c1'] });
 
-    await exportChatroom({ all: true }, h.deps);
+    await runExport({}, h.deps);
 
     expect(h.out.some((line) => line.startsWith('  size: '))).toBe(true);
     expect(h.out.filter((line) => line.includes('attachment(s) not included'))).toEqual([
@@ -629,7 +442,7 @@ describe('exportChatroom (--all)', () => {
   it('--path is used for the bundle and writes no ignore file', async () => {
     const h = createHarness({ rooms: rooms('c1', 'c2') });
 
-    await exportChatroom({ all: true, path: 'custom/out' }, h.deps);
+    await runExport({ path: 'custom/out' }, h.deps);
 
     expect(h.fs.files.has(join('/work', 'custom', 'out', BUNDLE_NAME))).toBe(true);
     expect(h.fs.writes.map((write) => write.path).some((path) => path.endsWith('.gitignore'))).toBe(
@@ -640,11 +453,33 @@ describe('exportChatroom (--all)', () => {
   it('the default directory gets one ignore file for the whole run', async () => {
     const h = createHarness({ rooms: rooms('c1', 'c2') });
 
-    await exportChatroom({ all: true }, h.deps);
+    await runExport({}, h.deps);
 
     const ignoreWrites = h.fs.writes.filter((write) => write.path.endsWith('.gitignore'));
     expect(ignoreWrites).toHaveLength(1);
     expect(ignoreWrites[0]?.data).toBe('*\n');
+  });
+
+  it('preserves an existing .gitignore in the default directory', async () => {
+    const h = createHarness({ rooms: rooms('c1') });
+    h.fs.files.set(GITIGNORE, 'custom\n');
+
+    await runExport({}, h.deps);
+
+    expect(h.fs.files.get(GITIGNORE)).toBe('custom\n');
+    expect(h.fs.calls).toContain(`write:${GITIGNORE}`);
+    expect(h.fs.files.has(join('/work', '.chatroom', 'exports', BUNDLE_NAME))).toBe(true);
+  });
+
+  it('a failed export creates no default directory and no ignore file', async () => {
+    const h = createHarness({ rooms: rooms('c1'), failingChatroomIds: ['c1'] });
+
+    await runExport({}, h.deps);
+
+    expect(h.err[0]).toMatch(/^❌ \[EXPORT_ALL_INCOMPLETE\] c1: /);
+    expect(h.exits).toEqual([1]);
+    expect(h.fs.dirs).toEqual([]);
+    expect(h.fs.files.size).toBe(0);
   });
 
   it('refuses to overwrite an existing bundle and keeps it', async () => {
@@ -652,10 +487,27 @@ describe('exportChatroom (--all)', () => {
     const final = join('/work', '.chatroom', 'exports', BUNDLE_NAME);
     h.fs.files.set(final, 'previous');
 
-    await runExport({ all: true }, h.deps);
+    await runExport({}, h.deps);
 
     expect(h.err[0]).toContain('❌ [EXPORT_FILE_EXISTS]');
     expect(h.exits).toEqual([1]);
     expect(h.fs.files.get(final)).toBe('previous');
+  });
+
+  it('exits 1 without calling the backend when there is no session', async () => {
+    const h = createHarness({ sessionId: null });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      await exportMachineChatrooms({}, h.deps);
+
+      const written = errorSpy.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(written).toContain('https://example.test');
+      expect(written).toContain('chatroom auth login');
+      expect(h.exits).toEqual([1]);
+    } finally {
+      errorSpy.mockRestore();
+    }
+    expect(h.queries).toEqual([]);
+    expect(h.fs.calls).toEqual([]);
   });
 });

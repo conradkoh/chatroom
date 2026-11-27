@@ -1,20 +1,12 @@
-import { webcrypto } from 'node:crypto';
-
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { TabType } from './chatroomSelectorModel';
 import { ChatroomTable } from './ChatroomTable';
 import type { ChatroomWithStatus } from '../../context/ChatroomListingContext';
 
 import type { ChatroomStatus } from '@/domain/entities/chatroom-status';
-
-const mocks = vi.hoisted(() => ({ query: vi.fn() }));
-
-vi.mock('convex/react', () => ({
-  useConvex: () => ({ query: mocks.query }),
-}));
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionId: () => ['session-1'],
@@ -24,36 +16,12 @@ vi.mock('convex-helpers/react/sessions', () => ({
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     chatrooms: { toggleFavorite: { name: 'toggleFavorite' } },
-    chatroomExport: {
-      getStamp: { name: 'getStamp' },
-      readPage: { name: 'readPage' },
-      listForMachine: { name: 'listForMachine' },
-    },
   },
 }));
 
 vi.mock('../LifecycleConfirmDialog', () => ({
   LifecycleConfirmDialog: () => null,
 }));
-
-const STAMP = {
-  lastActivityAt: null,
-  nextQueuePosition: null,
-  latestMessage: null,
-  taskCounts: null,
-  latest: {},
-  attachmentRows: { count: 0, capped: false, totalBytes: 0 },
-};
-
-const ROOM_ROW = {
-  id: 'room-1',
-  creationTime: 1,
-  fields: { status: 'active', name: 'Alpha', teamStructureId: 'team-1' },
-};
-
-function page(rows: (typeof ROOM_ROW)[]) {
-  return { rows, continueCursor: null, isDone: true };
-}
 
 function makeChatroom(overrides: Partial<ChatroomWithStatus> = {}): ChatroomWithStatus {
   return {
@@ -100,75 +68,33 @@ function renderTable(
 
 async function openMenu() {
   const user = userEvent.setup();
-  await user.click(screen.getByRole('button', { name: 'Chatroom actions' }));
-  await screen.findByTestId('chatroom-action-export');
+  const trigger = screen.getByRole('button', { name: 'Chatroom actions' });
+  await user.click(trigger);
+  await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'true'));
   return user;
 }
 
-describe('ChatroomTable export', () => {
-  beforeEach(() => {
-    vi.stubGlobal('crypto', webcrypto);
-    mocks.query.mockReset();
-    mocks.query.mockImplementation(async (ref: { name?: string }, args: { category?: string }) => {
-      if (ref.name === 'getStamp') return STAMP;
-      if (ref.name === 'readPage') {
-        return page(args.category === 'room' ? [ROOM_ROW] : []);
-      }
-      throw new Error(`Unexpected query: ${ref.name}`);
-    });
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it('shows Export and Archive for an active chatroom', async () => {
+describe('ChatroomTable actions', () => {
+  it('shows Archive Chat in the row menu for an active chatroom and no export item', async () => {
     renderTable(makeChatroom());
     await openMenu();
 
-    expect(screen.getByTestId('chatroom-action-export')).toHaveTextContent('Export chatroom');
     expect(screen.getByText('Archive Chat')).toBeInTheDocument();
+    expect(screen.queryByTestId('chatroom-action-export')).not.toBeInTheDocument();
   });
 
-  it('shows Export but not Archive for a completed chatroom', async () => {
+  it('renders no actions trigger for a completed row', () => {
     renderTable(makeChatroom({ status: 'completed', name: 'Done room' }), 'complete');
-    await openMenu();
 
-    expect(screen.getByTestId('chatroom-action-export')).toHaveTextContent('Export chatroom');
-    expect(screen.queryByText('Archive Chat')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Chatroom actions' })).not.toBeInTheDocument();
   });
 
-  it('renders a feedback row only after an export starts', async () => {
-    renderTable(makeChatroom());
-    expect(screen.queryByTestId('chatroom-export-feedback')).not.toBeInTheDocument();
-
-    const user = await openMenu();
-    await user.click(screen.getByTestId('chatroom-action-export'));
-
-    const success = await screen.findByText(/Exported “Alpha” to chatroom-chr-1-.*\.json\./);
-    expect(screen.getByTestId('chatroom-export-feedback')).toContainElement(success);
-  });
-
-  it('does not select the row from the action menu', async () => {
+  it('the row menu does not select the row', async () => {
     const { onSelect } = renderTable(makeChatroom());
     const user = await openMenu();
 
-    await user.click(screen.getByTestId('chatroom-action-export'));
+    await user.click(screen.getByText('Archive Chat'));
 
-    await screen.findByText(/Exported “Alpha”/);
     expect(onSelect).not.toHaveBeenCalled();
-  });
-
-  it('shows a retryable failure in the feedback row', async () => {
-    mocks.query.mockRejectedValueOnce({
-      data: { code: 'EXPORT_CHATROOM_CHANGED', message: 'changed' },
-    });
-    renderTable(makeChatroom());
-    const user = await openMenu();
-
-    await user.click(screen.getByTestId('chatroom-action-export'));
-
-    expect(await screen.findByText('Export failed')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
   });
 });

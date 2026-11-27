@@ -8,8 +8,8 @@ import { openWorkspaceStep, readSessionId, seedConnectedMachine } from '../../su
 
 /**
  * Export runs entirely in the browser: the page reads Convex and saves the file with an anchor
- * download. These specs prove the two new entry points (sidebar row and machine card) each save a
- * file with the CLI's name shape.
+ * download. The machine card is the only export entry point. These specs prove that the card saves
+ * one machine bundle, and that the sidebar row menu offers no export item.
  */
 
 interface SeededChatroom {
@@ -52,7 +52,9 @@ async function dismissSetupChecklist(page: Page): Promise<void> {
 test.describe('Chatroom export', { tag: [TAG_DOWNSTREAM] }, () => {
   test.use({ viewport: { width: 1440, height: 1000 } });
 
-  test('exports a chatroom from the sidebar menu', async ({ authenticatedPage: page }) => {
+  test('the sidebar context menu has no export item and keeps Archive', async ({
+    authenticatedPage: page,
+  }) => {
     const { chatroomName } = await createChatroom(page);
 
     const row = page
@@ -62,15 +64,9 @@ test.describe('Chatroom export', { tag: [TAG_DOWNSTREAM] }, () => {
     await expect(row).toBeVisible({ timeout: 15_000 });
     await row.click({ button: 'right' });
 
-    const exportItem = page.getByTestId('chatroom-action-export');
-    await expect(exportItem).toHaveText('Export chatroom');
-
-    const downloadPromise = page.waitForEvent('download');
-    await exportItem.click();
-    const download = await downloadPromise;
-
-    expect(download.suggestedFilename()).toMatch(/^chatroom-.*\.json$/);
-    await expect(page.getByText(/^Exported “/)).toBeVisible();
+    // Archive proves the menu is open, so the export count below is not a false pass.
+    await expect(page.getByText('Archive Chat')).toBeVisible();
+    await expect(page.getByTestId('chatroom-action-export')).toHaveCount(0);
   });
 
   test('exports every chatroom on a machine from its card menu', async ({

@@ -1,10 +1,10 @@
 /**
  * Use Case: List Exportable Chatrooms For A Machine
  *
- * The predicate behind `chatroom export --all`. A chatroom is listed when the user owns it
- * and it has an active workspace on the machine. Ownership is the authorization: it is the
- * same owner check `requireChatroomAccess` applies, so every listed chatroom can also be
- * exported one at a time. Machine permission is deliberately not checked. A machine's
+ * The predicate behind `chatroom export`. A chatroom is listed when the user owns it and it has an
+ * active workspace on the machine. Machine scoping is enforced here, at the single chokepoint that
+ * both the CLI and the webapp machine card call. Ownership is the authorization: it is the same owner
+ * check `requireChatroomAccess` applies. Machine permission is deliberately not checked. A machine's
  * workspace rows can belong to other users' chatrooms, and the owner filter removes them.
  */
 
@@ -46,7 +46,7 @@ export async function listExportableChatroomsForMachine(
   if (rows.length > EXPORT_ALL_WORKSPACE_SCAN_CAP) {
     throw new ConvexError({
       code: BACKEND_ERROR_CODES.EXPORT_MACHINE_TOO_LARGE,
-      message: `This machine has more than ${EXPORT_ALL_WORKSPACE_SCAN_CAP} active workspaces, counting other users' chatrooms. Export individual chatrooms with --chatroom-id.`,
+      message: `This machine has more than ${EXPORT_ALL_WORKSPACE_SCAN_CAP} active workspaces, counting other users' chatrooms, so its chatrooms cannot be exported together.`,
     });
   }
 

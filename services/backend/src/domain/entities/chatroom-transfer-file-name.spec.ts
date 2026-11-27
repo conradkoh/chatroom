@@ -1,14 +1,13 @@
 /**
  * Transfer file names — the single source shared by the CLI and the browser.
  *
- * The literals pin the byte-identical name the CLI has always written and the
- * Windows-safe bundle name; the date is fixed so the assertion never depends on
- * the machine's clock or timezone.
+ * The literals pin the Windows-safe bundle name; the date is fixed so the assertion never
+ * depends on the machine's clock or timezone.
  */
 
 import { describe, expect, it } from 'vitest';
 
-import { bundleFileName, exportFileName, transferTimestamp } from './chatroom-transfer-file-name';
+import { bundleFileName, transferTimestamp } from './chatroom-transfer-file-name';
 
 const AT = new Date('2026-03-01T14:15:02Z');
 
@@ -19,12 +18,6 @@ describe('transferTimestamp', () => {
 
   it('drops the milliseconds', () => {
     expect(transferTimestamp(new Date('2026-03-01T14:15:02.999Z'))).toBe('20260301T141502Z');
-  });
-});
-
-describe('exportFileName', () => {
-  it('names one chatroom export exactly as before', () => {
-    expect(exportFileName('abc', AT)).toBe('chatroom-abc-20260301T141502Z.json');
   });
 });
 

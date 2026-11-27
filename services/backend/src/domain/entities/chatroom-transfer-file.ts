@@ -140,7 +140,7 @@ export async function sha256Hex(text: string): Promise<string> {
 }
 
 /**
- * Bundle format (`chatroom export --all`).
+ * Bundle format (`chatroom export`).
  *
  * A bundle wraps the unchanged v1 payloads as JSON strings: `chatrooms` is the
  * same `ChatroomExportFileV1` objects, in `index` order. The index pairs the
@@ -209,8 +209,6 @@ export const TRANSFER_ERROR_CODES = {
   EXPORT_TOO_LARGE: 'EXPORT_TOO_LARGE',
   EXPORT_PAGE_STALLED: 'EXPORT_PAGE_STALLED',
   EXPORT_DANGLING_REFERENCE: 'EXPORT_DANGLING_REFERENCE',
-  EXPORT_TARGET_REQUIRED: 'EXPORT_TARGET_REQUIRED',
-  EXPORT_TARGET_CONFLICT: 'EXPORT_TARGET_CONFLICT',
   EXPORT_NO_MACHINE_IDENTITY: 'EXPORT_NO_MACHINE_IDENTITY',
   EXPORT_MACHINE_TOO_LARGE: 'EXPORT_MACHINE_TOO_LARGE',
   EXPORT_ALL_INCOMPLETE: 'EXPORT_ALL_INCOMPLETE',

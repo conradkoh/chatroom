@@ -1,7 +1,7 @@
 /**
  * Chatroom export bundle — driver.
  *
- * `chatroom export --all` writes ONE file: a `chatroom-export-bundle` that wraps
+ * `chatroom export` writes ONE file: a `chatroom-export-bundle` that wraps
  * the unchanged v1 payloads, in the same order as its index. This module is the
  * thin orchestration over `runExport`: no I/O, no Convex imports (the port is
  * the only seam), so the CLI owns the publish and the tests own the timing.

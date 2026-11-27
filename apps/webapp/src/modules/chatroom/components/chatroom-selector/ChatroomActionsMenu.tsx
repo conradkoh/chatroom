@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle, Download, MoreVertical } from 'lucide-react';
+import { CheckCircle, MoreVertical } from 'lucide-react';
 import type React from 'react';
 
 import {
@@ -12,21 +12,18 @@ import {
 
 export interface ChatroomActionsMenuProps {
   canArchive: boolean;
-  exporting: boolean;
   /** Per-surface trigger hover colour: the grid card and the table row use different tokens. */
   triggerHoverClassName: string;
-  onExport: (e: React.MouseEvent) => void;
   onArchive: (e: React.MouseEvent) => void;
 }
 
-/** Shared chatroom actions menu. Export is always available; Archive only for live chatrooms. */
+/** Shared chatroom actions menu. Archive is its only item, so a chatroom that cannot be archived has no menu at all. */
 export function ChatroomActionsMenu({
   canArchive,
-  exporting,
   triggerHoverClassName,
-  onExport,
   onArchive,
 }: ChatroomActionsMenuProps) {
+  if (!canArchive) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -38,20 +35,10 @@ export function ChatroomActionsMenu({
         <MoreVertical size={14} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[140px]">
-        <DropdownMenuItem
-          onClick={onExport}
-          disabled={exporting}
-          data-testid="chatroom-action-export"
-        >
-          <Download size={14} className="mr-2" />
-          Export chatroom
+        <DropdownMenuItem onClick={onArchive}>
+          <CheckCircle size={14} className="mr-2" />
+          Archive Chat
         </DropdownMenuItem>
-        {canArchive && (
-          <DropdownMenuItem onClick={onArchive}>
-            <CheckCircle size={14} className="mr-2" />
-            Archive Chat
-          </DropdownMenuItem>
-        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

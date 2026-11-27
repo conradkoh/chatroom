@@ -14,8 +14,6 @@ import { getChatroomDisplayName, isChatroomCompleted } from '../../viewModels/ch
 import { LifecycleConfirmDialog } from '../LifecycleConfirmDialog';
 
 import type { ChatroomStatus } from '@/domain/entities/chatroom-status';
-import { ExportFeedback } from '@/modules/chatroom/features/transfer/components/ExportFeedback';
-import { useChatroomExportAction } from '@/modules/chatroom/features/transfer/hooks/useChatroomExportAction';
 
 /** Stops clicks inside a row cell from also selecting the row. */
 function StopClickPropagation({
@@ -57,64 +55,46 @@ function ChatroomTableRow({
   onArchive,
 }: ChatroomTableRowProps) {
   const canArchive = !isChatroomCompleted(chatroom, status?.state);
-  const exportAction = useChatroomExportAction(chatroom._id, chatroom.name ?? null);
 
   return (
-    <>
-      <div
-        role="button"
-        tabIndex={0}
-        className="grid grid-cols-[32px_1fr_auto_40px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full cursor-pointer"
-        onClick={() => onSelect(chatroom._id)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onSelect(chatroom._id);
-          }
-        }}
-      >
-        {/* Favorite Star */}
-        <StopClickPropagation className="flex items-center justify-center">
-          <ChatroomFavoriteButton
-            isFavorite={chatroom.isFavorite}
-            onClick={(e) => onToggleFavorite(e, chatroom._id)}
-          />
-        </StopClickPropagation>
-        {/* Name */}
-        <div className="flex items-center min-w-0">
-          <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary truncate">
-            {getChatroomDisplayName(chatroom)}
-          </span>
-        </div>
-        {/* Status */}
-        <div className="flex items-center min-w-[120px]">
-          <ChatroomStatusIndicator activityStatus={status?.activityStatus} />
-        </div>
-        {/* Actions */}
-        <StopClickPropagation className="flex items-center justify-center">
-          <ChatroomActionsMenu
-            canArchive={canArchive}
-            exporting={exportAction.exporting}
-            triggerHoverClassName="hover:bg-chatroom-bg-tertiary"
-            onExport={exportAction.start}
-            onArchive={(e) => onArchive(e, chatroom._id)}
-          />
-        </StopClickPropagation>
+    <div
+      role="button"
+      tabIndex={0}
+      className="grid grid-cols-[32px_1fr_auto_40px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full cursor-pointer"
+      onClick={() => onSelect(chatroom._id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect(chatroom._id);
+        }
+      }}
+    >
+      {/* Favorite Star */}
+      <StopClickPropagation className="flex items-center justify-center">
+        <ChatroomFavoriteButton
+          isFavorite={chatroom.isFavorite}
+          onClick={(e) => onToggleFavorite(e, chatroom._id)}
+        />
+      </StopClickPropagation>
+      {/* Name */}
+      <div className="flex items-center min-w-0">
+        <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary truncate">
+          {getChatroomDisplayName(chatroom)}
+        </span>
       </div>
-
-      {(exportAction.exporting || exportAction.feedback !== null) && (
-        <div className="border-b border-chatroom-border px-4 pb-3">
-          <ExportFeedback
-            exporting={exportAction.exporting}
-            label={exportAction.label}
-            feedback={exportAction.feedback}
-            onDismiss={exportAction.dismiss}
-            onRetry={exportAction.retryable ? exportAction.start : undefined}
-            data-testid="chatroom-export-feedback"
-          />
-        </div>
-      )}
-    </>
+      {/* Status */}
+      <div className="flex items-center min-w-[120px]">
+        <ChatroomStatusIndicator activityStatus={status?.activityStatus} />
+      </div>
+      {/* Actions */}
+      <StopClickPropagation className="flex items-center justify-center">
+        <ChatroomActionsMenu
+          canArchive={canArchive}
+          triggerHoverClassName="hover:bg-chatroom-bg-tertiary"
+          onArchive={(e) => onArchive(e, chatroom._id)}
+        />
+      </StopClickPropagation>
+    </div>
   );
 }
 

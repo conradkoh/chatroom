@@ -30,9 +30,8 @@ import { registerChatroomTransferCommands } from './register.js';
 import type { BackendOps, SessionOps } from '../../infrastructure/deps/index.js';
 
 const NOW = '2026-11-25T13:04:05Z';
-const NAME = 'chatroom-abc-20261125T130405Z.json';
 const DESCRIPTION =
-  'Export one chatroom (--chatroom-id) or every chatroom you own on this machine (--all) to JSON files. --all writes ONE bundle file. The files are plaintext and contain conversation content; keep them private.';
+  'Export every chatroom you own that has an active workspace on this machine into ONE bundle JSON file. The file is plaintext and contains conversation content; keep it private.';
 const IMPORT_DESCRIPTION =
   'Import chatrooms from an export file as NEW chatrooms owned by you. Listing the file needs no login. Importing needs a login and an owned target machine. Never merges; importing twice creates two chatrooms. Starts no agents.';
 
@@ -62,7 +61,7 @@ function room(): ExportRawRow {
   };
 }
 
-/** The one room the default fake answers, so `export --all` has something to do. */
+/** The one room the default fake answers, so `export` has something to do. */
 const DEFAULT_ROOMS: ExportableChatroom[] = [
   {
     chatroomId: 'room1' as ExportableChatroom['chatroomId'],
@@ -180,34 +179,32 @@ function createProgram(
 }
 
 describe('chatroom export wiring', () => {
-  it('export with neither flag reaches the wrapper as EXPORT_TARGET_REQUIRED', async () => {
-    const { deps, err, exits, queries } = createDeps();
-    const { program } = createProgram(async () => deps);
+  it('rejects --chatroom-id and --all as unknown options and makes no backend call', async () => {
+    let depsBuilt = 0;
+    const { deps, queries } = createDeps();
+    const { program } = createProgram(async () => {
+      depsBuilt += 1;
+      return deps;
+    });
 
-    await program.parseAsync(['node', 'chatroom', 'export']);
-
-    expect(err).toContain('❌ [EXPORT_TARGET_REQUIRED] pass --chatroom-id <id> or --all');
-    expect(exits).toEqual([1]);
-    expect(queries).toEqual([]);
-  });
-
-  it('--all with --chatroom-id reaches the wrapper as EXPORT_TARGET_CONFLICT', async () => {
-    const { deps, err, exits } = createDeps();
-    const { program } = createProgram(async () => deps);
-
-    await program.parseAsync(['node', 'chatroom', 'export', '--all', '--chatroom-id', 'c']);
-
-    expect(err).toContain(
-      '❌ [EXPORT_TARGET_CONFLICT] --all and --chatroom-id cannot be used together'
+    await expect(
+      program.parseAsync(['node', 'chatroom', 'export', '--chatroom-id', 'c'])
+    ).rejects.toMatchObject({ code: 'commander.unknownOption' });
+    await expect(program.parseAsync(['node', 'chatroom', 'export', '--all'])).rejects.toMatchObject(
+      {
+        code: 'commander.unknownOption',
+      }
     );
-    expect(exits).toEqual([1]);
+
+    expect(queries).toEqual([]);
+    expect(depsBuilt).toBe(0);
   });
 
   it('rejects --machine-id as an unknown option', async () => {
     const { program } = createProgram(async () => createDeps().deps);
 
     await expect(
-      program.parseAsync(['node', 'chatroom', 'export', '--machine-id', 'x', '--chatroom-id', 'c'])
+      program.parseAsync(['node', 'chatroom', 'export', '--machine-id', 'x'])
     ).rejects.toMatchObject({ code: 'commander.unknownOption' });
   });
 
@@ -215,11 +212,11 @@ describe('chatroom export wiring', () => {
     const { program } = createProgram(async () => createDeps().deps);
 
     await expect(
-      program.parseAsync(['node', 'chatroom', 'export', '--role', 'builder', '--chatroom-id', 'c'])
+      program.parseAsync(['node', 'chatroom', 'export', '--role', 'builder'])
     ).rejects.toMatchObject({ code: 'commander.unknownOption' });
   });
 
-  it('--help shows --all and --chatroom-id <id>, and no role or machine identity', async () => {
+  it('--help shows only --path', async () => {
     let depsBuilt = 0;
     const { program, output } = createProgram(async () => {
       depsBuilt += 1;
@@ -232,39 +229,15 @@ describe('chatroom export wiring', () => {
 
     const help = output();
     expect(help).toContain(DESCRIPTION);
-    expect(help).toContain('--all');
-    expect(help).toContain('--chatroom-id <id>');
     expect(help).toContain('--path <dir>');
+    expect(help).not.toContain('--all');
+    expect(help).not.toContain('--chatroom-id');
     expect(help).not.toContain('--role');
     expect(help).not.toContain('--machine-id');
     expect(depsBuilt).toBe(0);
   });
 
-  it('publishes a real file from parsed argv, with mode 0o600', async () => {
-    const tmpDir = await mkdtemp(join(tmpdir(), 'chatroom-export-e2e-'));
-    tempDirs.push(tmpDir);
-    const { deps, out, err, exits } = createDeps({ fs: createNodeChatroomTransferFs() });
-    const { program } = createProgram(async () => deps);
-
-    await program.parseAsync([
-      'node',
-      'chatroom',
-      'export',
-      '--chatroom-id',
-      'abc',
-      '--path',
-      tmpDir,
-    ]);
-
-    expect(await readdir(tmpDir)).toEqual([NAME]);
-    const filePath = join(tmpDir, NAME);
-    expect((await stat(filePath)).mode & 0o777).toBe(0o600);
-    expect(out).toContain('Exported chatroom abc');
-    expect(err).toEqual([]);
-    expect(exits).not.toContain(1);
-  });
-
-  it('export --all publishes one real bundle through the node filesystem adapter', async () => {
+  it('export publishes one real bundle through the node filesystem adapter', async () => {
     const tmpDir = await mkdtemp(join(tmpdir(), 'chatroom-export-all-e2e-'));
     tempDirs.push(tmpDir);
     const { deps, out, err, exits } = createDeps({
@@ -277,7 +250,7 @@ describe('chatroom export wiring', () => {
     });
     const { program } = createProgram(async () => deps);
 
-    await program.parseAsync(['node', 'chatroom', 'export', '--all']);
+    await program.parseAsync(['node', 'chatroom', 'export']);
 
     const exportsDir = join(tmpDir, '.chatroom', 'exports');
     const files = (await readdir(exportsDir)).filter((name) => name.endsWith('.json'));
@@ -390,7 +363,7 @@ describe('chatroom import wiring', () => {
     );
 
     const error: unknown = await program
-      .parseAsync(['node', 'chatroom', 'export', '--chatroom-id', 'c'])
+      .parseAsync(['node', 'chatroom', 'export'])
       .catch((caught: unknown) => caught);
 
     expect(error).toBeInstanceOf(Error);

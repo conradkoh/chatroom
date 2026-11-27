@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  chatroomExportFailure,
-  chatroomExportSuccess,
-  chatroomExportingLabel,
   importFailureNote,
   importRejectCopy,
   importResultTitle,
@@ -15,17 +12,6 @@ import {
   omittedAttachmentsCopy,
 } from './transferCopy';
 
-describe('chatroomExportingLabel', () => {
-  it('names the chatroom being exported', () => {
-    expect(chatroomExportingLabel('Planning room')).toBe('Exporting “Planning room”…');
-  });
-
-  it('falls back to Untitled chatroom for a missing or blank name', () => {
-    expect(chatroomExportingLabel(null)).toBe('Exporting “Untitled chatroom”…');
-    expect(chatroomExportingLabel('   ')).toBe('Exporting “Untitled chatroom”…');
-  });
-});
-
 describe('machineExportingLabel', () => {
   it('shows the chatroom being written, capped at the total', () => {
     expect(machineExportingLabel(0, 3)).toBe('Exporting 1 of 3 chatrooms…');
@@ -36,81 +22,6 @@ describe('machineExportingLabel', () => {
 
   it('uses the singular for a one-chatroom bundle', () => {
     expect(machineExportingLabel(0, 1)).toBe('Exporting 1 of 1 chatroom…');
-  });
-});
-
-describe('chatroomExportSuccess', () => {
-  const fileName = 'chatroom-chr-1-20260102T030405Z.json';
-
-  it('reports the file name and no items when nothing was omitted', () => {
-    expect(
-      chatroomExportSuccess({ name: 'Planning room', fileName, omitted: { count: 0, bytes: 0 } })
-    ).toEqual({ message: `Exported “Planning room” to ${fileName}.` });
-  });
-
-  it('renders one omitted attachment with its size', () => {
-    expect(
-      chatroomExportSuccess({ name: 'Planning room', fileName, omitted: { count: 1, bytes: 1024 } })
-    ).toEqual({
-      message: `Exported “Planning room” to ${fileName}.`,
-      items: ['1 attachment not included (1 KB)'],
-    });
-  });
-
-  it('renders several omitted attachments with their total size', () => {
-    expect(
-      chatroomExportSuccess({
-        name: null,
-        fileName,
-        omitted: { count: 3, bytes: 4_404_019 },
-      })
-    ).toEqual({
-      message: `Exported “Untitled chatroom” to ${fileName}.`,
-      items: ['3 attachments not included (4.2 MB)'],
-    });
-  });
-
-  it('reports a capped attachment count as more than 1000', () => {
-    expect(
-      chatroomExportSuccess({
-        name: 'Planning room',
-        fileName,
-        omitted: { count: 1001, bytes: 0 },
-      })
-    ).toEqual({
-      message: `Exported “Planning room” to ${fileName}.`,
-      items: ['more than 1000 attachments not included (0 B)'],
-    });
-  });
-});
-
-describe('chatroomExportFailure', () => {
-  it('offers a retry when the chatroom changed', () => {
-    expect(
-      chatroomExportFailure({ code: 'EXPORT_CHATROOM_CHANGED', message: 'changed', details: [] })
-    ).toEqual({
-      title: 'Export failed',
-      message: 'This chatroom changed while exporting. Try again.',
-      retryable: true,
-    });
-  });
-
-  it('explains the 256 MB limit without offering a retry', () => {
-    expect(
-      chatroomExportFailure({ code: 'EXPORT_TOO_LARGE', message: 'too large', details: [] })
-    ).toEqual({
-      title: 'Export failed',
-      message: 'The export is larger than the 256 MB limit and cannot be saved as one file.',
-      retryable: false,
-    });
-  });
-
-  it('falls back to a generic retryable failure', () => {
-    expect(chatroomExportFailure({ code: 'UNKNOWN', message: 'boom', details: [] })).toEqual({
-      title: 'Export failed',
-      message: 'Could not export. Try again.',
-      retryable: true,
-    });
   });
 });
 

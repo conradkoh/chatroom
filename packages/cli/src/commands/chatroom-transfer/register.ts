@@ -10,7 +10,7 @@
 import type { Command } from 'commander';
 
 import type { ChatroomTransferDeps } from './deps.js';
-import { exportChatroom, formatTransferError, type ExportOptions } from './export.js';
+import { exportMachineChatrooms, formatTransferError, type ExportOptions } from './export.js';
 import { createNodeChatroomTransferFs } from './file-io.js';
 import { importChatroom, type ImportOptions } from './import.js';
 import { createTerminalPrompt } from './transfer-prompt.js';
@@ -62,16 +62,14 @@ export function registerChatroomTransferCommands(
   program
     .command('export')
     .description(
-      'Export one chatroom (--chatroom-id) or every chatroom you own on this machine (--all) to JSON files. --all writes ONE bundle file. The files are plaintext and contain conversation content; keep them private.'
+      'Export every chatroom you own that has an active workspace on this machine into ONE bundle JSON file. The file is plaintext and contains conversation content; keep it private.'
     )
-    .option('--chatroom-id <id>', 'Chatroom identifier (exclusive with --all)')
-    .option('--all', 'Export every chatroom you own that has an active workspace on this machine')
     .option('--path <dir>', 'Directory to write to (default: .chatroom/exports/)')
     .action(async (opts: ExportOptions) => {
       await requireAuth();
       const deps = await makeDeps();
       try {
-        await exportChatroom(opts, deps);
+        await exportMachineChatrooms(opts, deps);
       } catch (error) {
         const formatted = formatTransferError(error);
         deps.err(`❌ [${formatted.code}] ${formatted.message}`);

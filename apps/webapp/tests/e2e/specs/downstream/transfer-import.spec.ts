@@ -8,9 +8,9 @@ import { openWorkspaceStep, readSessionId, seedConnectedMachine } from '../../su
 
 /**
  * Import runs entirely in the browser: the dialog reads the exported file locally, validates it and
- * writes through `chatroomImport.*`. This spec proves the whole loop — export a chatroom,
- * re-import that file onto the seeded machine from the machine card's Import chatrooms… menu item,
- * and land on a new chatroom link.
+ * writes through `chatroomImport.*`. This spec proves the whole loop — export the machine's
+ * chatrooms from its card, re-import that file onto the same machine from the machine card's Import
+ * chatrooms… menu item, and land on a new chatroom link.
  */
 
 interface SeededChatroom {
@@ -58,18 +58,27 @@ test.describe('Chatroom import', { tag: [TAG_DOWNSTREAM] }, () => {
   }) => {
     // A full export + import loop: create, export, import, assert.
     test.setTimeout(120_000);
-    const { chatroomName, hostname } = await createChatroom(page);
+    const { chatroomName, machineId, hostname } = await createChatroom(page);
 
-    // Export the chatroom from its sidebar menu; the file is the import fixture.
+    // The sidebar row is visible on the chatroom page. Keep that check: the absence check below
+    // must not pass against a sidebar that never mounted.
     const row = page
       .locator('[data-slot="context-menu-trigger"]')
       .filter({ hasText: chatroomName })
       .first();
     await expect(row).toBeVisible({ timeout: 15_000 });
-    await row.click({ button: 'right' });
+    await expect(page.getByTestId('import-open-sidebar')).toHaveCount(0);
+
+    // Export the machine's chatrooms from the machine card: the file is the import fixture.
+    await page.goto('/app/machines');
+    const exportCard = page.locator(`[data-testid="machine-card"][data-machine-id="${machineId}"]`);
+    await expect(exportCard.getByTestId('machine-status')).toHaveText('Online', {
+      timeout: 15_000,
+    });
+    await exportCard.getByTestId('machine-actions-trigger').click();
 
     const downloadPromise = page.waitForEvent('download');
-    await page.getByTestId('chatroom-action-export').click();
+    await page.getByTestId('machine-action-export').click();
     const download = await downloadPromise;
     const filePath = await download.path();
     expect(filePath).toBeTruthy();

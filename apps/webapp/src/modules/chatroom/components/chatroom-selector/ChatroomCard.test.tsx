@@ -1,17 +1,9 @@
-import { webcrypto } from 'node:crypto';
-
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatroomCard } from './ChatroomCard';
 import type { ChatroomWithStatus } from '../../context/ChatroomListingContext';
-
-const mocks = vi.hoisted(() => ({ query: vi.fn() }));
-
-vi.mock('convex/react', () => ({
-  useConvex: () => ({ query: mocks.query }),
-}));
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionId: () => ['session-1'],
@@ -21,11 +13,6 @@ vi.mock('convex-helpers/react/sessions', () => ({
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     chatrooms: { toggleFavorite: { name: 'toggleFavorite' } },
-    chatroomExport: {
-      getStamp: { name: 'getStamp' },
-      readPage: { name: 'readPage' },
-      listForMachine: { name: 'listForMachine' },
-    },
   },
 }));
 
@@ -38,25 +25,6 @@ vi.mock('../../hooks/useChatroomStatus', () => ({
 vi.mock('../LifecycleConfirmDialog', () => ({
   LifecycleConfirmDialog: () => null,
 }));
-
-const STAMP = {
-  lastActivityAt: null,
-  nextQueuePosition: null,
-  latestMessage: null,
-  taskCounts: null,
-  latest: {},
-  attachmentRows: { count: 0, capped: false, totalBytes: 0 },
-};
-
-const ROOM_ROW = {
-  id: 'room-1',
-  creationTime: 1,
-  fields: { status: 'active', name: 'Alpha', teamStructureId: 'team-1' },
-};
-
-function page(rows: (typeof ROOM_ROW)[]) {
-  return { rows, continueCursor: null, isDone: true };
-}
 
 function makeChatroom(overrides: Partial<ChatroomWithStatus> = {}): ChatroomWithStatus {
   return {
@@ -88,73 +56,40 @@ function renderCard(chatroom: ChatroomWithStatus) {
 
 async function openMenu() {
   const user = userEvent.setup();
-  await user.click(screen.getByRole('button', { name: 'Chatroom actions' }));
-  await screen.findByTestId('chatroom-action-export');
+  const trigger = screen.getByRole('button', { name: 'Chatroom actions' });
+  await user.click(trigger);
+  await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'true'));
   return user;
 }
 
-describe('ChatroomCard export', () => {
+describe('ChatroomCard actions', () => {
   beforeEach(() => {
-    vi.stubGlobal('crypto', webcrypto);
-    mocks.query.mockReset();
-    mocks.query.mockImplementation(async (ref: { name?: string }, args: { category?: string }) => {
-      if (ref.name === 'getStamp') return STAMP;
-      if (ref.name === 'readPage') {
-        return page(args.category === 'room' ? [ROOM_ROW] : []);
-      }
-      throw new Error(`Unexpected query: ${ref.name}`);
-    });
     mockStatuses.clear();
   });
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it('shows Export and Archive for an active chatroom', async () => {
+  it('shows Archive Chat in the actions menu for an active chatroom and no export item', async () => {
     mockStatuses.set('chr-1', { state: 'active' });
     renderCard(makeChatroom());
     await openMenu();
 
-    expect(screen.getByTestId('chatroom-action-export')).toHaveTextContent('Export chatroom');
     expect(screen.getByText('Archive Chat')).toBeInTheDocument();
+    expect(screen.queryByTestId('chatroom-action-export')).not.toBeInTheDocument();
   });
 
-  it('shows Export but not Archive for a completed chatroom', async () => {
+  it('renders no actions trigger for a completed chatroom', () => {
     mockStatuses.set('chr-1', { state: 'completed' });
     renderCard(makeChatroom({ status: 'completed', name: 'Done room' }));
-    await openMenu();
 
-    expect(screen.getByTestId('chatroom-action-export')).toHaveTextContent('Export chatroom');
-    expect(screen.queryByText('Archive Chat')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Chatroom actions' })).not.toBeInTheDocument();
   });
 
-  it('saves the export, shows the success under the card and does not select the card', async () => {
+  it('opening Archive does not select the card', async () => {
     mockStatuses.set('chr-1', { state: 'active' });
     const { onSelect } = renderCard(makeChatroom());
     const user = await openMenu();
 
-    await user.click(screen.getByTestId('chatroom-action-export'));
+    await user.click(screen.getByText('Archive Chat'));
 
-    const success = await screen.findByText(/Exported “Alpha” to chatroom-chr-1-.*\.json\./);
-    expect(screen.getByTestId('chatroom-export-feedback')).toContainElement(success);
     expect(onSelect).not.toHaveBeenCalled();
-  });
-
-  it('shows a retryable failure under the card', async () => {
-    mocks.query.mockRejectedValueOnce({
-      data: { code: 'EXPORT_CHATROOM_CHANGED', message: 'changed' },
-    });
-    mockStatuses.set('chr-1', { state: 'active' });
-    renderCard(makeChatroom());
-    const user = await openMenu();
-
-    await user.click(screen.getByTestId('chatroom-action-export'));
-
-    expect(await screen.findByText('Export failed')).toBeInTheDocument();
-    expect(
-      screen.getByText('This chatroom changed while exporting. Try again.')
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
   });
 });

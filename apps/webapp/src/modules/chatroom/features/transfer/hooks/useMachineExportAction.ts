@@ -1,9 +1,8 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { useMachineExport, type MachineExportState } from './useMachineExport';
-import { useTransferFeedbackSlot } from './useTransferFeedbackSlot';
 import {
   EXPORT_CANCELLED_COPY,
   MACHINE_EMPTY_COPY,
@@ -12,6 +11,7 @@ import {
 } from '../lib/transferCopy';
 
 import type { Feedback } from '@/components/inline-feedback';
+import { useFeedback } from '@/hooks/useFeedback';
 
 export interface MachineExportAction {
   phase: MachineExportState;
@@ -24,11 +24,15 @@ export interface MachineExportAction {
 
 export function useMachineExportAction(machineId: string): MachineExportAction {
   const { state, run, cancel } = useMachineExport(machineId);
-  const { feedback, retryable, show, setRetryable, begin, finish, dismiss } =
-    useTransferFeedbackSlot();
+  const { feedback, show, clear } = useFeedback();
+  const [retryable, setRetryable] = useState(false);
+  const inFlight = useRef(false);
 
   const start = useCallback(() => {
-    if (!begin()) return;
+    if (inFlight.current) return;
+    inFlight.current = true;
+    clear();
+    setRetryable(false);
     void run()
       // fallow-ignore-next-line complexity
       .then((outcome) => {
@@ -57,8 +61,15 @@ export function useMachineExportAction(machineId: string): MachineExportAction {
         );
         setRetryable(copy.retryable);
       })
-      .finally(finish);
-  }, [begin, finish, run, setRetryable, show]);
+      .finally(() => {
+        inFlight.current = false;
+      });
+  }, [clear, run, setRetryable, show]);
+
+  const dismiss = useCallback(() => {
+    clear();
+    setRetryable(false);
+  }, [clear]);
 
   return { phase: state, feedback, retryable, start, cancel, dismiss };
 }
