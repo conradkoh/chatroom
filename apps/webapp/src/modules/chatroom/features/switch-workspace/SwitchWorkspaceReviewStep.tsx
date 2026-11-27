@@ -38,17 +38,21 @@ export function SwitchWorkspaceReviewStep({ flow }: { flow: SwitchWorkspaceFlow 
   const { configs } = useAgentConfigs(chatroomId, { enabled: true });
   const target = flow.target;
   const from = flow.from;
-  const { availableHarnesses, isLoading: capsLoading } = useMachineCapabilities(
-    target?.machineId ?? null
-  );
+  const {
+    availableHarnesses,
+    reported,
+    isLoading: capsLoading,
+  } = useMachineCapabilities(target?.machineId ?? null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   useFocusOnMount(headingRef);
   if (!target || !from) return null;
 
+  // Unknown target data (still loading, or never reported) is null: the preview judges nothing.
+  const targetHarnesses = !capsLoading && reported ? availableHarnesses : null;
   const preview = buildCarryOverPreview(
     configs,
     { machineId: from.machineId, workingDir: from.workingDir },
-    capsLoading ? null : availableHarnesses
+    targetHarnesses
   );
   const busy = flow.busy;
 
@@ -149,6 +153,10 @@ export function SwitchWorkspaceReviewStep({ flow }: { flow: SwitchWorkspaceFlow 
             >
               {capsLoading ? (
                 <p>Checking target machine…</p>
+              ) : !preview.targetReported ? (
+                <p>
+                  The new machine has not reported its harnesses, so carry-over cannot be checked.
+                </p>
               ) : (
                 <>
                   {preview.expected.length > 0 && (
