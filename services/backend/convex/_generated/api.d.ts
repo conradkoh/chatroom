@@ -105,6 +105,7 @@ import type * as lib_taskDeliveryPrompt from "../lib/taskDeliveryPrompt.js";
 import type * as lib_taskEnvelope from "../lib/taskEnvelope.js";
 import type * as lib_taskStateMachine from "../lib/taskStateMachine.js";
 import type * as lib_taskWorkflows from "../lib/taskWorkflows.js";
+import type * as machineBackups from "../machineBackups.js";
 import type * as machineCommandCleanup from "../machineCommandCleanup.js";
 import type * as machineConfigFavorites from "../machineConfigFavorites.js";
 import type * as machineDeletion from "../machineDeletion.js";
@@ -265,6 +266,7 @@ declare const fullApi: ApiFromModules<{
   "lib/taskEnvelope": typeof lib_taskEnvelope;
   "lib/taskStateMachine": typeof lib_taskStateMachine;
   "lib/taskWorkflows": typeof lib_taskWorkflows;
+  machineBackups: typeof machineBackups;
   machineCommandCleanup: typeof machineCommandCleanup;
   machineConfigFavorites: typeof machineConfigFavorites;
   machineDeletion: typeof machineDeletion;

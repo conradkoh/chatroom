@@ -29,7 +29,8 @@ export type BackupRow = Doc<'chatroom_machineBackupRequests'>;
  * under `exactOptionalPropertyTypes` (Convex removes a field set to undefined).
  */
 export type BackupPatch = {
-  [K in keyof Omit<BackupRow, '_id' | '_creationTime'>]?: BackupRow[K] | undefined;
+  [K in keyof Omit<BackupRow, '_id' | '_creationTime'>]?:
+    BackupRow[K] | (undefined extends BackupRow[K] ? undefined : never);
 };
 
 export interface LifecycleOutcome {
@@ -136,7 +137,7 @@ export function confirmPatch(row: BackupRow, now: number): LifecycleOutcome {
  */
 export function failPatch(
   row: BackupRow,
-  input: { now: number; errorCode?: BackupErrorCode; errorMessage?: string }
+  input: { now: number; errorCode?: BackupErrorCode | undefined; errorMessage?: string | undefined }
 ): LifecycleOutcome {
   assertTransition(row.kind, row.status, 'failed');
   return {
@@ -192,13 +193,13 @@ export function inventoryCompletedPatch(
   row: BackupRow,
   input: {
     now: number;
-    inventoryDir?: string;
-    stackFound?: boolean;
+    inventoryDir?: string | undefined;
+    stackFound?: boolean | undefined;
     backups?: BackupRow['backups'];
-    totalCount?: number;
-    totalBytes?: number;
-    newestAt?: number;
-    truncated?: boolean;
+    totalCount?: number | undefined;
+    totalBytes?: number | undefined;
+    newestAt?: number | undefined;
+    truncated?: boolean | undefined;
   }
 ): LifecycleOutcome {
   assertTransition('inventory', row.status, 'completed');
