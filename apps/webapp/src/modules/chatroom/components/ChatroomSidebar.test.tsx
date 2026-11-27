@@ -972,3 +972,29 @@ describe('ChatroomSidebar', () => {
     });
   });
 });
+
+describe('ChatroomSidebar import entry point', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('shows the import button in the header', () => {
+    renderSidebar([makeChatroom()]);
+    expect(screen.getByRole('button', { name: 'Import chatrooms' })).toBeInTheDocument();
+  });
+
+  it('mounts the interrupted import notice above the list for a stale record', async () => {
+    window.localStorage.setItem(
+      'chatroom.import.inflight',
+      JSON.stringify({
+        chatroomId: 'room-1',
+        startedAt: Date.now() - 60_000,
+        heartbeatAt: Date.now() - 60_000,
+      })
+    );
+
+    renderSidebar([makeChatroom()]);
+
+    expect(await screen.findByTestId('interrupted-import-notice')).toBeInTheDocument();
+  });
+});

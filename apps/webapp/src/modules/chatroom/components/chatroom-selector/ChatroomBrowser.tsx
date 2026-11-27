@@ -11,6 +11,7 @@ import {
 } from './ChatroomSelectorChrome';
 import { filterChatrooms, type TabType, type ViewMode } from './chatroomSelectorModel';
 import type { ChatroomWithStatus } from '../../context/ChatroomListingContext';
+import { InterruptedImportNotice } from '../../features/transfer/components/InterruptedImportNotice';
 import {
   flattenPartitionedCurrent,
   partitionChatroomListing,
@@ -51,6 +52,7 @@ export function ChatroomBrowser({ chatrooms, statuses, onSelect, onCreate }: Cha
 
   return (
     <div className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6">
+      <InterruptedImportNotice className="mb-4" />
       <ChatroomSelectorHeader onCreate={onCreate} />
       <ChatroomSearchInput
         value={searchQuery}

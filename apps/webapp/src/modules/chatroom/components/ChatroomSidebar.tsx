@@ -13,6 +13,8 @@ import { ChatroomSidebarSkeleton } from './ChatroomSidebarSkeleton';
 import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
 import type { ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { ExportFeedback } from '../features/transfer/components/ExportFeedback';
+import { ImportChatroomsButton } from '../features/transfer/components/ImportChatroomsButton';
+import { InterruptedImportNotice } from '../features/transfer/components/InterruptedImportNotice';
 import { useChatroomExportAction } from '../features/transfer/hooks/useChatroomExportAction';
 import { useChatroomListingStatuses } from '../hooks/useChatroomListingStatuses';
 import { useChatroomStatus } from '../hooks/useChatroomStatus';
@@ -392,7 +394,9 @@ function ChatroomSidebarContent({
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Chatrooms
         </div>
+        <ImportChatroomsButton variant="icon" />
       </div>
+      <InterruptedImportNotice />
       <div className="flex-1 overflow-y-auto">
         <ActiveChatroomSection
           chatrooms={activeChatrooms}
