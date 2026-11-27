@@ -624,6 +624,58 @@ describe('machineBackups late report', () => {
   });
 });
 
+describe('machineBackups duplicate report', () => {
+  test('a duplicate report naming the row’s own blob keeps it and stays servable', async () => {
+    const owner = await registerOwner();
+    const { requestId, storageId } = await prepareReady(owner);
+
+    const duplicate = await t.mutation(api.machineBackups.reportUploaded, {
+      sessionId: owner.sessionId,
+      machineId: owner.machineId,
+      requestId,
+      storageId,
+      sizeBytes: 3,
+      sha256: SHA256_OF_ABC,
+      stable: true,
+    });
+
+    expect(duplicate).toEqual({ ok: true, duplicate: true });
+    expect(await getStorageDoc(storageId)).not.toBeNull();
+    const row = await getRow(requestId);
+    expect(row?.status).toBe('ready');
+    expect(row?.storageId).toBe(storageId);
+    expect(
+      (
+        await t.mutation(api.machineBackups.createDownloadAccess, {
+          sessionId: owner.sessionId,
+          requestId,
+        })
+      ).ok
+    ).toBe(true);
+  });
+
+  test('a duplicate report naming another recent backup blob still deletes that orphan', async () => {
+    const owner = await registerOwner();
+    const { requestId, storageId } = await prepareReady(owner);
+    const strayId = await storeAbc();
+
+    const duplicate = await t.mutation(api.machineBackups.reportUploaded, {
+      sessionId: owner.sessionId,
+      machineId: owner.machineId,
+      requestId,
+      storageId: strayId,
+      sizeBytes: 3,
+      sha256: SHA256_OF_ABC,
+      stable: true,
+    });
+
+    expect(duplicate).toEqual({ ok: true, duplicate: true });
+    expect(await getStorageDoc(strayId)).toBeNull();
+    expect(await getStorageDoc(storageId)).not.toBeNull();
+    expect((await getRow(requestId))?.status).toBe('ready');
+  });
+});
+
 describe('machineBackups projection', () => {
   test('queries never expose storageId, sha256 or a URL', async () => {
     const owner = await registerOwner();

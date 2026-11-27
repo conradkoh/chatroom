@@ -832,6 +832,21 @@ function lateUploadResponse(
 }
 
 /**
+ * Settles a report that no longer matches a writable row, deleting the reported blob only when it
+ * is not the row's own live copy.
+ */
+async function settleLateUpload(
+  ctx: MutationCtx,
+  row: BackupRow | null,
+  storageId: Id<'_storage'>,
+  now: number
+): Promise<{ ok: true; duplicate: true } | { ok: true; ignored: true }> {
+  // A lost-response retry reports the row's own blob; never delete a live copy.
+  if (row?.storageId !== storageId) await deleteOrphanCandidate(ctx, storageId, now);
+  return lateUploadResponse(row);
+}
+
+/**
  * Daemon report that the archive was uploaded. Verifies the blob's size, content type and digest,
  * then patches the row `ready`. Any mismatch deletes the blob, fails the row and returns the reason.
  */
@@ -852,8 +867,7 @@ export const reportUploaded = mutation({
     const now = Date.now();
 
     if (!row || isLateUpload(row, now)) {
-      await deleteOrphanCandidate(ctx, args.storageId, now);
-      return lateUploadResponse(row);
+      return settleLateUpload(ctx, row, args.storageId, now);
     }
 
     const meta = await ctx.db.system.get('_storage', args.storageId);
