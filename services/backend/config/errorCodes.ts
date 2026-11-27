@@ -155,6 +155,10 @@ export type BackendErrorCode =
   | 'GIT_CLONE_REQUEST_NOT_FOUND'
   | 'GIT_CLONE_PATH_MISMATCH'
 
+  // ── Workspace binding ─────────────────────────────────────────────────
+  | 'WORKSPACE_ALREADY_BOUND'
+  | 'WORKSPACE_SWITCH_CONFLICT'
+
   // ── Project roots ─────────────────────────────────────────────────
   | 'PROJECT_ROOT_DUPLICATE'
   | 'PROJECT_ROOT_NESTED'
@@ -494,6 +498,12 @@ export const BACKEND_ERROR_CODES = {
   /** Reported clone path does not match the requested target path */
   GIT_CLONE_PATH_MISMATCH: 'GIT_CLONE_PATH_MISMATCH',
 
+  // ── Workspace binding ─────────────────────────────────────────────────
+  /** The chatroom already has an active workspace; a second distinct one is refused */
+  WORKSPACE_ALREADY_BOUND: 'WORKSPACE_ALREADY_BOUND',
+  /** The chatroom's active workspace changed since the caller loaded it (expectedWorkspaceId mismatch) */
+  WORKSPACE_SWITCH_CONFLICT: 'WORKSPACE_SWITCH_CONFLICT',
+
   // ── Project roots ─────────────────────────────────────────────────
   /** Project root already exists for this machine */
   PROJECT_ROOT_DUPLICATE: 'PROJECT_ROOT_DUPLICATE',
@@ -823,6 +833,10 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.MACHINE_DELETION_IN_PROGRESS,
   BACKEND_ERROR_CODES.GIT_CLONE_REQUEST_NOT_FOUND,
   BACKEND_ERROR_CODES.GIT_CLONE_PATH_MISMATCH,
+
+  // Workspace binding (recoverable: reload or switch instead)
+  BACKEND_ERROR_CODES.WORKSPACE_ALREADY_BOUND,
+  BACKEND_ERROR_CODES.WORKSPACE_SWITCH_CONFLICT,
 
   // Project roots
   BACKEND_ERROR_CODES.PROJECT_ROOT_DUPLICATE,

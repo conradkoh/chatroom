@@ -9,19 +9,18 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import type { Doc, Id } from './_generated/dataModel';
+import type { Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
-import type { MutationCtx, QueryCtx } from './_generated/server';
+import type { QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
 import { omitUndefined } from './lib/omitUndefined';
 import { str } from './utils/types';
-import { upsertPendingFileTreeReleaseRequest } from './workspaceFiles';
 import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { requireWorkspaceWriteAccess } from './auth/cli/workspaceAccess';
-import { normalizeWorkingDir } from './workspacePathSecurity';
 import { workspaceGitStateUnitValidator } from '../src/domain/entities/workspace-git-state-unit';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
+import { disableFileTreeSyncLifecycle } from '../src/domain/usecase/workspace/disable-file-tree-sync-lifecycle';
 import { getPrimaryWorkspaceForChatroom as getPrimaryWorkspaceForChatroomUseCase } from '../src/domain/usecase/workspace/get-primary-workspace-for-chatroom';
 import { listRecentlyObservedWorkspacesForMachine as listRecentlyObservedWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine';
 import { listRegisteredWorkingDirsForMachine as listRegisteredWorkingDirsForMachineUseCase } from '../src/domain/usecase/workspace/list-registered-working-dirs-for-machine';
@@ -31,6 +30,7 @@ import { patchWorkspaceGitState as patchWorkspaceGitStateUseCase } from '../src/
 import { toWorkspaceGitStateView } from '../src/domain/usecase/workspace/project-workspace-git-state';
 import { registerWorkspace as registerWorkspaceUseCase } from '../src/domain/usecase/workspace/register-workspace';
 import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase/workspace/remove-workspace';
+import { setPrimaryWorkspaceSelection } from '../src/domain/usecase/workspace/set-primary-workspace-selection';
 import { readWorkspaceGitUnitRows } from '../src/domain/usecase/workspace/workspace-git-unit-rows';
 
 async function getPrimaryWorkspaceView(ctx: QueryCtx, chatroomId: Id<'chatroom_rooms'>) {
@@ -112,49 +112,6 @@ export const removeWorkspace = mutation({
     return removeWorkspaceUseCase(ctx, { workspaceId: args.workspaceId });
   },
 });
-
-/**
- * Tears down all file-tree sync state for a workspace after sync is disabled.
- * Zeros the watch lease, cancels any pending request, and queues a daemon release.
- * Does not clear cached file-tree data.
- */
-async function disableFileTreeSyncLifecycle(
-  ctx: MutationCtx,
-  workspace: Doc<'chatroom_workspaces'>,
-  now: number
-): Promise<void> {
-  const workingDir = normalizeWorkingDir(workspace.workingDir);
-  const { machineId } = workspace;
-
-  const watchRow = await ctx.db
-    .query('chatroom_workspaceFileTreeWatches')
-    .withIndex('by_machine_workingDir', (q) =>
-      q.eq('machineId', machineId).eq('workingDir', workingDir)
-    )
-    .first();
-  if (watchRow) {
-    await ctx.db.patch('chatroom_workspaceFileTreeWatches', watchRow._id, {
-      watchCount: 0,
-      expiresAt: undefined,
-      updatedAt: now,
-    });
-  }
-
-  const pendingRequest = await ctx.db
-    .query('chatroom_workspaceFileTreeRequests')
-    .withIndex('by_machine_workingDir', (q) =>
-      q.eq('machineId', machineId).eq('workingDir', workingDir)
-    )
-    .first();
-  if (pendingRequest?.status === 'pending') {
-    await ctx.db.patch('chatroom_workspaceFileTreeRequests', pendingRequest._id, {
-      status: 'done',
-      updatedAt: now,
-    });
-  }
-
-  await upsertPendingFileTreeReleaseRequest(ctx, machineId, workingDir);
-}
 
 /**
  * Enables or disables future file-tree synchronization for a workspace.
@@ -301,21 +258,10 @@ export const setPrimaryWorkspaceForChatroom = mutation({
       throw new Error('Workspace is not active in this chatroom');
     }
 
-    const existing = await ctx.db
-      .query('chatroom_primaryWorkspaces')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
-      .first();
-    const selection = {
+    return setPrimaryWorkspaceSelection(ctx, {
       chatroomId: chatroom._id,
       workspaceId: workspace._id,
-      updatedAt: Date.now(),
-    };
-
-    if (existing) {
-      await ctx.db.patch('chatroom_primaryWorkspaces', existing._id, selection);
-      return existing._id;
-    }
-    return ctx.db.insert('chatroom_primaryWorkspaces', selection);
+    });
   },
 });
 
