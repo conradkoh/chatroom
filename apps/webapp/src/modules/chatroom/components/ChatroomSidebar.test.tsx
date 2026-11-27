@@ -1,3 +1,5 @@
+import { webcrypto } from 'node:crypto';
+
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { ChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
 import {
@@ -6,7 +8,7 @@ import {
 } from '@workspace/shared/domain/chatroom-activity-status';
 import type * as ConvexReact from 'convex/react';
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatroomSidebar } from './ChatroomSidebar';
 import type { ChatroomWithStatus } from '../context/ChatroomListingContext';
@@ -29,12 +31,14 @@ const mockMarkAsUnread = vi.fn().mockResolvedValue(undefined);
 const mockMarkAsRead = vi.fn().mockResolvedValue(undefined);
 const mockPush = vi.fn();
 const mockSaveConfig = vi.fn();
+const mockExportQuery = vi.fn();
 // Convex boundary for the favourites check. `useQueries` answers by query name.
 const mockQueryData: Record<string, unknown> = {};
 let mockQueriesPending = false;
 
 vi.mock('convex/react', async (importOriginal) => ({
   ...(await importOriginal<typeof ConvexReact>()),
+  useConvex: () => ({ query: mockExportQuery }),
   useQueries: (queries: Record<string, { query: { name: string } }>) =>
     Object.fromEntries(
       Object.entries(queries).map(([key, { query }]) => [
@@ -127,6 +131,11 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       saveConfig: { name: 'saveConfig' },
       listStatus: { name: 'listStatus' },
       listLastSentLaunchRequests: { name: 'listLastSentLaunchRequests' },
+    },
+    chatroomExport: {
+      getStamp: { name: 'getStamp' },
+      readPage: { name: 'readPage' },
+      listForMachine: { name: 'listForMachine' },
     },
   },
 }));
@@ -233,6 +242,43 @@ function setStartCheckData(favourites: unknown[]) {
   mockQueryData.getMachineConfigFavorites = { favorites: favourites };
 }
 
+// ── Export fixture ────────────────────────────────────────────────────────────
+
+const EXPORT_STAMP = {
+  lastActivityAt: null,
+  nextQueuePosition: null,
+  latestMessage: null,
+  taskCounts: null,
+  latest: {},
+  attachmentRows: { count: 0, capped: false, totalBytes: 0 },
+};
+
+const EXPORT_ROOM_ROW = {
+  id: 'room-1',
+  creationTime: 1,
+  fields: { status: 'active', name: 'Test Chat', teamStructureId: 'team-1' },
+};
+
+function exportPage(rows: (typeof EXPORT_ROOM_ROW)[]) {
+  return { rows, continueCursor: null, isDone: true };
+}
+
+function installExportQueries(): void {
+  mockExportQuery.mockImplementation(
+    async (ref: { name?: string }, args: { category?: string }) => {
+      if (ref.name === 'getStamp') return EXPORT_STAMP;
+      if (ref.name === 'readPage') {
+        return exportPage(args.category === 'room' ? [EXPORT_ROOM_ROW] : []);
+      }
+      throw new Error(`Unexpected query: ${ref.name}`);
+    }
+  );
+}
+
+async function openExportMenuItem(): Promise<HTMLElement> {
+  return screen.findByTestId('chatroom-action-export');
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('ChatroomSidebar', () => {
@@ -264,6 +310,13 @@ describe('ChatroomSidebar', () => {
     setStartCheckData([]);
     mockStatuses.clear();
     (useChatroomListing as ReturnType<typeof vi.fn>).mockClear();
+    vi.stubGlobal('crypto', webcrypto);
+    mockExportQuery.mockReset();
+    installExportQueries();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('renders chatroom items in the sidebar', () => {
@@ -829,5 +882,119 @@ describe('ChatroomSidebar', () => {
       await waitFor(() => expect(mockRequestChatroomStart).toHaveBeenCalledWith('chr-1'));
       await waitFor(() => expect(screen.getByLabelText('Start agents')).toHaveFocus());
     });
+  });
+
+  describe('export chatroom', () => {
+    function openMenu(chatroomName: string) {
+      const item = screen.getByText(chatroomName).closest('[role="button"]');
+      if (!item) throw new Error(`No sidebar item for ${chatroomName}`);
+      fireEvent.contextMenu(item, { button: 2 });
+    }
+
+    it('shows Export for a completed chatroom and hides Archive and Mark read state', async () => {
+      renderSidebar([makeCompletedChatroom()]);
+      fireEvent.click(screen.getByText(/Completed/));
+      await screen.findByText('Completed Chat');
+
+      openMenu('Completed Chat');
+
+      const exportItem = await openExportMenuItem();
+      expect(exportItem).toHaveTextContent('Export chatroom');
+      expect(screen.queryByText('Archive Chat')).not.toBeInTheDocument();
+      expect(screen.queryByText('Mark as Read')).not.toBeInTheDocument();
+      expect(screen.queryByText('Mark as Unread')).not.toBeInTheDocument();
+    });
+
+    it('shows Mark read state, Export and Archive for an active chatroom', async () => {
+      renderSidebar([makeChatroom()]);
+      openMenu('Test Chat');
+
+      expect(await openExportMenuItem()).toHaveTextContent('Export chatroom');
+      expect(screen.getByText('Archive Chat')).toBeInTheDocument();
+      expect(screen.getByText('Mark as Unread')).toBeInTheDocument();
+    });
+
+    it('announces the running export, then saves one file and keeps the success box', async () => {
+      let releaseStamp: () => void = () => {};
+      const stampGate = new Promise<void>((resolve) => {
+        releaseStamp = resolve;
+      });
+      let gateStamp = true;
+      mockExportQuery.mockImplementation(
+        async (ref: { name?: string }, args: { category?: string }) => {
+          if (ref.name === 'getStamp') {
+            if (gateStamp) {
+              gateStamp = false;
+              await stampGate;
+            }
+            return EXPORT_STAMP;
+          }
+          if (ref.name === 'readPage') {
+            return exportPage(args.category === 'room' ? [EXPORT_ROOM_ROW] : []);
+          }
+          throw new Error(`Unexpected query: ${ref.name}`);
+        }
+      );
+
+      renderSidebar([makeChatroom({ name: 'Alpha' })]);
+      openMenu('Alpha');
+      fireEvent.click(await openExportMenuItem());
+
+      expect(await screen.findByText('Exporting “Alpha”…')).toBeInTheDocument();
+      releaseStamp();
+
+      const success = await screen.findByText(/Exported “Alpha” to chatroom-chr-1-.*\.json\./);
+      expect(success).toBeInTheDocument();
+      expect(screen.getByTestId('chatroom-export-feedback')).toContainElement(success);
+      expect(document.querySelector('[data-sonner-toaster]')).toBeNull();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+      expect(screen.queryByTestId('chatroom-export-feedback')).not.toBeInTheDocument();
+    });
+
+    it('shows a retryable failure with Try again', async () => {
+      mockExportQuery.mockRejectedValueOnce({
+        data: { code: 'EXPORT_CHATROOM_CHANGED', message: 'changed' },
+      });
+
+      renderSidebar([makeChatroom({ name: 'Alpha' })]);
+      openMenu('Alpha');
+      fireEvent.click(await openExportMenuItem());
+
+      expect(await screen.findByText('Export failed')).toBeInTheDocument();
+      expect(
+        screen.getByText('This chatroom changed while exporting. Try again.')
+      ).toBeInTheDocument();
+
+      mockExportQuery.mockClear();
+      fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+      await waitFor(() => expect(mockExportQuery).toHaveBeenCalled());
+    });
+  });
+});
+
+describe('ChatroomSidebar import entry point', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('shows the import button in the header', () => {
+    renderSidebar([makeChatroom()]);
+    expect(screen.getByRole('button', { name: 'Import chatrooms' })).toBeInTheDocument();
+  });
+
+  it('mounts the interrupted import notice above the list for a stale record', async () => {
+    window.localStorage.setItem(
+      'chatroom.import.inflight',
+      JSON.stringify({
+        chatroomId: 'room-1',
+        startedAt: Date.now() - 60_000,
+        heartbeatAt: Date.now() - 60_000,
+      })
+    );
+
+    renderSidebar([makeChatroom()]);
+
+    expect(await screen.findByTestId('interrupted-import-notice')).toBeInTheDocument();
   });
 });

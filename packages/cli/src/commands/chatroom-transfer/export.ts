@@ -1,28 +1,41 @@
 /**
- * `chatroom export` — read chatrooms through Convex, publish JSON files.
+ * `chatroom export` — read chatrooms through Convex, publish JSON.
  *
  * The backend owns the read, the consistency check and the build
- * (`runExport`); this module adapts `BackendOps` to the export port,
+ * (`runExport`); the bundle driver owns the `--all` orchestration
+ * (`runExportBundle`). This module adapts `BackendOps` to the export port,
  * publishes the bytes with `writeExportFileAtomically`, and prints the report.
  *
- * `--chatroom-id` exports one chatroom. `--all` exports every chatroom the caller
- * owns that has an active workspace on this machine, one file each, strictly one
- * after another. A failing chatroom is reported and the run continues.
+ * `--chatroom-id` exports one chatroom to one file. `--all` exports every
+ * chatroom the caller owns on this machine into ONE
+ * `chatroom-all-<machineId>-<stamp>.json` bundle, strictly one chatroom after
+ * another. `--all` is all-or-nothing: a chatroom that fails twice means no file
+ * at all, and `EXPORT_ALL_INCOMPLETE` lists every failed chatroom.
  *
  * Failures are thrown to the command wrapper in `register.ts`, which renders
- * them as `❌ [CODE] message` and exits 1. The one exception is a per-chatroom
- * failure inside `--all`, which is printed inline so the rest of the run can go on.
- * Success is printed only after the file is linked into place, so a printed path
- * always names a real file.
+ * them as `❌ [CODE] message` and exits 1. `--all` additionally prints one
+ * `❌ [EXPORT_ALL_INCOMPLETE] <id>: [CODE] message` line per failed chatroom
+ * before rethrowing, because the summary alone does not name them. Success is
+ * printed only after the file is linked into place, so a printed path always
+ * names a real file.
  */
 
 import { join, resolve } from 'node:path';
 
 import {
   ChatroomTransferError,
+  PLAINTEXT_EXPORT_WARNING,
   TRANSFER_ERROR_CODES,
   type ExportCategory,
 } from '@workspace/backend/src/domain/entities/chatroom-transfer-file';
+import {
+  bundleFileName,
+  exportFileName,
+} from '@workspace/backend/src/domain/entities/chatroom-transfer-file-name';
+import {
+  runExportBundle,
+  type BundleExportResult,
+} from '@workspace/backend/src/domain/usecase/chatroom-transfer/export-bundle';
 import {
   EXPORT_CATEGORY_ORDER,
   runExport,
@@ -32,7 +45,8 @@ import type { ExportableChatroom } from '@workspace/backend/src/domain/usecase/c
 import type { SessionId } from 'convex-helpers/server/sessions';
 
 import type { ChatroomTransferDeps } from './deps.js';
-import { exportFileName, prepareDefaultExportsDir, writeExportFileAtomically } from './file-io.js';
+import { prepareDefaultExportsDir, writeExportFileAtomically } from './file-io.js';
+import { formatBytes } from './format-bytes.js';
 import { requireTransferSession } from './session-guard.js';
 import { api } from '../../api.js';
 import { getConvexErrorData, getErrorMessage } from '../../utils/convex-error.js';
@@ -41,11 +55,9 @@ import { getConvexErrorData, getErrorMessage } from '../../utils/convex-error.js
 interface Omission {
   count: number | null;
   reason: string;
+  /** Set only for attachments, which are counted and measured. */
+  bytes?: number;
 }
-
-/** The export ships conversation content in plaintext; every run that writes a file says so. */
-const PLAINTEXT_WARNING =
-  'warning: this file is plaintext and contains conversation content. Keep it private.';
 
 /** Options `chatroom export` accepts. Exactly one of `chatroomId` and `all` must be given. */
 export interface ExportOptions {
@@ -69,9 +81,8 @@ type ExportTarget = { kind: 'one'; chatroomId: string } | { kind: 'all' };
  * when `opts.all` is set, into `<cwd>/.chatroom/exports` (or `opts.path`).
  *
  * The target is checked before any session read or query. Throws when the
- * export is refused or fails; in `--all` mode a per-chatroom failure is printed
- * and the run continues, and the run throws `EXPORT_ALL_INCOMPLETE` at the end
- * if any chatroom failed.
+ * export is refused or fails; `--all` writes one bundle and fails without a
+ * file when any chatroom fails twice.
  */
 export async function exportChatroom(
   opts: ExportOptions,
@@ -90,13 +101,15 @@ export async function exportChatroom(
 
 /** Decides the target from the flags alone. Throws before any I/O. */
 function parseExportTarget(opts: ExportOptions): ExportTarget {
-  if (opts.all === true && opts.chatroomId !== undefined) {
-    throw new ChatroomTransferError(
-      TRANSFER_ERROR_CODES.EXPORT_TARGET_CONFLICT,
-      '--all and --chatroom-id cannot be used together'
-    );
+  if (opts.all === true) {
+    if (opts.chatroomId !== undefined) {
+      throw new ChatroomTransferError(
+        TRANSFER_ERROR_CODES.EXPORT_TARGET_CONFLICT,
+        '--all and --chatroom-id cannot be used together'
+      );
+    }
+    return { kind: 'all' };
   }
-  if (opts.all === true) return { kind: 'all' };
   if (opts.chatroomId !== undefined) return { kind: 'one', chatroomId: opts.chatroomId };
   throw new ChatroomTransferError(
     TRANSFER_ERROR_CODES.EXPORT_TARGET_REQUIRED,
@@ -105,9 +118,11 @@ function parseExportTarget(opts: ExportOptions): ExportTarget {
 }
 
 /**
- * Exports every chatroom the caller owns on this machine, one at a time.
- * A per-chatroom failure is printed and the loop continues. The summary and
- * warning are printed before the run throws `EXPORT_ALL_INCOMPLETE` on any failure.
+ * Exports every chatroom the caller owns on this machine into one bundle.
+ *
+ * Nothing is written until every chatroom has been read successfully: the
+ * bundle is built in memory, then published once. A failed run therefore leaves
+ * no file and no temp file.
  */
 async function exportAll(
   deps: ChatroomTransferDeps,
@@ -122,8 +137,6 @@ async function exportAll(
     );
   }
 
-  // The list query is the only read that can fail for the whole run; it throws
-  // through the wrapper before any file is written.
   const rooms = (await deps.backend.query(api.chatroomExport.listForMachine, {
     sessionId,
     machineId,
@@ -133,36 +146,92 @@ async function exportAll(
     return;
   }
 
-  let exported = 0;
-  let failed = 0;
-  for (const room of rooms) {
-    try {
-      const report = await exportOne(deps, sessionId, room.chatroomId, path);
-      deps.out(`Exported chatroom ${room.chatroomId} (${room.name ?? 'unnamed'})`);
-      deps.out(`  file: ${report.filePath}`);
-      exported += 1;
-    } catch (error) {
-      const formatted = formatTransferError(error);
-      deps.err(`❌ [${formatted.code}] ${room.chatroomId}: ${formatted.message}`);
-      failed += 1;
-    }
-  }
+  // One clock read feeds the bundle's `exportedAt`, every payload's
+  // `exportedAt` and the file name, so all three name the same instant.
+  const at = deps.clock();
+  const bundle = await buildBundleOrReport(deps, sessionId, machineId, rooms, at);
 
-  deps.out(`Exported ${exported} of ${rooms.length} chatrooms from machine ${machineId}`);
-  if (failed > 0) deps.out(`Failed: ${failed}`);
-  if (exported > 0) deps.out(PLAINTEXT_WARNING);
-  if (failed > 0) {
-    throw new ChatroomTransferError(
-      TRANSFER_ERROR_CODES.EXPORT_ALL_INCOMPLETE,
-      `exported ${exported} of ${rooms.length} chatrooms; ${failed} failed`
-    );
-  }
+  const dir = await resolveExportDir(deps, path);
+  const filePath = await writeExportFileAtomically(
+    deps.fs,
+    dir,
+    bundleFileName(machineId, at),
+    bundle.json
+  );
+  deps.out(`Exported ${bundle.index.length} chatrooms from machine ${machineId}`);
+  deps.out(`  file: ${filePath}`);
+  deps.out(`  size: ${formatBytes(new TextEncoder().encode(bundle.json).byteLength)}`);
+  printAttachmentLine(deps.out, bundle.omittedAttachments);
+  deps.out(PLAINTEXT_EXPORT_WARNING);
 }
 
 /**
- * Exports one chatroom and publishes its file. Used by both modes; the caller
- * decides how to report the result. Reads the clock once, so the file's
- * `exportedAt` and its name agree.
+ * Builds the bundle, printing one line per failed chatroom before the run
+ * fails. `EXPORT_ALL_INCOMPLETE` carries the details; every other failure is
+ * rethrown untouched for the wrapper to render.
+ */
+async function buildBundleOrReport(
+  deps: ChatroomTransferDeps,
+  sessionId: SessionId,
+  machineId: string,
+  rooms: readonly ExportableChatroom[],
+  at: Date
+): Promise<BundleExportResult> {
+  try {
+    return await runExportBundle(makeExportPort(deps, sessionId), {
+      chatroomIds: rooms.map((room) => room.chatroomId),
+      machineId,
+      cliVersion: deps.version,
+      now: () => at,
+    });
+  } catch (error) {
+    printIncompleteDetails(deps, error);
+    throw error;
+  }
+}
+
+/** Prints one line per failed chatroom for `EXPORT_ALL_INCOMPLETE`; other failures pass through. */
+function printIncompleteDetails(deps: ChatroomTransferDeps, error: unknown): void {
+  if (!isIncomplete(error)) return;
+  for (const detail of error.details) {
+    deps.err(`❌ [${TRANSFER_ERROR_CODES.EXPORT_ALL_INCOMPLETE}] ${detail}`);
+  }
+}
+
+function isIncomplete(error: unknown): error is ChatroomTransferError {
+  return (
+    error instanceof ChatroomTransferError &&
+    error.code === TRANSFER_ERROR_CODES.EXPORT_ALL_INCOMPLETE
+  );
+}
+
+/** The port over the Convex export queries. */
+function makeExportPort(deps: ChatroomTransferDeps, sessionId: SessionId): ChatroomExportPort {
+  return {
+    getStamp: (id) =>
+      deps.backend.query(api.chatroomExport.getStamp, { sessionId, chatroomId: id }),
+    readPage: (args) => deps.backend.query(api.chatroomExport.readPage, { sessionId, ...args }),
+  };
+}
+
+/**
+ * Resolves the output directory. No `--path` means `.chatroom/exports` under
+ * cwd, which is created with a `.gitignore`; a `--path` is used as given.
+ */
+async function resolveExportDir(
+  deps: ChatroomTransferDeps,
+  path: string | undefined
+): Promise<string> {
+  if (path) return resolve(deps.cwd(), path);
+  const dir = join(deps.cwd(), '.chatroom', 'exports');
+  await prepareDefaultExportsDir(deps.fs, dir);
+  return dir;
+}
+
+/**
+ * Exports one chatroom and publishes its file. Used by `--chatroom-id`; the
+ * caller prints the report. Reads the clock once, so the file's `exportedAt`
+ * and its name agree.
  */
 async function exportOne(
   deps: ChatroomTransferDeps,
@@ -170,11 +239,7 @@ async function exportOne(
   chatroomId: string,
   path: string | undefined
 ): Promise<ExportReport> {
-  const port: ChatroomExportPort = {
-    getStamp: (id) =>
-      deps.backend.query(api.chatroomExport.getStamp, { sessionId, chatroomId: id }),
-    readPage: (args) => deps.backend.query(api.chatroomExport.readPage, { sessionId, ...args }),
-  };
+  const port = makeExportPort(deps, sessionId);
 
   // One clock read feeds both the file's `exportedAt` and its name, so the two
   // never disagree about which second the export belongs to.
@@ -187,8 +252,7 @@ async function exportOne(
     onProgress: (category, rows) => counts.set(category, rows),
   });
 
-  const dir = path ? resolve(deps.cwd(), path) : join(deps.cwd(), '.chatroom', 'exports');
-  if (!path) await prepareDefaultExportsDir(deps.fs, dir);
+  const dir = await resolveExportDir(deps, path);
   const filePath = await writeExportFileAtomically(
     deps.fs,
     dir,
@@ -228,11 +292,34 @@ function printReport(out: (line: string) => void, report: ExportReport): void {
   for (const key of Object.keys(report.omitted).sort()) {
     printOmission(out, key, report.omitted[key]);
   }
-  out(PLAINTEXT_WARNING);
+  printAttachmentLine(out, attachmentTotals(report.omitted));
+  out(PLAINTEXT_EXPORT_WARNING);
+}
+
+/** The attachment omission as one `{count, bytes}` tally, for the shared line. */
+function attachmentTotals(omitted: Record<string, Omission>): { count: number; bytes: number } {
+  const attachments = omitted.chatroom_fileAttachments ?? { count: 0, bytes: 0 };
+  return { count: attachments.count ?? 0, bytes: attachments.bytes ?? 0 };
 }
 
 /** `key: reason` for policy exclusions, `key (n): reason` for counted filters. */
 function printOmission(out: (line: string) => void, key: string, omission: Omission): void {
   const count = omission.count === null ? '' : ` (${omission.count})`;
   out(`    ${key}${count}: ${omission.reason}`);
+}
+
+/** One plain sentence for the attachment size, only when attachments were left out. */
+function printAttachmentLine(
+  out: (line: string) => void,
+  attachments: { count: number; bytes: number }
+): void {
+  if (!attachments.count) return;
+  out(
+    `${shownCount(attachments.count)} attachment(s) not included (${formatBytes(attachments.bytes)})`
+  );
+}
+
+/** A capped stamp reports 1001 rows, which means "more than 1000" to the user. */
+function shownCount(count: number): string {
+  return count > 1000 ? 'more than 1000' : String(count);
 }

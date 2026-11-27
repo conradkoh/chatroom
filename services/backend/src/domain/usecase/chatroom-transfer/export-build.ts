@@ -6,8 +6,8 @@
  *
  * ## Order of operations
  *
- * 1. Refuse attachments. A room with binary attachments cannot be exported, and
- *    so cannot a room whose messages still point at attachment rows.
+ * 1. Record the attachment omission. Attachment rows and message references are
+ *    left out; `withAttachmentOmission` writes how many and how many bytes.
  * 2. Filter and count: removed workspaces, deleted backlog rows, launch requests
  *    for another team, launch requests for a removed workspace, superseded launch
  *    requests. Every drop is counted in the omitted manifest.
@@ -93,8 +93,6 @@ export interface BuildExportInput {
 
 /** Builds the file, including the checksum over its canonical content. */
 export async function buildExportFile(input: BuildExportInput): Promise<ChatroomExportFileV1> {
-  refuseAttachments(input.raw, input.stamp);
-
   const filtered = filterRows(input.raw);
   const keys = assignKeys(filtered.raw);
   const content = emitContent(filtered.raw, keys, filtered.filteredIds);
@@ -105,42 +103,40 @@ export async function buildExportFile(input: BuildExportInput): Promise<Chatroom
     kind: CHATROOM_EXPORT_KIND,
     exportedAt: input.exportedAt,
     source: { chatroomId: input.sourceChatroomId, cliVersion: input.cliVersion },
-    omitted: fillOmissions(filtered.counts),
+    omitted: withAttachmentOmission(fillOmissions(filtered.counts), input.stamp),
     checksum,
     ...content,
   };
 }
 
 // ---------------------------------------------------------------------------
-// 1. Refusals
+// 1. Attachment omission
 // ---------------------------------------------------------------------------
 
 /**
- * Attachments are committed service state with binaries in storage, so the
- * export refuses rather than silently dropping them. The message carries the
- * count so the user knows what to remove.
+ * Attachments are omitted, not refused: the file records how many and how many
+ * bytes were left out. `chatroom_fileAttachments` is an excluded (not counted)
+ * table, so its manifest entry exists with `count: null` and this helper fills
+ * the real number in. A capped stamp means "more than 1000", which the reason
+ * says explicitly.
  */
-function refuseAttachments(raw: Record<ExportCategory, ExportRawRow[]>, stamp: ExportStamp): void {
-  const { count, capped } = stamp.attachmentRows;
-  if (count > 0) {
-    const shown = capped ? `${count}+` : `${count}`;
-    throw new ChatroomTransferError(
-      TRANSFER_ERROR_CODES.EXPORT_ATTACHMENTS_PRESENT,
-      `This chatroom has ${shown} file attachment(s); attachments cannot be exported.`,
-      []
-    );
+function withAttachmentOmission(
+  omitted: Record<string, { count: number | null; reason: string; bytes?: number }>,
+  stamp: ExportStamp
+): Record<string, { count: number | null; reason: string; bytes?: number }> {
+  const base = omitted.chatroom_fileAttachments;
+  if (!base) {
+    throw new Error('Chatroom export build: omitted manifest has no key chatroom_fileAttachments');
   }
-
-  const messagesWithFiles = raw.messages.filter((row) =>
-    isNonEmptyArray(row.fields.attachedFileIds)
-  ).length;
-  if (messagesWithFiles > 0) {
-    throw new ChatroomTransferError(
-      TRANSFER_ERROR_CODES.EXPORT_ATTACHMENTS_PRESENT,
-      `This chatroom has ${messagesWithFiles} message(s) that reference file attachments; attachments cannot be exported.`,
-      []
-    );
-  }
+  const { count, capped, totalBytes } = stamp.attachmentRows;
+  return {
+    ...omitted,
+    chatroom_fileAttachments: {
+      count,
+      reason: capped ? `${base.reason} (at least this many)` : base.reason,
+      bytes: totalBytes,
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -467,7 +463,7 @@ function emitHandoffRole(out: ExportRow, table: string, field: string, value: un
 /** Every counted omission gets its number; everything else keeps `count: null`. */
 function fillOmissions(
   counts: BuildCounts
-): Record<string, { count: number | null; reason: string }> {
+): Record<string, { count: number | null; reason: string; bytes?: number }> {
   const omitted = omittedManifest();
   for (const [key, count] of Object.entries(counts)) {
     const existing = omitted[key];
@@ -483,10 +479,6 @@ function requireRoomRow(raw: Record<ExportCategory, ExportRawRow[]>): ExportRawR
   const room = raw.room[0];
   if (!room) throw new Error('Chatroom export build: the export has no room row');
   return room;
-}
-
-function isNonEmptyArray(value: unknown): boolean {
-  return Array.isArray(value) && value.length > 0;
 }
 
 function dangling(table: string, field: string, id: string): ChatroomTransferError {

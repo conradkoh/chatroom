@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { Archive, ChevronDown, Mail, MailOpen, MessageSquare, Star } from 'lucide-react';
+import { Archive, ChevronDown, Download, Mail, MailOpen, MessageSquare, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import React, { memo, useCallback, useMemo, useState } from 'react';
 
@@ -12,6 +12,10 @@ import { ChatroomSidebarAgentActions } from './ChatroomSidebarAgentActions';
 import { ChatroomSidebarSkeleton } from './ChatroomSidebarSkeleton';
 import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
 import type { ChatroomWithStatus } from '../context/ChatroomListingContext';
+import { ExportFeedback } from '../features/transfer/components/ExportFeedback';
+import { ImportChatroomsButton } from '../features/transfer/components/ImportChatroomsButton';
+import { InterruptedImportNotice } from '../features/transfer/components/InterruptedImportNotice';
+import { useChatroomExportAction } from '../features/transfer/hooks/useChatroomExportAction';
 import { useChatroomListingStatuses } from '../hooks/useChatroomListingStatuses';
 import { useChatroomStatus } from '../hooks/useChatroomStatus';
 import {
@@ -119,35 +123,50 @@ function ChatroomSidebarItemTrigger({
 function ChatroomSidebarItemMenu({
   isCompleted,
   hasUnread,
+  exporting,
   onToggleReadStatus,
   onArchive,
+  onExport,
 }: {
   isCompleted: boolean;
   hasUnread: boolean;
+  exporting: boolean;
   onToggleReadStatus: () => void;
   onArchive: () => void;
+  onExport: () => void;
 }) {
-  if (isCompleted) return null;
-
   return (
     <ContextMenuContent className="min-w-[160px] rounded-none">
-      <ContextMenuItem onSelect={onToggleReadStatus} className="rounded-none">
-        {hasUnread ? (
-          <>
-            <MailOpen size={14} />
-            Mark as Read
-          </>
-        ) : (
-          <>
-            <Mail size={14} />
-            Mark as Unread
-          </>
-        )}
+      {!isCompleted && (
+        <ContextMenuItem onSelect={onToggleReadStatus} className="rounded-none">
+          {hasUnread ? (
+            <>
+              <MailOpen size={14} />
+              Mark as Read
+            </>
+          ) : (
+            <>
+              <Mail size={14} />
+              Mark as Unread
+            </>
+          )}
+        </ContextMenuItem>
+      )}
+      <ContextMenuItem
+        onSelect={onExport}
+        disabled={exporting}
+        className="rounded-none"
+        data-testid="chatroom-action-export"
+      >
+        <Download size={14} />
+        Export chatroom
       </ContextMenuItem>
-      <ContextMenuItem onSelect={onArchive} className="rounded-none">
-        <Archive size={14} />
-        Archive Chat
-      </ContextMenuItem>
+      {!isCompleted && (
+        <ContextMenuItem onSelect={onArchive} className="rounded-none">
+          <Archive size={14} />
+          Archive Chat
+        </ContextMenuItem>
+      )}
     </ContextMenuContent>
   );
 }
@@ -158,6 +177,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   onSelect,
 }: ChatroomSidebarItemProps) {
   const displayName = getChatroomDisplayName(chatroom);
+  const exportAction = useChatroomExportAction(chatroom._id, chatroom.name ?? null);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const markAsRead = useSessionMutation(api.chatrooms.markAsRead);
   const markAsUnread = useSessionMutation(api.chatrooms.markAsUnread);
@@ -213,8 +233,10 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
         <ChatroomSidebarItemMenu
           isCompleted={isCompleted}
           hasUnread={chatroom.hasUnread}
+          exporting={exportAction.exporting}
           onToggleReadStatus={handleToggleReadStatus}
           onArchive={handleArchive}
+          onExport={exportAction.start}
         />
       </ContextMenu>
 
@@ -223,6 +245,16 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
         onDismiss={clear}
         data-testid="sidebar-feedback"
         className="mx-2 my-1"
+      />
+
+      <ExportFeedback
+        exporting={exportAction.exporting}
+        label={exportAction.label}
+        feedback={exportAction.feedback}
+        onDismiss={exportAction.dismiss}
+        onRetry={exportAction.retryable ? exportAction.start : undefined}
+        className="mx-2 my-1"
+        data-testid="chatroom-export-feedback"
       />
 
       <LifecycleConfirmDialog
@@ -362,7 +394,9 @@ function ChatroomSidebarContent({
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Chatrooms
         </div>
+        <ImportChatroomsButton variant="icon" />
       </div>
+      <InterruptedImportNotice />
       <div className="flex-1 overflow-y-auto">
         <ActiveChatroomSection
           chatrooms={activeChatrooms}

@@ -18,6 +18,10 @@ const MACHINE_ERROR_COPY: Record<string, string> = {
   PROJECT_ROOT_DUPLICATE: 'That folder is already a project root.',
   PROJECT_ROOT_NESTED: 'That folder is already inside an existing project root.',
   PROJECT_ROOT_LIMIT_REACHED: `A machine can have up to ${MAX_PROJECT_ROOTS} project roots. Remove one to add another.`,
+  BACKUP_NOT_FOUND: 'This backup is no longer available. Refresh the list.',
+  BACKUP_INVALID_FILENAME: 'That is not a backup file name.',
+  BACKUP_REQUEST_ACTIVE: 'Another backup download is already in progress on this machine.',
+  BACKUP_TOO_LARGE: 'This backup is larger than the 256 MB download limit.',
 };
 
 /** The ConvexError payload (`error.data`) when present; duck-typed so no `instanceof` is needed. */

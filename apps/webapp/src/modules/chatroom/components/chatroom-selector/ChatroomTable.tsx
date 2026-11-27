@@ -3,9 +3,9 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { CheckCircle, MoreVertical } from 'lucide-react';
 import React, { memo, useCallback, useMemo, useState } from 'react';
 
+import { ChatroomActionsMenu } from './ChatroomActionsMenu';
 import { ChatroomFavoriteButton } from './ChatroomFavoriteButton';
 import { isChatroomShownInTab, type TabType } from './chatroomSelectorModel';
 import { ChatroomStatusIndicator } from './ChatroomStatusIndicator';
@@ -13,13 +13,9 @@ import type { ChatroomWithStatus } from '../../context/ChatroomListingContext';
 import { getChatroomDisplayName, isChatroomCompleted } from '../../viewModels/chatroomViewModel';
 import { LifecycleConfirmDialog } from '../LifecycleConfirmDialog';
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import type { ChatroomStatus } from '@/domain/entities/chatroom-status';
+import { ExportFeedback } from '@/modules/chatroom/features/transfer/components/ExportFeedback';
+import { useChatroomExportAction } from '@/modules/chatroom/features/transfer/hooks/useChatroomExportAction';
 
 /** Stops clicks inside a row cell from also selecting the row. */
 function StopClickPropagation({
@@ -44,26 +40,6 @@ function StopClickPropagation({
   );
 }
 
-function ChatroomTableActions({ onArchive }: { onArchive: (e: React.MouseEvent) => void }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        type="button"
-        className="w-7 h-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-tertiary transition-all duration-100"
-        aria-label="Chatroom actions"
-      >
-        <MoreVertical size={14} />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-[140px]">
-        <DropdownMenuItem onClick={onArchive}>
-          <CheckCircle size={14} className="mr-2" />
-          Archive Chat
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
 interface ChatroomTableRowProps {
   chatroom: ChatroomWithStatus;
   status: ChatroomStatus | undefined;
@@ -72,6 +48,7 @@ interface ChatroomTableRowProps {
   onArchive: (e: React.MouseEvent, chatroomId: string) => void;
 }
 
+// fallow-ignore-next-line complexity
 function ChatroomTableRow({
   chatroom,
   status,
@@ -80,42 +57,64 @@ function ChatroomTableRow({
   onArchive,
 }: ChatroomTableRowProps) {
   const canArchive = !isChatroomCompleted(chatroom, status?.state);
+  const exportAction = useChatroomExportAction(chatroom._id, chatroom.name ?? null);
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      className="grid grid-cols-[32px_1fr_auto_40px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full cursor-pointer"
-      onClick={() => onSelect(chatroom._id)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onSelect(chatroom._id);
-        }
-      }}
-    >
-      {/* Favorite Star */}
-      <StopClickPropagation className="flex items-center justify-center">
-        <ChatroomFavoriteButton
-          isFavorite={chatroom.isFavorite}
-          onClick={(e) => onToggleFavorite(e, chatroom._id)}
-        />
-      </StopClickPropagation>
-      {/* Name */}
-      <div className="flex items-center min-w-0">
-        <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary truncate">
-          {getChatroomDisplayName(chatroom)}
-        </span>
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        className="grid grid-cols-[32px_1fr_auto_40px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full cursor-pointer"
+        onClick={() => onSelect(chatroom._id)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onSelect(chatroom._id);
+          }
+        }}
+      >
+        {/* Favorite Star */}
+        <StopClickPropagation className="flex items-center justify-center">
+          <ChatroomFavoriteButton
+            isFavorite={chatroom.isFavorite}
+            onClick={(e) => onToggleFavorite(e, chatroom._id)}
+          />
+        </StopClickPropagation>
+        {/* Name */}
+        <div className="flex items-center min-w-0">
+          <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary truncate">
+            {getChatroomDisplayName(chatroom)}
+          </span>
+        </div>
+        {/* Status */}
+        <div className="flex items-center min-w-[120px]">
+          <ChatroomStatusIndicator activityStatus={status?.activityStatus} />
+        </div>
+        {/* Actions */}
+        <StopClickPropagation className="flex items-center justify-center">
+          <ChatroomActionsMenu
+            canArchive={canArchive}
+            exporting={exportAction.exporting}
+            triggerHoverClassName="hover:bg-chatroom-bg-tertiary"
+            onExport={exportAction.start}
+            onArchive={(e) => onArchive(e, chatroom._id)}
+          />
+        </StopClickPropagation>
       </div>
-      {/* Status */}
-      <div className="flex items-center min-w-[120px]">
-        <ChatroomStatusIndicator activityStatus={status?.activityStatus} />
-      </div>
-      {/* Actions */}
-      <StopClickPropagation className="flex items-center justify-center">
-        {canArchive && <ChatroomTableActions onArchive={(e) => onArchive(e, chatroom._id)} />}
-      </StopClickPropagation>
-    </div>
+
+      {(exportAction.exporting || exportAction.feedback !== null) && (
+        <div className="border-b border-chatroom-border px-4 pb-3">
+          <ExportFeedback
+            exporting={exportAction.exporting}
+            label={exportAction.label}
+            feedback={exportAction.feedback}
+            onDismiss={exportAction.dismiss}
+            onRetry={exportAction.retryable ? exportAction.start : undefined}
+            data-testid="chatroom-export-feedback"
+          />
+        </div>
+      )}
+    </>
   );
 }
 

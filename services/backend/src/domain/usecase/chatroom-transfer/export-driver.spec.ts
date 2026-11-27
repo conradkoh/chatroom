@@ -245,37 +245,70 @@ function withoutExportedAt(json: string): Record<string, unknown> {
 }
 
 // ---------------------------------------------------------------------------
-// Refusal and zero writes
+// Attachment omission and zero writes
 // ---------------------------------------------------------------------------
 
+async function insertAttachment(
+  chatroomId: Id<'chatroom_rooms'>,
+  userId: Id<'users'>,
+  sizeBytes = 5
+): Promise<Id<'chatroom_fileAttachments'>> {
+  return await t.run(async (ctx) =>
+    ctx.db.insert('chatroom_fileAttachments', {
+      chatroomId,
+      ownerUserId: userId,
+      uploadedByRole: 'builder',
+      filename: 'notes.txt',
+      mimeType: 'text/plain',
+      sizeBytes,
+      status: 'attached',
+      createdAt: Date.now(),
+    })
+  );
+}
+
 describe('attachments', () => {
-  test('refuses before reading any page', async () => {
+  test('omits attachments from the file instead of refusing', async () => {
     const { chatroomId, port, userId } = await createChatroom();
+    const attachmentId = await insertAttachment(chatroomId, userId);
     await t.run(async (ctx) => {
-      await ctx.db.insert('chatroom_fileAttachments', {
+      await ctx.db.insert('chatroom_messages', {
         chatroomId,
-        ownerUserId: userId,
-        uploadedByRole: 'builder',
-        filename: 'notes.txt',
-        mimeType: 'text/plain',
-        sizeBytes: 5,
-        status: 'attached',
-        createdAt: Date.now(),
+        senderRole: 'user',
+        content: 'see the file',
+        type: 'message',
+        attachedFileIds: [attachmentId],
       });
     });
 
-    let pageReads = 0;
-    const counting: ChatroomExportPort = {
-      getStamp: (id) => port.getStamp(id),
-      readPage: async (args) => {
-        pageReads += 1;
-        return port.readPage(args);
+    const { file } = await runExport(port, exportArgs(chatroomId));
+
+    expect(file.omitted.chatroom_fileAttachments).toEqual({
+      count: 1,
+      reason: 'Binary attachments are not carried; the file records how many were left out.',
+      bytes: 5,
+    });
+    expect(file.messages).toHaveLength(1);
+    expect(file.messages[0]).not.toHaveProperty('attachedFileIds');
+    expect(file).not.toHaveProperty('chatroom_fileAttachments');
+  });
+
+  test('fails with EXPORT_CHATROOM_CHANGED when an attachment is added between stamp reads', async () => {
+    const { chatroomId, port, userId } = await createChatroom();
+
+    let stampReads = 0;
+    const wrapping: ChatroomExportPort = {
+      getStamp: async (id) => {
+        const stamp = await port.getStamp(id);
+        stampReads += 1;
+        if (stampReads === 1) await insertAttachment(chatroomId, userId);
+        return stamp;
       },
+      readPage: (args) => port.readPage(args),
     };
 
-    const error = await failure(runExport(counting, exportArgs(chatroomId)));
-    expect(errorCode(error)).toBe('EXPORT_ATTACHMENTS_PRESENT');
-    expect(pageReads).toBe(0);
+    const error = await failure(runExport(wrapping, exportArgs(chatroomId)));
+    expect(errorCode(error)).toBe('EXPORT_CHATROOM_CHANGED');
   });
 });
 

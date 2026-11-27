@@ -81,6 +81,15 @@ export const machineCommandPayloadValidator = v.union(
     type: v.literal('daemon.reportRepositoryLedger'),
     requestId: v.id('chatroom_repositoryLedgerRequests'),
     rescan: v.boolean(),
+  }),
+  v.object({
+    type: v.literal('daemon.reportMachineBackups'),
+    requestId: v.id('chatroom_machineBackupRequests'),
+  }),
+  v.object({
+    type: v.literal('daemon.uploadMachineBackup'),
+    requestId: v.id('chatroom_machineBackupRequests'),
+    filename: v.string(),
   })
 );
 export type MachineCommandPayload = typeof machineCommandPayloadValidator.type;
@@ -98,4 +107,7 @@ export const MACHINE_COMMAND_TTL_MS: Record<MachineCommandType, number> = {
   'daemon.gitClone': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
   'daemon.syncProjectRoots': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
   'daemon.reportRepositoryLedger': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
+  // Delivery window only; the upload runtime is bounded by the request row's preparing timeout.
+  'daemon.reportMachineBackups': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
+  'daemon.uploadMachineBackup': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
 };

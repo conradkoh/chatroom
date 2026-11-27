@@ -47,6 +47,8 @@ const EVENT_TYPE_ROWS: Record<string, readonly [string, EventClassification]> = 
   'daemon.localAction': ['Local Action', 'muted'],
   'daemon.syncProjectRoots': ['Project Roots Sync', 'muted'],
   'daemon.reportRepositoryLedger': ['Repository Ledger Report', 'muted'],
+  'daemon.reportMachineBackups': ['Machine Backups Report', 'muted'],
+  'daemon.uploadMachineBackup': ['Machine Backup Upload', 'muted'],
   'config.requestRemoval': ['Config Request Removal', 'warning'],
   'command.run': ['Command Run', 'warning'],
   'command.stop': ['Command Stop', 'error'],

@@ -3,7 +3,7 @@
  *
  * Pure fixtures over raw rows (the shape `readExportPage` returns): no database,
  * no Convex imports. These specs pin the key assignment, ref rewriting, filters,
- * refusal behaviour, renames, output-field whitelist, checksum and omitted
+ * attachment omission, renames, output-field whitelist, checksum and omitted
  * manifest. Paging, consistency and auth are covered by the driver and Convex
  * specs.
  */
@@ -46,7 +46,7 @@ function emptyStamp(): ExportStamp {
     latestMessage: null,
     taskCounts: null,
     latest: {},
-    attachmentRows: { count: 0, capped: false },
+    attachmentRows: { count: 0, capped: false, totalBytes: 0 },
   };
 }
 
@@ -274,9 +274,11 @@ describe('filters and counted omissions', () => {
       'launchRequestsOtherTeam',
       'launchRequestsSuperseded',
       'attachedWorkflows',
+      'chatroom_fileAttachments',
     ]) {
       expect(file.omitted[key].count, `${key} count`).toBe(0);
     }
+    expect(file.omitted.chatroom_fileAttachments.bytes).toBe(0);
     expect(file.omitted.chatroom_integrations.count).toBeNull();
     expect(file.omitted.chatroom_integrations.reason).toBe(
       omittedManifest().chatroom_integrations.reason
@@ -288,29 +290,44 @@ describe('filters and counted omissions', () => {
 // Attachments
 // ---------------------------------------------------------------------------
 
-describe('attachment refusal', () => {
-  test('refuses when the stamp reports attachment rows and names the count', async () => {
-    const error = await capture(
-      build(
-        { room: [roomRow()] },
-        { stamp: { ...emptyStamp(), attachmentRows: { count: 3, capped: false } } }
-      )
+describe('attachment omission', () => {
+  test('records the attachment count, reason and bytes instead of refusing', async () => {
+    const file = await build(
+      {
+        room: [roomRow()],
+        messages: [message('message-1', 10, { attachedFileIds: ['file-1', 'file-2'] })],
+      },
+      {
+        stamp: {
+          ...emptyStamp(),
+          attachmentRows: { count: 3, capped: false, totalBytes: 4096 },
+        },
+      }
     );
 
-    expect(error.code).toBe('EXPORT_ATTACHMENTS_PRESENT');
-    expect(error.message).toContain('3 file attachment');
+    expect(file.omitted.chatroom_fileAttachments).toEqual({
+      count: 3,
+      reason: 'Binary attachments are not carried; the file records how many were left out.',
+      bytes: 4096,
+    });
+    expect(file.messages[0]).not.toHaveProperty('attachedFileIds');
   });
 
-  test('refuses when a message references an attachment and names the message count', async () => {
-    const error = await capture(
-      build({
-        room: [roomRow()],
-        messages: [message('message-1', 10, { attachedFileIds: ['file-1'] })],
-      })
+  test('marks a capped attachment count as at least this many', async () => {
+    const file = await build(
+      { room: [roomRow()] },
+      {
+        stamp: {
+          ...emptyStamp(),
+          attachmentRows: { count: 1001, capped: true, totalBytes: 0 },
+        },
+      }
     );
 
-    expect(error.code).toBe('EXPORT_ATTACHMENTS_PRESENT');
-    expect(error.message).toContain('1 message');
+    expect(file.omitted.chatroom_fileAttachments.count).toBe(1001);
+    expect(file.omitted.chatroom_fileAttachments.reason).toBe(
+      'Binary attachments are not carried; the file records how many were left out. (at least this many)'
+    );
   });
 });
 

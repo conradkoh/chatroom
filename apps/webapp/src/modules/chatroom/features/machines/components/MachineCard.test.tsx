@@ -5,6 +5,7 @@ import { getFunctionName } from 'convex/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MachineList } from './MachineList';
+import { MACHINE_EMPTY_COPY } from '../../transfer/lib/transferCopy';
 import type { MachineRowModel } from '../hooks/useMachineRows';
 
 import type { MachineUsage } from '@/hooks/useMachineUsage';
@@ -21,10 +22,17 @@ const mocks = vi.hoisted(() => ({
   requestPicker: vi.fn(),
   ledgerRequest: vi.fn(),
   ledgerDiscard: vi.fn(),
+  backupInventoryRequest: vi.fn(),
   createMany: vi.fn(),
+  query: vi.fn(),
+}));
+
+vi.mock('convex/react', () => ({
+  useConvex: () => ({ query: mocks.query }),
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionId: () => ['session-1'],
   useSessionQuery: (query: unknown, args?: { machineId?: string } | 'skip') => {
     const name = getFunctionName(query as FunctionReference<'query'>);
     if (name === 'machines:getMachineCapabilities') {
@@ -35,6 +43,8 @@ vi.mock('convex-helpers/react/sessions', () => ({
     if (name === 'repositoryLedger:get' || name === 'repositoryLedger:listEntries') {
       return undefined;
     }
+    if (name === 'machineBackups:getRequest') return undefined;
+    if (name === 'machineBackups:getActiveDownload') return null;
     throw new Error(`Unexpected query: ${name}`);
   },
   useSessionMutation: (mutation: unknown) => {
@@ -46,6 +56,11 @@ vi.mock('convex-helpers/react/sessions', () => ({
     if (name === 'folderPickerRequests:request') return mocks.requestPicker;
     if (name === 'repositoryLedger:request') return mocks.ledgerRequest;
     if (name === 'repositoryLedger:discard') return mocks.ledgerDiscard;
+    if (name.startsWith('machineBackups:')) {
+      return name === 'machineBackups:createInventoryRequest'
+        ? mocks.backupInventoryRequest
+        : vi.fn();
+    }
     if (name === 'chatrooms:createManyWithWorkspace') return mocks.createMany;
     throw new Error(`Unexpected mutation: ${name}`);
   },
@@ -107,7 +122,14 @@ describe('MachineList / MachineCard', () => {
     mocks.requestPicker.mockReset();
     mocks.ledgerRequest.mockReset();
     mocks.ledgerDiscard.mockReset();
+    mocks.backupInventoryRequest.mockReset();
+    mocks.backupInventoryRequest.mockResolvedValue({ requestId: 'backup-req-1', reused: false });
     mocks.createMany.mockReset();
+    mocks.query.mockReset();
+    mocks.query.mockImplementation(async (ref: { name?: string }) => {
+      if (ref.name === 'listForMachine') return [];
+      throw new Error(`Unexpected query: ${ref.name}`);
+    });
   });
 
   it('shows Online for a connected machine', () => {
@@ -262,5 +284,52 @@ describe('MachineList / MachineCard', () => {
     rerender(<MachineList rows={[row]} expandedMachineId={null} onToggle={() => {}} />);
 
     expect(screen.queryByTestId('machine-repositories-section')).toBeNull();
+  });
+
+  it('renders no export notice until an export starts', () => {
+    renderRow(makeRow({ connected: true }));
+
+    expect(screen.queryByTestId('machine-export-notice')).toBeNull();
+  });
+
+  it('mounts the Backups section only while expanded and sends nothing until Check backups', async () => {
+    const row = makeRow({ connected: true });
+    const { rerender } = renderRow(row);
+
+    expect(screen.queryByTestId('machine-backups-section')).toBeNull();
+
+    rerender(<MachineList rows={[row]} expandedMachineId="machine-1" onToggle={() => {}} />);
+
+    const section = screen.getByTestId('machine-backups-section');
+    expect(within(section).getByTestId('machine-backups')).toBeInTheDocument();
+    expect(mocks.backupInventoryRequest).not.toHaveBeenCalled();
+    expect(section.contains(screen.getByTestId('backups-check'))).toBe(true);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('backups-check'));
+
+    await waitFor(() =>
+      expect(mocks.backupInventoryRequest).toHaveBeenCalledWith({ machineId: 'machine-1' })
+    );
+    expect(mocks.backupInventoryRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts the listing phase from the Export chatrooms action, even while offline', async () => {
+    let releaseList: (rows: unknown[]) => void = () => {};
+    const listGate = new Promise<unknown[]>((resolve) => {
+      releaseList = resolve;
+    });
+    mocks.query.mockReturnValueOnce(listGate);
+
+    renderRow(makeRow({ connected: false, usage: USAGE }));
+    const user = await openActions();
+    await user.click(screen.getByTestId('machine-action-export'));
+
+    expect(await screen.findByText('Finding chatrooms on this machine…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+
+    releaseList([]);
+
+    expect(await screen.findByText(MACHINE_EMPTY_COPY)).toBeInTheDocument();
   });
 });

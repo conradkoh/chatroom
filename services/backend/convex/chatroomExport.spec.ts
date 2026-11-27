@@ -125,7 +125,7 @@ describe('chatroomExport reads', () => {
 
     const stamp = await t.query(api.chatroomExport.getStamp, { sessionId, chatroomId });
 
-    expect(stamp.attachmentRows).toEqual({ count: 0, capped: false });
+    expect(stamp.attachmentRows).toEqual({ count: 0, capped: false, totalBytes: 0 });
     expect(stamp.latestMessage).toBeNull();
     expect(stamp.lastActivityAt).toBeNull();
     expect(stamp.nextQueuePosition).toBeNull();

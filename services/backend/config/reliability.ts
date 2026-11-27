@@ -66,6 +66,17 @@ export const MACHINE_COMMAND_LOCAL_ACTION_TTL_MS = 60_000;
 /** Terminal ledger snapshot retention: a completed or failed request and its chunks expire this long after completion. */
 export const REPOSITORY_LEDGER_SNAPSHOT_TTL_MS = 10 * 60_000;
 
+// ─── Machine Backups ─────────────────────────────────────────────────────────
+
+/** A ready copy (and a downloading one, from its last download start) is deleted this long after it was made available. */
+export const MACHINE_BACKUP_READY_TTL_MS = 60 * 60_000;
+/** A preparing upload that has not reported within this window is failed by the cron. */
+export const MACHINE_BACKUP_PREPARE_TIMEOUT_MS = 10 * 60_000;
+/** A completed inventory snapshot is deleted this long after the report. */
+export const MACHINE_BACKUP_INVENTORY_TTL_MS = 10 * 60_000;
+/** Terminal download rows stay this long so the UI can show the final state. */
+export const MACHINE_BACKUP_TERMINAL_RETENTION_MS = 10 * 60_000;
+
 // ─── Observed Chatroom Sync ───────────────────────────────────────────────────
 
 /** How long a chatroom remains marked as "observed" before TTL expires (ms).

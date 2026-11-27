@@ -25,6 +25,31 @@ The git clone flow is the reference case:
 - `reportProgress` and `reportResult` in the same module are the daemon's reports.
 - `get` is the only read. It takes a request id and returns the row.
 
+## Machine backup download: the blob-owning variant
+
+The backup download is the second reference case, and the one where a request row owns a stored
+blob.
+
+- `createInventoryRequest` / `createDownloadRequest` in
+  `services/backend/convex/machineBackups.ts` insert a `chatroom_machineBackupRequests` row and
+  enqueue `daemon.reportMachineBackups` or `daemon.uploadMachineBackup`.
+- The daemon answers an inventory request with `reportInventory` and an upload request with
+  `createUploadUrl`, a direct `POST`, then `reportUploaded` (or `reportFailed`).
+  `createUploadUrl` moves the row to `preparing` and counts attempts; `reportUploaded` moves it to
+  `ready`, records `sha256` and the `storageId`, and sets the 1-hour expiry.
+- The browser mints a URL with `createDownloadAccess` (a mutation; moves ready → downloading and
+  restarts the 1-hour window), streams the bytes, and calls `writeDownloadConfirmation` with the
+  received byte count. The confirmation deletes the blob and moves the row to `downloaded`. Cancel
+  and expiry delete the blob too.
+- Reads stay by id (`getRequest`), plus one machine-wide `getActiveDownload` so another tab sees
+  an active copy. `storageId`, `sha256` and URLs are never returned by a query.
+- Late and duplicate reports are ignored, terminal rows are immutable, and every mutation after a
+  terminal state returns an "ignored" result instead of throwing.
+- Failure modes: `daemon_timeout` when the daemon never answers within the command window,
+  `too_large` / `size_mismatch` / `checksum_mismatch` from the upload path, and `file_missing` /
+  `not_a_file` / `file_changed` from inventory and re-stat. The UI derives retryability from the
+  code.
+
 ## Invariants
 
 - **Monotonic states.** The lifecycle is `pending` → `cloning` → `completed` or `failed`, and

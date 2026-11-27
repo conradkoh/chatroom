@@ -19,6 +19,45 @@ status: stable
 - A daemon that is still running but was marked offline by a stale heartbeat can re-register as a new machine after a purge completes, so a "deleted" machine can reappear until the daemon is stopped.
 - Purge runs in budgeted batches through `machineDeletion.purgeBatch`; an empty verification pass marks the tombstone `completed`. `machineDeletion.sweepMachineDeletions` (every 5 minutes) restarts dead chains, fails them after `MACHINE_PURGE_MAX_RESTARTS` (10), and prunes completed tombstones after `MACHINE_DELETION_RETENTION_MS` (7 days). Failed tombstones are kept.
 
+## Machine backup requests
+
+- Backups are listed and downloaded on demand from a machine's daemon; nothing is uploaded
+  proactively and no scheduled backup creation exists. The daemon reads
+  `services/backend/.convex/user-backups` and serves only files named
+  `backup-YYYYMMDD-HHMMSS.zip` (`BACKUP_FILENAME_PATTERN` in
+  `packages/shared/src/domain/machine-backup.ts`).
+- One machine-keyed table, `chatroom_machineBackupRequests` (`services/backend/convex/schema.ts`),
+  carries both kinds:
+  - `inventory`: a transient snapshot of the daemon's directory, stored inline on the row
+    (`backups`, `totalCount`, `totalBytes`, `newestAt`, `truncated`, `inventoryDir`,
+    `stackFound`); it owns no blob.
+  - `download`: a request that owns at most one `_storage` blob. The row is
+    `requested → preparing → ready → downloading → downloaded`, with `failed` (before ready),
+    `cancelled` (user) and `expired` (ready/downloading past expiry) side exits.
+    `services/backend/src/domain/usecase/machine-backup/lifecycle.ts` is the only place that
+    computes `expiresAt`.
+- The stored copy is ephemeral. It is deleted when the browser confirms receipt
+  (`writeDownloadConfirmation`), on cancel, when it expires (1 hour after ready or after the last
+  download start), and when the machine is deleted. Terminal rows are retained for 10 minutes so
+  the UI can read the final state, then the cron deletes them and any leftover blob.
+  - Residual limit: an upload the daemon never reported leaves an unreferenced blob (the row has
+    no `storageId`); no `_storage` sweep runs, so only a later report for that request can delete
+    it through the orphan guard.
+- Access is owner-only through `requireMachineOwner`/session checks. No query returns `storageId`,
+  `sha256` or a URL. `createDownloadAccess` (a mutation) mints a fresh URL for one attempt; the URL
+  is never stored. The webapp warns that the archive contains the whole local Convex deployment,
+  including bot tokens and session data.
+- `MACHINE_SCOPED_TABLES` registers `chatroom_machineBackupRequests` with a `deleteRow` descriptor
+  that deletes the blob before the row, so a machine delete cannot leave a stored copy. The table
+  is **not** in `CHATROOM_SCOPED_TABLES`: it is machine-keyed and carries no chatroom content.
+- One cron, `machineBackups.cleanupExpiredBackupRequests` (every minute, batch 50,
+  self-rescheduling), expires or deletes rows past `expiresAt`. See
+  [cleanup policies](../../docs/cleanup-policies.md).
+- UI: the Machines tab's expanded card mounts the Backups section
+  (`apps/webapp/src/modules/chatroom/features/machines/`) only while expanded; the first request
+  happens on "Check backups", never on mount. The local dashboard's Backups panel is a separate,
+  existing surface and is unchanged (D12 explains why the counts can differ).
+
 ## Registry rule
 
 - A new machine-keyed table must be added to `MACHINE_SCOPED_TABLES` (or `MACHINE_SCOPED_EXEMPTIONS` with a reason); the coverage spec fails otherwise.

@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionId: () => ['session-1'],
   useSessionQuery: (query: unknown, args?: { machineId?: string } | 'skip') => {
     if (mocks.shouldThrow) throw new Error('[CONVEX Q(machines:getUserMachines)] boom');
     const name = getFunctionName(query as FunctionReference<'query'>);
@@ -57,6 +58,10 @@ vi.mock('convex-helpers/react/sessions', () => ({
         return undefined;
       case 'repositoryLedger:get':
         return undefined;
+      case 'machineBackups:getRequest':
+        return undefined;
+      case 'machineBackups:getActiveDownload':
+        return null;
       default:
         throw new Error(`Unexpected query: ${name}`);
     }
@@ -70,6 +75,15 @@ vi.mock('convex-helpers/react/sessions', () => ({
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/app/machines',
+}));
+
+vi.mock('convex/react', () => ({
+  useConvex: () => ({
+    query: async (ref: { name?: string }) => {
+      if (ref.name === 'listForMachine') return [];
+      throw new Error(`Unexpected convex.query: ${ref.name}`);
+    },
+  }),
 }));
 
 vi.mock('next/link', () => ({

@@ -12,14 +12,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { ChatroomTransferError } from '@workspace/backend/src/domain/entities/chatroom-transfer-file';
+import {
+  bundleFileName,
+  exportFileName,
+} from '@workspace/backend/src/domain/entities/chatroom-transfer-file-name';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { ChatroomTransferFs } from './deps.js';
-import {
-  createNodeChatroomTransferFs,
-  exportFileName,
-  writeExportFileAtomically,
-} from './file-io.js';
+import { createNodeChatroomTransferFs, writeExportFileAtomically } from './file-io.js';
 
 const DIR = '/work/out';
 const NAME = 'chatroom-abc-20261125T130405Z.json';
@@ -104,6 +104,20 @@ describe('exportFileName', () => {
   it('formats the UTC timestamp without colons', () => {
     expect(exportFileName('abc', new Date('2026-11-25T13:04:05Z'))).toBe(
       'chatroom-abc-20261125T130405Z.json'
+    );
+  });
+});
+
+describe('bundleFileName', () => {
+  it('names the one-file bundle after the machine and the UTC instant', () => {
+    expect(bundleFileName('m1', new Date('2026-03-01T14:15:02Z'))).toBe(
+      'chatroom-all-m1-20260301T141502Z.json'
+    );
+  });
+
+  it('sanitises a machine id for the file name', () => {
+    expect(bundleFileName('a b/c', new Date('2026-03-01T14:15:02Z'))).toBe(
+      'chatroom-all-a_b_c-20260301T141502Z.json'
     );
   });
 });

@@ -19,9 +19,12 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
-import { exportPortFor, importPortFor } from './convex-test-ports';
+import { chatroomRowCounts, exportPortFor, importPortFor } from './convex-test-ports';
+import { runExportBundle } from './export-bundle';
 import { runExport } from './export-driver';
 import { runImport } from './import-driver';
+import { parseTransferFile, selectEntries } from './import-listing';
+import { runSelectedImports } from './import-selection-driver';
 import { CHATROOM_SCOPED_TABLES, omittedManifest } from './registry';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
@@ -984,6 +987,72 @@ describe('full chatroom round trip', () => {
     expect(firstMessageCount).toBe(a.file.messages.length);
   });
 });
+
+describe('bundle round trip', () => {
+  test('importing one entry restores it and leaves the other chatroom untouched', async () => {
+    const fixture = await source();
+    const a = await exportRoom(fixture.sessionId, fixture.chatroomId);
+    const otherId = await createSecondChatroom(fixture.sessionId);
+    const otherBefore = await chatroomRowCounts(otherId as Id<'chatroom_rooms'>);
+
+    const bundle = await runExportBundle(exportPortFor(t, fixture.sessionId), {
+      chatroomIds: [fixture.chatroomId, otherId],
+      machineId: fixture.targetMachineId,
+      cliVersion: 'test',
+      now: () => new Date(EXPORTED_AT),
+    });
+
+    const parsed = await parseTransferFile(bundle.json);
+    if (!parsed.ok) throw new Error(`expected a listing, got ${parsed.code}`);
+    expect(parsed.listing.entries.map((entry) => entry.key)).toEqual([
+      String(fixture.chatroomId),
+      String(otherId),
+    ]);
+
+    const selection = selectEntries(parsed.listing, [String(fixture.chatroomId)]);
+    expect(selection).toEqual({ ok: true, keys: [String(fixture.chatroomId)] });
+    if (!selection.ok) return;
+
+    const summary = await runSelectedImports(importPortFor(t, fixture.sessionId), {
+      listing: parsed.listing,
+      keys: selection.keys,
+      machineId: fixture.targetMachineId,
+      dryRun: false,
+    });
+
+    expect(summary.imported).toBe(1);
+    expect(summary.failed).toBe(0);
+    const imported = summary.results[0];
+    if (imported?.status !== 'imported') throw new Error(`got ${imported?.status}`);
+
+    const b = await exportRoom(fixture.sessionId, imported.chatroomId as Id<'chatroom_rooms'>);
+    expect(
+      diffCanonical(
+        withoutCreationTimes(contentOf(a.file)),
+        withoutCreationTimes(contentOf(b.file))
+      )
+    ).toEqual(EXPECTED_ROUND_TRIP_DIFFS);
+    expect(await chatroomRowCounts(otherId as Id<'chatroom_rooms'>)).toEqual(otherBefore);
+  });
+});
+
+/** A second, minimal chatroom so the bundle holds more than the selected payload. */
+async function createSecondChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+  const chatroomId = await t.mutation(api.chatrooms.create, {
+    sessionId,
+    teamStructureId: 'trio@1',
+  });
+  await t.run(async (ctx) => {
+    await ctx.db.patch('chatroom_rooms', chatroomId, { name: 'Bundle second room' });
+    await ctx.db.insert('chatroom_messages', {
+      chatroomId,
+      senderRole: 'user',
+      content: 'second room message',
+      type: 'message',
+    });
+  });
+  return chatroomId;
+}
 
 /**
  * Exported fields the source fixture cannot populate, each with its reason.

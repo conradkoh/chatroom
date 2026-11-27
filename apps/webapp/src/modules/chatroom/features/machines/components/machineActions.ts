@@ -1,8 +1,8 @@
-import { Pencil, Trash2, type LucideIcon } from 'lucide-react';
+import { Download, Pencil, Trash2, type LucideIcon } from 'lucide-react';
 
 export interface MachineAction {
   /** Extend this union to add e.g. 'update-daemon' later. */
-  id: 'rename' | 'delete';
+  id: 'rename' | 'export' | 'delete';
   label: string;
   icon: LucideIcon;
   destructive?: boolean;
@@ -12,10 +12,12 @@ export interface MachineAction {
 /** Ordered action list for a machine card. Destructive actions render after a separator. */
 export function buildMachineActions(handlers: {
   onRename(): void;
+  onExport(): void;
   onDelete(): void;
 }): MachineAction[] {
   return [
     { id: 'rename', label: 'Rename', icon: Pencil, onSelect: handlers.onRename },
+    { id: 'export', label: 'Export chatrooms', icon: Download, onSelect: handlers.onExport },
     {
       id: 'delete',
       label: 'Delete machine…',

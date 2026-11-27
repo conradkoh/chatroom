@@ -7,9 +7,10 @@ import { MachineActionsMenu } from './MachineActionsMenu';
 
 function renderMenu() {
   const onRename = vi.fn();
+  const onExport = vi.fn();
   const onDelete = vi.fn();
-  render(<MachineActionsMenu actions={buildMachineActions({ onRename, onDelete })} />);
-  return { onRename, onDelete };
+  render(<MachineActionsMenu actions={buildMachineActions({ onRename, onExport, onDelete })} />);
+  return { onRename, onExport, onDelete };
 }
 
 async function openMenu() {
@@ -20,13 +21,18 @@ async function openMenu() {
 }
 
 describe('MachineActionsMenu', () => {
-  it('opens from the "Machine actions" trigger and lists rename then delete', async () => {
+  it('opens from the "Machine actions" trigger and lists rename, export then delete', async () => {
     renderMenu();
     await openMenu();
 
     const items = screen.getAllByRole('menuitem');
-    expect(items.map((item) => item.textContent)).toEqual(['Rename', 'Delete machine…']);
+    expect(items.map((item) => item.textContent)).toEqual([
+      'Rename',
+      'Export chatrooms',
+      'Delete machine…',
+    ]);
     expect(items.every((item) => !(item as HTMLButtonElement).disabled)).toBe(true);
+    expect(screen.getByTestId('machine-action-export').textContent).toBe('Export chatrooms');
   });
 
   it('separates the destructive action from the safe ones', async () => {
@@ -38,7 +44,7 @@ describe('MachineActionsMenu', () => {
     const separatorIndex = children.findIndex(
       (child) => child.getAttribute('data-slot') === 'dropdown-menu-separator'
     );
-    expect(separatorIndex).toBe(1);
+    expect(separatorIndex).toBe(2);
 
     const destructive = screen.getByTestId('machine-action-delete');
     expect(destructive.className).toContain('text-chatroom-status-error');
@@ -48,22 +54,35 @@ describe('MachineActionsMenu', () => {
   });
 
   it('calls the rename handler from its item', async () => {
-    const { onRename, onDelete } = renderMenu();
+    const { onRename, onExport, onDelete } = renderMenu();
     const user = await openMenu();
 
     await user.click(screen.getByTestId('machine-action-rename'));
 
     expect(onRename).toHaveBeenCalledTimes(1);
+    expect(onExport).not.toHaveBeenCalled();
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it('calls the export handler from its item', async () => {
+    const { onRename, onExport, onDelete } = renderMenu();
+    const user = await openMenu();
+
+    await user.click(screen.getByTestId('machine-action-export'));
+
+    expect(onExport).toHaveBeenCalledTimes(1);
+    expect(onRename).not.toHaveBeenCalled();
     expect(onDelete).not.toHaveBeenCalled();
   });
 
   it('calls the delete handler from its item', async () => {
-    const { onRename, onDelete } = renderMenu();
+    const { onRename, onExport, onDelete } = renderMenu();
     const user = await openMenu();
 
     await user.click(screen.getByTestId('machine-action-delete'));
 
     expect(onDelete).toHaveBeenCalledTimes(1);
     expect(onRename).not.toHaveBeenCalled();
+    expect(onExport).not.toHaveBeenCalled();
   });
 });

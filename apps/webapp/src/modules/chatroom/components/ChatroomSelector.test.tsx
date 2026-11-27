@@ -54,6 +54,7 @@ vi.mock('../hooks/useChatroomStatus', () => ({
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
+  useSessionId: () => ['session-1', () => {}],
 }));
 
 // The menu is covered by its own component; here it only needs to render its trigger.

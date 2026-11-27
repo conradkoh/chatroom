@@ -7,10 +7,13 @@ import { DeleteMachineDialog } from './DeleteMachineDialog';
 import { buildMachineActions, type MachineAction } from './machineActions';
 import { MachineActionsMenu } from './MachineActionsMenu';
 import { MachineAliasField } from './MachineAliasField';
+import { MachineBackups } from './MachineBackups';
+import { MachineExportNotice } from './MachineExportNotice';
 import { MachineHarnessChips } from './MachineHarnessChips';
 import { MachineProjectRoots } from './MachineProjectRoots';
 import { MachineRepositories } from './MachineRepositories';
 import { formatTimestampFull } from '../../../utils/chatroomTimestamp';
+import { useMachineExportAction } from '../../transfer/hooks/useMachineExportAction';
 import type { MachineRowModel } from '../hooks/useMachineRows';
 import {
   formatLastSeen,
@@ -255,6 +258,17 @@ function MachineCardBody({ row, bodyId }: { row: MachineRowModel; bodyId: string
           currentRootPaths={roots?.map((root) => root.path)}
         />
       </section>
+      <section
+        aria-label="Backups"
+        data-testid="machine-backups-section"
+        className="border-t border-chatroom-border px-4 py-4 sm:px-6"
+      >
+        <MachineBackups
+          machineId={machine.machineId}
+          displayName={row.displayName}
+          connected={row.connected}
+        />
+      </section>
     </div>
   );
 }
@@ -274,14 +288,16 @@ export function MachineCard({
   const [renameSignal, setRenameSignal] = useState(0);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const bodyId = useId();
+  const exportAction = useMachineExportAction(machine.machineId);
 
   const actions = useMemo(
     () =>
       buildMachineActions({
         onRename: () => setRenameSignal((n) => n + 1),
+        onExport: exportAction.start,
         onDelete: () => setDeleteOpen(true),
       }),
-    []
+    [exportAction.start]
   );
 
   return (
@@ -300,6 +316,7 @@ export function MachineCard({
         menuTriggerRef={menuTriggerRef}
         renameSignal={renameSignal}
       />
+      <MachineExportNotice action={exportAction} />
       {expanded && <MachineCardBody row={row} bodyId={bodyId} />}
       <DeleteMachineDialog
         open={deleteOpen}

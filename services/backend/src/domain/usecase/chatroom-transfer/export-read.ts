@@ -12,8 +12,7 @@
  * the registry cannot express:
  *
  * - `EXPORT_BUILD_INPUT_FIELDS` — fields the build needs but the file never
- *   carries (`removedAt`, `attachedFileIds`, `attachedWorkflowIds`, launch
- *   timing and team).
+ *   carries (`removedAt`, `attachedWorkflowIds`, launch timing and team).
  * - the `room` category — one composite row built from the room, its active team
  *   structure and its primary workspace pointer. Those three tables share the
  *   `room` category, so a category-to-table lookup would be ambiguous.
@@ -61,7 +60,7 @@ export interface ExportStamp {
   } | null;
   /** Every paginated category (all except `room`). */
   latest: Partial<Record<ExportCategory, { id: string; creationTime: number } | null>>;
-  attachmentRows: { count: number; capped: boolean };
+  attachmentRows: { count: number; capped: boolean; totalBytes: number };
 }
 
 /**
@@ -88,7 +87,7 @@ export interface ExportPage {
 export const EXPORT_BUILD_INPUT_FIELDS: Readonly<Record<string, readonly string[]>> = {
   chatroom_workspaces: ['removedAt'],
   chatroom_agentLastSentLaunchRequests: ['teamStructureId', 'requestedAt'],
-  chatroom_messages: ['attachedFileIds', 'attachedWorkflowIds'],
+  chatroom_messages: ['attachedWorkflowIds'],
   chatroom_messageQueue: ['attachedWorkflowIds'],
 } as const;
 
@@ -234,7 +233,10 @@ async function readTaskCounts(
   };
 }
 
-/** Bound the attachment count: 1001 rows is enough to prove "more than 1000". */
+/**
+ * Bound the attachment count: 1001 rows is enough to prove "more than 1000".
+ * `totalBytes` sums the same bounded set, so a size change is detected too.
+ */
 async function readAttachmentRows(
   ctx: QueryCtx,
   chatroomId: Id<'chatroom_rooms'>
@@ -243,7 +245,9 @@ async function readAttachmentRows(
     .query('chatroom_fileAttachments')
     .withIndex('by_chatroom_status_attachedAt', (q) => q.eq('chatroomId', chatroomId))
     .take(1001);
-  return { count: rows.length, capped: rows.length > 1000 };
+  let totalBytes = 0;
+  for (const row of rows) totalBytes += row.sizeBytes;
+  return { count: rows.length, capped: rows.length > 1000, totalBytes };
 }
 
 /**

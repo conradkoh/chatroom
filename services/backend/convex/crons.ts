@@ -114,6 +114,13 @@ crons.interval(
   internal.repositoryLedger.cleanupExpiredLedgerRequests
 );
 
+// Machine backup requests — expire stale rows and delete their ephemeral blobs (every minute)
+crons.interval(
+  'cleanup expired machine backup requests',
+  { minutes: 1 },
+  internal.machineBackups.cleanupExpiredBackupRequests
+);
+
 // Scheduled prompts — fire due prompts every minute
 crons.interval('run scheduled prompts', { minutes: 1 }, internal.scheduledPrompts.runDue);
 
