@@ -8,11 +8,13 @@
  * publish; the live-deployment run is a later phase.
  */
 
-import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { ExportCategory } from '@workspace/backend/src/domain/entities/chatroom-transfer-file';
+import { runExportBundle } from '@workspace/backend/src/domain/usecase/chatroom-transfer/export-bundle';
+import type { ChatroomExportPort } from '@workspace/backend/src/domain/usecase/chatroom-transfer/export-driver';
 import type { ExportableChatroom } from '@workspace/backend/src/domain/usecase/chatroom-transfer/export-list';
 import type {
   ExportRawRow,
@@ -32,7 +34,7 @@ const NAME = 'chatroom-abc-20261125T130405Z.json';
 const DESCRIPTION =
   'Export one chatroom (--chatroom-id) or every chatroom you own on this machine (--all) to JSON files. --all writes ONE bundle file. The files are plaintext and contain conversation content; keep them private.';
 const IMPORT_DESCRIPTION =
-  'Import an export file as a NEW chatroom owned by you. Never merges; importing twice creates two chatrooms. Starts no agents.';
+  'Import chatrooms from an export file as NEW chatrooms owned by you. Listing the file needs no login. Importing needs a login and an owned target machine. Never merges; importing twice creates two chatrooms. Starts no agents.';
 
 /** Temp directories created by the end-to-end case. */
 const tempDirs: string[] = [];
@@ -129,8 +131,28 @@ function createDeps(
     err: (line) => err.push(line),
     exit: (code) => exits.push(code),
     signals: { on: () => {}, off: () => {} },
+    prompt: { isInteractive: () => false, ask: async () => '' },
   };
   return { deps, out, err, exits, queries };
+}
+
+/** A real bundle with two chatrooms, for the offline `--list` path. */
+async function buildBundleJson(): Promise<string> {
+  const port: ChatroomExportPort = {
+    getStamp: async () => stamp(),
+    readPage: async ({ category }) => ({
+      rows: category === 'room' ? [room()] : [],
+      continueCursor: null,
+      isDone: true,
+    }),
+  };
+  const { json } = await runExportBundle(port, {
+    chatroomIds: ['room1', 'room2'],
+    machineId: 'machine-1',
+    cliVersion: 'test',
+    now: () => new Date(NOW),
+  });
+  return json;
 }
 
 interface ProgramHarness {
@@ -139,7 +161,10 @@ interface ProgramHarness {
 }
 
 /** A real program with inherited exit override and captured output. */
-function createProgram(makeDeps: () => Promise<ChatroomTransferDeps>): ProgramHarness {
+function createProgram(
+  makeDeps: () => Promise<ChatroomTransferDeps>,
+  requireAuth: () => Promise<void> = async () => undefined
+): ProgramHarness {
   const chunks: string[] = [];
   const program = new Command();
   program
@@ -150,7 +175,7 @@ function createProgram(makeDeps: () => Promise<ChatroomTransferDeps>): ProgramHa
       writeOut: (text) => chunks.push(text),
       writeErr: (text) => chunks.push(text),
     });
-  registerChatroomTransferCommands(program, async () => undefined, makeDeps);
+  registerChatroomTransferCommands(program, requireAuth, makeDeps);
   return { program, output: () => chunks.join('') };
 }
 
@@ -321,8 +346,55 @@ describe('chatroom import wiring', () => {
     expect(help).toContain('Starts no agents.');
     expect(help).toContain('--machine-id <id>');
     expect(help).toContain('--dry-run');
+    expect(help).toContain('--select');
+    expect(help).toContain('--list');
     expect(help).toContain('--path <file>');
     expect(help).not.toContain('--role');
     expect(depsBuilt).toBe(0);
+  });
+
+  it('--list through the parsed program lists without calling requireAuth', async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'chatroom-import-list-'));
+    tempDirs.push(tmpDir);
+    const filePath = join(tmpDir, 'bundle.json');
+    await writeFile(filePath, await buildBundleJson(), 'utf8');
+
+    const { deps, out, err, exits, queries } = createDeps({ cwd: tmpDir });
+    let authCalls = 0;
+    const { program } = createProgram(
+      async () => deps,
+      async () => {
+        authCalls += 1;
+      }
+    );
+
+    await program.parseAsync(['node', 'chatroom', 'import', '--path', filePath, '--list']);
+
+    expect(out).toContain(`Bundle exported ${new Date(NOW).toISOString()}: 2 chatroom(s)`);
+    expect(out).toContain('[1] Test chatroom');
+    expect(authCalls).toBe(0);
+    expect(err).toEqual([]);
+    expect(exits).toEqual([]);
+    expect(queries).toEqual([]);
+  });
+
+  it('export still calls requireAuth before doing any work', async () => {
+    const { deps } = createDeps();
+    let authCalls = 0;
+    const { program } = createProgram(
+      async () => deps,
+      async () => {
+        authCalls += 1;
+        throw new Error('auth required');
+      }
+    );
+
+    const error: unknown = await program
+      .parseAsync(['node', 'chatroom', 'export', '--chatroom-id', 'c'])
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe('auth required');
+    expect(authCalls).toBe(1);
   });
 });

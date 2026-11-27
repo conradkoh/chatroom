@@ -295,6 +295,7 @@ function createHarness(
     err: (line) => err.push(line),
     exit: (code) => exits.push(code),
     signals: { on: () => {}, off: () => {} },
+    prompt: { isInteractive: () => false, ask: async () => '' },
   };
   return { deps, out, err, exits, fs, queries: fake.queries, attempts: fake.attempts };
 }

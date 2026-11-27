@@ -43,6 +43,17 @@ export interface TransferSignals {
   off: (signal: 'SIGINT' | 'SIGTERM', handler: () => void) => void;
 }
 
+/**
+ * Terminal question port for the bundle selection prompt.
+ *
+ * Injected so a test answers deterministically and so a bundle import can prove
+ * it refuses to guess when there is no terminal.
+ */
+export interface TransferPrompt {
+  isInteractive: () => boolean;
+  ask: (question: string) => Promise<string>;
+}
+
 /** Every dependency an export or import command needs, including its output channels. */
 export interface ChatroomTransferDeps {
   backend: BackendOps;
@@ -58,4 +69,6 @@ export interface ChatroomTransferDeps {
   exit: (code: number) => void;
   /** SIGINT/SIGTERM registration for the import write phase. */
   signals: TransferSignals;
+  /** Asks the user a question on the terminal. */
+  prompt: TransferPrompt;
 }

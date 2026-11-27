@@ -12,7 +12,8 @@ import type { Command } from 'commander';
 import type { ChatroomTransferDeps } from './deps.js';
 import { exportChatroom, formatTransferError, type ExportOptions } from './export.js';
 import { createNodeChatroomTransferFs } from './file-io.js';
-import { importChatroom } from './import.js';
+import { importChatroom, type ImportOptions } from './import.js';
+import { createTerminalPrompt } from './transfer-prompt.js';
 import { createConvexCommandDeps } from '../../infrastructure/deps/create-convex-command-deps.js';
 import { getVersion } from '../../version.js';
 
@@ -42,13 +43,15 @@ async function createChatroomTransferDeps(): Promise<ChatroomTransferDeps> {
         process.off(signal, handler);
       },
     },
+    prompt: createTerminalPrompt(),
   };
 }
 
 /**
  * Registers the transfer commands on `program`.
  *
- * `requireAuth` runs before deps are built, matching the other command groups.
+ * `export` authenticates first. `import` hands `requireAuth` to the command body,
+ * which calls it only after listing and selection, so `--list` works logged out.
  * `makeDeps` is the test seam; production passes the default factory.
  */
 export function registerChatroomTransferCommands(
@@ -79,26 +82,27 @@ export function registerChatroomTransferCommands(
   program
     .command('import')
     .description(
-      'Import an export file as a NEW chatroom owned by you. Never merges; importing twice creates two chatrooms. Starts no agents.'
+      'Import chatrooms from an export file as NEW chatrooms owned by you. Listing the file needs no login. Importing needs a login and an owned target machine. Never merges; importing twice creates two chatrooms. Starts no agents.'
     )
     .option('--machine-id <id>', 'Machine to bind workspaces to (default: this machine)')
     .option('--dry-run', 'Validate and print the plan; write nothing')
+    .option(
+      '--select <all|id[,id...]>',
+      'Chatrooms to import from a bundle: all, or positions/source ids separated by commas. Without it, a terminal prompts.'
+    )
+    .option(
+      '--list',
+      'Print the chatrooms in the file and exit. Needs no login and writes nothing.'
+    )
     .requiredOption('--path <file>', 'Export file to import')
-    .action(
-      async (opts: {
-        path: string;
-        machineId?: string | undefined;
-        dryRun?: boolean | undefined;
-      }) => {
-        await requireAuth();
-        const deps = await makeDeps();
-        try {
-          await importChatroom(opts, deps);
-        } catch (error) {
-          const formatted = formatTransferError(error);
-          deps.err(`❌ [${formatted.code}] ${formatted.message}`);
-          deps.exit(1);
-        }
+    .action(async (opts: ImportOptions) => {
+      const deps = await makeDeps();
+      try {
+        await importChatroom(opts, deps, { ensureAuth: requireAuth });
+      } catch (error) {
+        const formatted = formatTransferError(error);
+        deps.err(`❌ [${formatted.code}] ${formatted.message}`);
+        deps.exit(1);
       }
-    );
+    });
 }
