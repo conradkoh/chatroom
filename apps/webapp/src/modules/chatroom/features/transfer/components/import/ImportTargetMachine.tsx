@@ -20,7 +20,14 @@ interface ImportTargetMachineProps {
   showHelp: boolean;
 }
 
-/** Persistent target strip. It is read-only: the target is the card's machine. */
+/**
+ * Persistent target strip. It is read-only: the target is the card's machine.
+ *
+ * The status dot and status text mirror `MachineStatusDot` and `statusLabel` in
+ * `apps/webapp/src/modules/chatroom/features/machines/components/MachineCard.tsx`.
+ * They stay separate on purpose: this strip's dot is `size-2`, the card's is
+ * `h-2.5 w-2.5`. When the colour or label mapping changes, change both files.
+ */
 // fallow-ignore-next-line complexity
 export function ImportTargetMachine({ target, showHelp }: ImportTargetMachineProps) {
   const { connected } = target;

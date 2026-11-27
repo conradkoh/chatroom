@@ -28,7 +28,11 @@ import { useMachineProjectRoots } from '@/hooks/useMachineProjectRoots';
 import type { MachineUsage } from '@/hooks/useMachineUsage';
 import { cn } from '@/lib/utils';
 
-/** Connectivity dot: success (online), muted (offline), pulsing (checking). */
+/**
+ * Connectivity dot: success (online), muted (offline), pulsing (checking).
+ * Mirrors the strip dot in `transfer/components/import/ImportTargetMachine.tsx`. The sizes
+ * differ on purpose, so keep only the colour mapping in step.
+ */
 function MachineStatusDot({ connected }: { connected: boolean | undefined }) {
   const color =
     connected === undefined
@@ -42,6 +46,7 @@ function MachineStatusDot({ connected }: { connected: boolean | undefined }) {
   );
 }
 
+// Mirrors the import target strip's status text in ImportTargetMachine.tsx. Change both together.
 function statusLabel(connected: boolean | undefined): string {
   if (connected === undefined) return 'Checking…';
   return connected ? 'Online' : 'Offline';

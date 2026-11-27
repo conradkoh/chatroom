@@ -34,7 +34,7 @@ interface ImportSelectStepProps {
   chooseDifferentRef: RefObject<HTMLButtonElement | null>;
 }
 
-/** The select step: one header line, the entry list, the target machine, the footer. */
+/** The select step: one header line, the entry list and the footer. */
 // fallow-ignore-next-line complexity
 export function ImportSelectStep({
   state,

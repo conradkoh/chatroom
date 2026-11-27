@@ -2,8 +2,9 @@
  * Chatroom import — the dialog's state machine.
  *
  * The file is read and validated in the browser and is never uploaded. Once a
- * selection and a target machine exist, `runSelectedImports` writes one chunk at
- * a time through `chatroomImport.*`; this hook only tracks what the dialog shows.
+ * selection exists, `runSelectedImports` writes one chunk at a time through
+ * `chatroomImport.*` into the machine the caller fixed; this hook only tracks
+ * what the dialog shows.
  *
  * Cancelling aborts the engine's signal and then waits for the run to settle, so
  * the rollback of the chatroom in progress finishes before the results appear.
@@ -98,58 +99,55 @@ export function useTransferImport(machineId: string): UseTransferImportResult {
   const abortRef = useRef<AbortController | null>(null);
   const runPromiseRef = useRef<Promise<void> | null>(null);
 
+  // prettier-ignore
   // fallow-ignore-next-line complexity
-  const loadFile = useCallback(
-    // fallow-ignore-next-line complexity
-    async (file: File) => {
-      const token = bumpToken(readTokenRef);
-      const sizeFailure = checkTransferFileSize(file.size);
-      if (sizeFailure !== null) {
-        setState({
-          kind: 'rejected',
-          code: sizeFailure.code,
-          message: sizeFailure.message,
-          fileSizeBytes: file.size,
-        });
-        return;
-      }
-
-      setState({ kind: 'reading', fileName: file.name, progress: null });
-      const text = await readText(file);
-      if (text === null) {
-        rejectUnreadable(token, readTokenRef, file.size, setState);
-        return;
-      }
-      const parsed = await parseTransferFile(text, {
-        onProgress: (done, total) => {
-          setState((prev) =>
-            prev.kind === 'reading' && token === readTokenRef.current
-              ? { ...prev, progress: { done, total } }
-              : prev
-          );
-        },
-      });
-      if (token !== readTokenRef.current) return;
-      if (!parsed.ok) {
-        setState({
-          kind: 'rejected',
-          code: parsed.code,
-          message: parsed.message,
-          fileSizeBytes: file.size,
-        });
-        return;
-      }
+  const loadFile = useCallback(async (file: File) => {
+    const token = bumpToken(readTokenRef);
+    const sizeFailure = checkTransferFileSize(file.size);
+    if (sizeFailure !== null) {
       setState({
-        kind: 'listed',
-        fileName: file.name,
-        listing: parsed.listing,
-        selected: new Set(),
-        machineId,
-        importedKeys: new Set(),
+        kind: 'rejected',
+        code: sizeFailure.code,
+        message: sizeFailure.message,
+        fileSizeBytes: file.size,
       });
-    },
-    [machineId]
-  );
+      return;
+    }
+
+    setState({ kind: 'reading', fileName: file.name, progress: null });
+    const text = await readText(file);
+    if (text === null) {
+      rejectUnreadable(token, readTokenRef, file.size, setState);
+      return;
+    }
+    const parsed = await parseTransferFile(text, {
+      onProgress: (done, total) => {
+        setState((prev) =>
+          prev.kind === 'reading' && token === readTokenRef.current
+            ? { ...prev, progress: { done, total } }
+            : prev
+        );
+      },
+    });
+    if (token !== readTokenRef.current) return;
+    if (!parsed.ok) {
+      setState({
+        kind: 'rejected',
+        code: parsed.code,
+        message: parsed.message,
+        fileSizeBytes: file.size,
+      });
+      return;
+    }
+    setState({
+      kind: 'listed',
+      fileName: file.name,
+      listing: parsed.listing,
+      selected: new Set(),
+      machineId,
+      importedKeys: new Set(),
+    });
+  }, [machineId]);
 
   const reset = useCallback(() => {
     bumpToken(readTokenRef);
