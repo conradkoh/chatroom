@@ -139,6 +139,60 @@ export async function sha256Hex(text: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/**
+ * Bundle format (`chatroom export --all`).
+ *
+ * A bundle wraps the unchanged v1 payloads as JSON strings: `chatrooms` is the
+ * same `ChatroomExportFileV1` objects, in `index` order. The index pairs the
+ * display fields a person scans with the payload's own v1 `checksum`, so import
+ * can detect a payload that was swapped after the bundle was written.
+ *
+ * The bundle checksum covers `formatVersion`, `kind` and `index` only.
+ * `exportedAt` and `source` are display metadata, exactly like the v1 rule, so
+ * re-exporting an unchanged machine at another instant yields the same digest.
+ */
+export const CHATROOM_EXPORT_BUNDLE_KIND = 'chatroom-export-bundle' as const;
+export const CHATROOM_EXPORT_BUNDLE_FORMAT_VERSION = 1 as const;
+/** One retry per failed chatroom in a bundle (`export --all`). `EXPORT_TOO_LARGE` is never retried. */
+export const BUNDLE_RETRIES_PER_CHATROOM = 1;
+
+/** Printed once by every command that writes a file with conversation content. */
+export const PLAINTEXT_EXPORT_WARNING =
+  'warning: this file is plaintext and contains conversation content. Keep it private.';
+
+/** What the bundle says about one wrapped chatroom. `checksum` is the payload's own v1 checksum. */
+export interface BundleIndexEntry {
+  sourceChatroomId: string;
+  name: string | null;
+  status: 'active' | 'completed';
+  teamStructureId: string;
+  lastActivityAt: number | null;
+  messageCount: number;
+  taskCount: number;
+  backlogCount: number;
+  workingDirs: string[];
+  omittedAttachments: { count: number; bytes: number };
+  /** Equal to the payload's own v1 `checksum`. */
+  checksum: string;
+}
+
+export interface ChatroomExportBundleV1 {
+  formatVersion: 1;
+  kind: 'chatroom-export-bundle';
+  exportedAt: string; // ISO-8601, display only
+  source: { machineId: string | null; cliVersion: string }; // informational, never read on import
+  index: BundleIndexEntry[];
+  chatrooms: ChatroomExportFileV1[]; // same order as index
+  checksum: string; // sha256Hex(canonicalJson({ formatVersion, kind, index }))
+}
+
+/** Checksum over the bundle's format fields and index only. */
+export async function bundleChecksum(
+  b: Pick<ChatroomExportBundleV1, 'formatVersion' | 'kind' | 'index'>
+): Promise<string> {
+  return sha256Hex(canonicalJson({ formatVersion: b.formatVersion, kind: b.kind, index: b.index }));
+}
+
 export const IMPORT_CHUNK_MAX_ROWS = 200;
 export const IMPORT_CHUNK_MAX_BYTES = 1_500_000;
 export const IMPORT_ROLLBACK_BUDGET = 300;

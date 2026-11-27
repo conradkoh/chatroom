@@ -8,7 +8,7 @@
  * publish; the live-deployment run is a later phase.
  */
 
-import { mkdtemp, readdir, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -30,7 +30,7 @@ import type { BackendOps, SessionOps } from '../../infrastructure/deps/index.js'
 const NOW = '2026-11-25T13:04:05Z';
 const NAME = 'chatroom-abc-20261125T130405Z.json';
 const DESCRIPTION =
-  'Export one chatroom (--chatroom-id) or every chatroom you own on this machine (--all) to JSON files. The files are plaintext and contain conversation content; keep them private.';
+  'Export one chatroom (--chatroom-id) or every chatroom you own on this machine (--all) to JSON files. --all writes ONE bundle file. The files are plaintext and contain conversation content; keep them private.';
 const IMPORT_DESCRIPTION =
   'Import an export file as a NEW chatroom owned by you. Never merges; importing twice creates two chatrooms. Starts no agents.';
 
@@ -239,7 +239,7 @@ describe('chatroom export wiring', () => {
     expect(exits).not.toContain(1);
   });
 
-  it('export --all publishes real files through the node filesystem adapter', async () => {
+  it('export --all publishes one real bundle through the node filesystem adapter', async () => {
     const tmpDir = await mkdtemp(join(tmpdir(), 'chatroom-export-all-e2e-'));
     tempDirs.push(tmpDir);
     const { deps, out, err, exits } = createDeps({
@@ -255,15 +255,23 @@ describe('chatroom export wiring', () => {
     await program.parseAsync(['node', 'chatroom', 'export', '--all']);
 
     const exportsDir = join(tmpDir, '.chatroom', 'exports');
-    const files = (await readdir(exportsDir)).filter((name) => name.endsWith('.json')).sort();
-    expect(files).toEqual([
-      `chatroom-room1-20261125T130405Z.json`,
-      `chatroom-room2-20261125T130405Z.json`,
+    const files = (await readdir(exportsDir)).filter((name) => name.endsWith('.json'));
+    expect(files).toEqual(['chatroom-all-machine-1-20261125T130405Z.json']);
+
+    const filePath = join(exportsDir, files[0] as string);
+    expect((await stat(filePath)).mode & 0o777).toBe(0o600);
+    const bundle = JSON.parse(await readFile(filePath, 'utf8')) as {
+      kind: string;
+      index: { sourceChatroomId: string }[];
+      chatrooms: { source: { chatroomId: string } }[];
+    };
+    expect(bundle.kind).toBe('chatroom-export-bundle');
+    expect(bundle.index.map((entry) => entry.sourceChatroomId)).toEqual(['room1', 'room2']);
+    expect(bundle.chatrooms.map((payload) => payload.source.chatroomId)).toEqual([
+      'room1',
+      'room2',
     ]);
-    for (const file of files) {
-      expect((await stat(join(exportsDir, file))).mode & 0o777).toBe(0o600);
-    }
-    expect(out).toContain('Exported 2 of 2 chatrooms from machine machine-1');
+    expect(out).toContain('Exported 2 chatrooms from machine machine-1');
     expect(err).toEqual([]);
     expect(exits).toEqual([]);
   });

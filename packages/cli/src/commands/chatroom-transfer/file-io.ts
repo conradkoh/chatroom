@@ -1,5 +1,5 @@
 /**
- * Chatroom transfer file I/O — the export file name and the atomic publish.
+ * Chatroom transfer file I/O — the atomic publish.
  *
  * `writeExportFileAtomically` publishes with `link`, not `rename`: a rename
  * silently replaces an existing file, while `link` fails with `EEXIST`. That
@@ -19,6 +19,9 @@
  * Some filesystems (FAT, some network mounts, some sandboxes) have no hard
  * links and report `EPERM`/`ENOTSUP` from `link`; that surfaces as
  * `EXPORT_PUBLISH_UNSUPPORTED`, never as a raw errno.
+ *
+ * File names live in the shared pure module so the browser can produce the
+ * same names without importing node code.
  */
 
 import * as fsp from 'node:fs/promises';
@@ -39,12 +42,6 @@ const FILE_MODE = 0o600;
 const EXPORTS_GITIGNORE = '*\n';
 /** Readable by everyone, so git and tools can read it; it holds no secret. */
 const IGNORE_FILE_MODE = 0o644;
-
-/** `chatroom-<id>-YYYYMMDDTHHMMSSZ.json`, UTC with no colons (Windows-safe). */
-export function exportFileName(chatroomId: string, at: Date): string {
-  const stamp = at.toISOString().slice(0, 19).replace(/[-:]/g, '');
-  return `chatroom-${chatroomId}-${stamp}Z.json`;
-}
 
 /**
  * Prepares the default exports directory: creates it, then writes a `.gitignore`

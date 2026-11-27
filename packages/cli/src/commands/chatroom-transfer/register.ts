@@ -59,7 +59,7 @@ export function registerChatroomTransferCommands(
   program
     .command('export')
     .description(
-      'Export one chatroom (--chatroom-id) or every chatroom you own on this machine (--all) to JSON files. The files are plaintext and contain conversation content; keep them private.'
+      'Export one chatroom (--chatroom-id) or every chatroom you own on this machine (--all) to JSON files. --all writes ONE bundle file. The files are plaintext and contain conversation content; keep them private.'
     )
     .option('--chatroom-id <id>', 'Chatroom identifier (exclusive with --all)')
     .option('--all', 'Export every chatroom you own that has an active workspace on this machine')
