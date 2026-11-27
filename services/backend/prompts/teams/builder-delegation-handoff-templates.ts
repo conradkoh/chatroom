@@ -8,17 +8,16 @@ export interface BuilderDelegationBriefOptions {
   /** 'self' when the delegator clears research/triage/architect gates itself (duo planner); otherwise the role that clears them. */
   gatesOwner: 'self' | string;
   /**
-   * Batching variant (trio specifier): the delegator groups phases into rounds, so the
-   * round-final definition speaks of the round. Duo leaves this unset: it delegates
-   * incremental slices, so the round-final definition speaks of the brief and the
-   * guidance puts the full pass on the final slice. Both variants offer both scopes.
+   * Single-pass variant (trio specifier): the brief is the work package's only
+   * builder pass, so it has one `full` verification scope and no scope choice.
+   * Duo leaves this unset: it delegates incremental slices, so it offers
+   * `focused | round-final`. Default false keeps duo output byte-identical.
    */
-  batching?: boolean;
+  singlePass?: boolean;
 }
 
-interface BatchingFragments {
+interface BriefVariantFragments {
   roundGuidance: string;
-  endToEndRequirement: string;
   verificationFlagsSection: string;
 }
 
@@ -33,24 +32,28 @@ function getVerificationKindFlagLine(kind: VerificationKind): string {
 const WORKSPACE_PROSE_LINE =
   '`<workspace>` is a directory: `services/backend`, `apps/webapp`, `packages/cli`, or `packages/shared`. `--filter` takes the package name: `@workspace/backend`, `@workspace/webapp`, `chatroom-cli`, or `@workspace/shared`.';
 
-function getScopeLines(batching: boolean): string[] {
+/** Shared tail of the full-scope definition; differs only in the scope label. */
+const FULL_SCOPE_BODY =
+  'each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed, typecheck and lint of those workspaces (`pnpm lint` for the whole repository), and every e2e spec this brief affects.';
+
+function getScopeLines(singlePass: boolean): string[] {
+  if (singlePass) {
+    return [`Scope: \`full\` — ${FULL_SCOPE_BODY}`];
+  }
   const focused =
     "`focused` — each run covers only the test files and workspaces that touch this brief's files.";
-  const roundFinal = batching
-    ? '`round-final` — each run covers the full scope: the full unit suite and full integration suite of every workspace the round changed, typecheck and lint of those workspaces (`pnpm lint` for the whole repository), and every e2e spec the round affects.'
-    : '`round-final` — each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed, typecheck and lint of those workspaces (`pnpm lint` for the whole repository), and every e2e spec this brief affects.';
   return [
     "Scope: <`focused` | `round-final`> — replace the placeholder with this brief's scope and keep only that definition below.",
     `- ${focused}`,
-    `- ${roundFinal}`,
+    `- \`round-final\` — ${FULL_SCOPE_BODY}`,
   ];
 }
 
-function getVerificationFlagsSection(batching: boolean): string {
+function getVerificationFlagsSection(singlePass: boolean): string {
   return [
     '## Verification flags',
     'Mark each kind `required` or `not applicable: <reason>`. The builder runs every `required` kind with the command shown, always runs typecheck and lint, and records each `not applicable` kind in its hand-back.',
-    ...getScopeLines(batching),
+    ...getScopeLines(singlePass),
     ...VERIFICATION_KINDS.map(getVerificationKindFlagLine),
     WORKSPACE_PROSE_LINE,
     '',
@@ -60,28 +63,23 @@ function getVerificationFlagsSection(batching: boolean): string {
 
 /**
  * Fragments that differ between the default incremental brief and the trio
- * batching brief. Kept out of the template function so the two paths stay easy
- * to read and the rendering function stays simple.
+ * single-pass brief. Kept out of the template function so the two paths stay
+ * easy to read and the rendering function stays simple.
  */
-function getBatchingFragments(batching: boolean): BatchingFragments {
-  const roundGuidance = batching
-    ? "A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping. In the brief body, set the `## Verification flags` scope to `round-final` for the round's final brief and `focused` for the others."
+function getBriefVariantFragments(singlePass: boolean): BriefVariantFragments {
+  const roundGuidance = singlePass
+    ? "This is the work package's only builder brief — the specifier makes one builder pass and cannot send rework. Cover the whole package: order the ### file blocks by dependency, and set the `## Verification flags` scope to `full`."
     : 'Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once. In the brief body, set the `## Verification flags` scope to `focused` for each slice and to `round-final` for the final slice, which runs the full pass once.';
-
-  const endToEndRequirement = batching
-    ? "- Name at least one end-to-end evidence for the feature on the round's final brief: a CLI run, an API call, a UI action, or the template render. Earlier briefs need focused evidence only; the round as a whole must be end-to-end verified. When the brief marks `e2e` `not applicable`, the Requirements must name which of these alternatives is the end-to-end evidence."
-    : '- Name at least one end-to-end evidence that the feature works: a CLI run, an API call, a UI action, or the template render. Unit tests alone are insufficient for new features. When the brief marks `e2e` `not applicable`, the Requirements must name which of these alternatives is the end-to-end evidence.';
 
   return {
     roundGuidance,
-    endToEndRequirement,
-    verificationFlagsSection: getVerificationFlagsSection(batching),
+    verificationFlagsSection: getVerificationFlagsSection(singlePass),
   };
 }
 
 /** Returns the markdown delegation-brief template body. */
 export function getBuilderDelegationBriefTemplate(options: BuilderDelegationBriefOptions): string {
-  const { delegatorRole, gatesOwner, batching = false } = options;
+  const { delegatorRole, gatesOwner, singlePass = false } = options;
 
   const prelude =
     gatesOwner === 'self'
@@ -94,8 +92,10 @@ export function getBuilderDelegationBriefTemplate(options: BuilderDelegationBrie
 
 **Division of labor:** You (${delegatorRole}) own turning the work package into file-level builder slices and sequencing them. Copy any UI/UX target markup, classes, styles, and drawings from the work package into UI implementation briefs; the builder implements the components.`;
 
-  const { roundGuidance, endToEndRequirement, verificationFlagsSection } =
-    getBatchingFragments(batching);
+  const { roundGuidance, verificationFlagsSection } = getBriefVariantFragments(singlePass);
+
+  /** Trio's single pass must not imply multiple slices; duo keeps "slice". */
+  const unit = singlePass ? 'work package' : 'slice';
 
   return `${getDelegationBriefIntro()}
 
@@ -103,16 +103,16 @@ ${prelude}
 
 **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
-**Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
+**Test seams:** Fill \`## Test seams\` in the brief body for each behavior the ${unit} changes. See the \`test-seam\` glossary term for what a seam is.
 
 Guidance for you (not part of the message): ${roundGuidance}
 
 \`\`\`\`markdown
 ## Summary
-<brief context for this delegation slice — what problem it solves and where it fits in the larger task>
+<brief context for this delegation ${unit} — what problem it solves and where it fits in the larger task>
 
 ## Goal
-<one sentence: the outcome this slice delivers>
+<one sentence: the outcome this ${unit} delivers>
 
 ## Key Knowledge for High Quality Bar
 <details that would move the implementation from good to excellent and delightful — domain context, user expectations, edge cases, naming, UX polish, invariants the builder must preserve>
@@ -122,7 +122,7 @@ Guidance for you (not part of the message): ${roundGuidance}
 - Each builder delegation starts a fresh session automatically — the builder does not continue prior context.
 
 ## Files to implement (exhaustive, file-level)
-List **every** file in this slice. Mark each file **(Required)** or **(Optional)** — all Required files must land before PR. For each file, state the exact change and paste the code the builder should match (no guessing).
+List **every** file in this ${unit}. Mark each file **(Required)** or **(Optional)** — all Required files must land before PR. For each file, state the exact change and paste the code the builder should match (no guessing).
 ${getFileReferenceGuidanceComment()}
 
 ### \`apps/webapp/src/path/to/file.ts\`
@@ -140,7 +140,7 @@ ${getFileReferenceGuidanceComment()}
 // ...
 \`\`\`
 
-(Add one ### block per file. If this slice touches only one file, still use the ### header.)
+(Add one ### block per file. If this ${unit} touches only one file, still use the ### header.)
 
 ## Shared contracts (${delegatorRole}-owned)
 Cross-file types, interfaces, or patterns that apply beyond a single file. Omit if everything is already specified per-file above.
@@ -157,7 +157,7 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 
 ## Requirements (acceptance criteria)
 - <verifiable outcome the builder can self-check>
-${endToEndRequirement}
+- Name at least one end-to-end evidence that the feature works: a CLI run, an API call, a UI action, or the template render. Unit tests alone are insufficient for new features. When the brief marks \`e2e\` \`not applicable\`, the Requirements must name which of these alternatives is the end-to-end evidence.
 
 ## Test seams
 - <behavior>: seam <public interface or port>; catches <what>; misses <what>
@@ -165,7 +165,7 @@ ${endToEndRequirement}
 - For each named seam: write a failing test first, then make it pass (red-green). If the seam is \`no test seam\`, delete this line.
 
 ${verificationFlagsSection}## What to avoid
-- <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
+- <anti-patterns, recurring mistakes, or scope creep for this ${unit} — be explicit>
 - Do not test private methods or mock internal collaborators. A test that breaks on refactor while behavior is unchanged is wrong.
 - Do not derive expected values by re-running the code's own formula. Take them from a known-good literal, a worked example, or the spec.
 - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs">
@@ -174,7 +174,7 @@ ${verificationFlagsSection}## What to avoid
 - e.g. \`chatroom skill activate code-review --chatroom-id=<id> --role=builder\`
 
 ## Out of scope
-- <files or areas the builder must NOT touch in this slice>
+- <files or areas the builder must NOT touch in this ${unit}>
 
 \`\`\`\``;
 }

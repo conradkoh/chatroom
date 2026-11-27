@@ -9,7 +9,7 @@ describe('getBuilderDelegationBriefTemplate', () => {
   test('duo brief offers focused and round-final scope and defaults to focused guidance', () => {
     const body = getBuilderDelegationBriefTemplate(DUO_PLANNER);
 
-    expect(getBuilderDelegationBriefTemplate({ ...DUO_PLANNER, batching: false })).toBe(body);
+    expect(getBuilderDelegationBriefTemplate({ ...DUO_PLANNER, singlePass: false })).toBe(body);
     expect(body).toContain('## Verification flags');
     expect(body).toContain('Scope: <`focused` | `round-final`>');
     expect(body).toContain(
@@ -28,24 +28,27 @@ describe('getBuilderDelegationBriefTemplate', () => {
     );
   });
 
-  test('batching brief offers focused and round-final scope with concrete definitions', () => {
+  test('single-pass brief has one full scope definition and no scope choice', () => {
     const body = getBuilderDelegationBriefTemplate({
       delegatorRole: 'specifier',
       gatesOwner: 'coordinator',
-      batching: true,
+      singlePass: true,
     });
 
     expect(body).toContain('## Verification flags');
-    expect(body).toContain('Scope: <`focused` | `round-final`>');
-    expect(body).toContain('- `round-final` — each run covers the full scope');
-    expect(body).toContain("on the round's final brief");
+    expect(body).toContain("This is the work package's only builder brief");
+    expect(body).toContain(
+      'Scope: `full` — each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed'
+    );
+    expect(body).not.toContain('Scope: <`focused`');
+    expect(body).not.toContain('`round-final`');
     expect(body.indexOf('## Verification flags')).toBeLessThan(body.indexOf('## What to avoid'));
   });
 
   test.each([false, true])(
-    'end-to-end line names alternative evidence when e2e is not applicable (batching=%s)',
-    (batching) => {
-      const body = getBuilderDelegationBriefTemplate({ ...DUO_PLANNER, batching });
+    'end-to-end line names alternative evidence when e2e is not applicable (singlePass=%s)',
+    (singlePass) => {
+      const body = getBuilderDelegationBriefTemplate({ ...DUO_PLANNER, singlePass });
 
       expect(body).toContain('a CLI run, an API call, a UI action, or the template render');
       expect(body).toContain(
@@ -56,21 +59,27 @@ describe('getBuilderDelegationBriefTemplate', () => {
     }
   );
 
-  test.each([false, true])('every kind is flagged in both variants (batching=%s)', (batching) => {
-    const body = getBuilderDelegationBriefTemplate({ ...DUO_PLANNER, batching });
+  test.each([false, true])(
+    'every kind is flagged in both variants (singlePass=%s)',
+    (singlePass) => {
+      const body = getBuilderDelegationBriefTemplate({ ...DUO_PLANNER, singlePass });
 
-    expect(body).toContain('`typecheck` — **required**. Lightweight');
-    expect(body).toContain('`lint` — **required**. Lightweight');
-    expect(body).toContain('`unit tests` — **required** or **not applicable: <reason>**');
-    expect(body).toContain('`integration tests` — **required** or **not applicable: <reason>**');
-    expect(body).toContain('`e2e` — **required** or **not applicable: <reason>**');
-  });
-
-  test.each([false, true])('every shared kind reaches the flags line (batching=%s)', (batching) => {
-    const body = getBuilderDelegationBriefTemplate({ ...DUO_PLANNER, batching });
-
-    for (const kind of VERIFICATION_KINDS) {
-      expect(body).toContain(`- \`${kind.label}\` — `);
+      expect(body).toContain('`typecheck` — **required**. Lightweight');
+      expect(body).toContain('`lint` — **required**. Lightweight');
+      expect(body).toContain('`unit tests` — **required** or **not applicable: <reason>**');
+      expect(body).toContain('`integration tests` — **required** or **not applicable: <reason>**');
+      expect(body).toContain('`e2e` — **required** or **not applicable: <reason>**');
     }
-  });
+  );
+
+  test.each([false, true])(
+    'every shared kind reaches the flags line (singlePass=%s)',
+    (singlePass) => {
+      const body = getBuilderDelegationBriefTemplate({ ...DUO_PLANNER, singlePass });
+
+      for (const kind of VERIFICATION_KINDS) {
+        expect(body).toContain(`- \`${kind.label}\` — `);
+      }
+    }
+  );
 });
