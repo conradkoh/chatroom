@@ -5,7 +5,7 @@
  * `ChatroomImportPort`), the session at `SessionOps`, the machine identity at
  * `deps.machine`, the file system at `ChatroomTransferFs`, and the OS signals at
  * `deps.signals`. The real `runImport` driver runs against a real, checksummed
- * export file built by the real `runExport`.
+ * machine export bundle built by the real `runExportBundle`.
  *
  * Failures are rendered by the same `[CODE] message` + `exit(1)` contract that
  * `register.ts` applies around the command body.
@@ -53,7 +53,7 @@ const ORPHAN_ID = 'imported-room-id';
 const UNAVAILABLE_HARNESS = 'unavailable-harness';
 
 // ---------------------------------------------------------------------------
-// Fixture: a real, checksummed export built by runExport
+// Fixture: a real, checksummed machine export bundle built by runExportBundle
 // ---------------------------------------------------------------------------
 
 function rawRow(id: string, creationTime: number, fields: Record<string, unknown>): ExportRawRow {
@@ -384,7 +384,7 @@ async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
   const questions: string[] = [];
   const fs = new MemoryFs();
   if (options.fileExists !== false) {
-    fs.files.set(EXPORT_PATH, options.storeJson ?? (await buildExport()));
+    fs.files.set(EXPORT_PATH, options.storeJson ?? (await buildBundle(['Imported room'])).json);
     if (options.statSize !== undefined) fs.sizes.set(EXPORT_PATH, options.statSize);
   }
   const signals = createSignals();
@@ -466,8 +466,9 @@ describe('importChatroom (read-only)', () => {
     const h = await createHarness();
     const scripted = createScriptedPort();
 
-    await runImport({ path: EXPORT_PATH, dryRun: true }, h.deps, { makePort: () => scripted.port });
-
+    await runImport({ path: EXPORT_PATH, dryRun: true, select: 'all' }, h.deps, {
+      makePort: () => scripted.port,
+    });
     expect(scripted.calls).toEqual(['preflight']);
     expect(h.out).toContain('dry run: nothing was written');
     expect(h.exits).not.toContain(1);
@@ -477,9 +478,13 @@ describe('importChatroom (read-only)', () => {
     const h = await createHarness({ machineId: 'stored' });
     const scripted = createScriptedPort();
 
-    await runImport({ path: EXPORT_PATH, dryRun: true, machineId: 'given' }, h.deps, {
-      makePort: () => scripted.port,
-    });
+    await runImport(
+      { path: EXPORT_PATH, dryRun: true, machineId: 'given', select: 'all' },
+      h.deps,
+      {
+        makePort: () => scripted.port,
+      }
+    );
 
     expect(scripted.preflightArgs[0]?.machineId).toBe('given');
   });
@@ -488,7 +493,9 @@ describe('importChatroom (read-only)', () => {
     const h = await createHarness({ machineId: null });
     const scripted = createScriptedPort();
 
-    await runImport({ path: EXPORT_PATH }, h.deps, { makePort: () => scripted.port });
+    await runImport({ path: EXPORT_PATH, select: 'all' }, h.deps, {
+      makePort: () => scripted.port,
+    });
 
     expect(h.err.some((line) => line.includes('[IMPORT_NO_MACHINE_IDENTITY]'))).toBe(true);
     expect(h.exits).toEqual([1]);
@@ -529,7 +536,7 @@ describe('importChatroom (read-only)', () => {
   });
 
   it('an invalid file is refused before any port call', async () => {
-    const tampered = tamperChecksum(await buildExport());
+    const tampered = tamperChecksum((await buildBundle()).json);
     const h = await createHarness({ storeJson: tampered });
     const scripted = createScriptedPort();
 
@@ -544,7 +551,9 @@ describe('importChatroom (read-only)', () => {
     const h = await createHarness();
     const scripted = createScriptedPort();
 
-    await runImport({ path: EXPORT_PATH, dryRun: true }, h.deps, { makePort: () => scripted.port });
+    await runImport({ path: EXPORT_PATH, dryRun: true, select: 'all' }, h.deps, {
+      makePort: () => scripted.port,
+    });
 
     expect(h.out).toContain('  skipped agent config g0: harness_unavailable');
   });
@@ -559,7 +568,9 @@ describe('importChatroom (write path)', () => {
     const h = await createHarness();
     const scripted = createScriptedPort();
 
-    await runImport({ path: EXPORT_PATH }, h.deps, { makePort: () => scripted.port });
+    await runImport({ path: EXPORT_PATH, select: 'all' }, h.deps, {
+      makePort: () => scripted.port,
+    });
 
     const output = h.out.join('\n');
     expect(output).toContain('Imported as new chatroom');
@@ -574,7 +585,9 @@ describe('importChatroom (write path)', () => {
     const h = await createHarness();
     const scripted = createScriptedPort({ failApplyChunkAt: 2 });
 
-    await runImport({ path: EXPORT_PATH }, h.deps, { makePort: () => scripted.port });
+    await runImport({ path: EXPORT_PATH, select: 'all' }, h.deps, {
+      makePort: () => scripted.port,
+    });
 
     expect(h.err.some((line) => line.includes('❌ [IMPORT_ROLLED_BACK]'))).toBe(true);
     expect(h.exits).toEqual([1]);
@@ -585,10 +598,12 @@ describe('importChatroom (write path)', () => {
     const h = await createHarness();
     const scripted = createScriptedPort({ failApplyChunkAt: 2, failRollback: true });
 
-    await runImport({ path: EXPORT_PATH }, h.deps, { makePort: () => scripted.port });
+    await runImport({ path: EXPORT_PATH, select: 'all' }, h.deps, {
+      makePort: () => scripted.port,
+    });
 
     const errorLine = h.err.find(
-      (line) => line.includes(ORPHAN_ID) && line.includes('archive or delete')
+      (line) => line.includes(ORPHAN_ID) && line.includes('may still exist and may be active')
     );
     expect(errorLine).toBeDefined();
     expect(errorLine).toContain('may be active');
@@ -605,7 +620,9 @@ describe('importChatroom (write path)', () => {
       },
     });
 
-    await runImport({ path: EXPORT_PATH }, h.deps, { makePort: () => scripted.port });
+    await runImport({ path: EXPORT_PATH, select: 'all' }, h.deps, {
+      makePort: () => scripted.port,
+    });
 
     expect(h.err.some((line) => line.includes('[IMPORT_ROLLED_BACK]'))).toBe(true);
     expect(h.exits).toEqual([1]);
@@ -623,7 +640,9 @@ describe('importChatroom (write path)', () => {
       },
     });
 
-    await runImport({ path: EXPORT_PATH }, h.deps, { makePort: () => scripted.port });
+    await runImport({ path: EXPORT_PATH, select: 'all' }, h.deps, {
+      makePort: () => scripted.port,
+    });
 
     expect(h.err.some((line) => line.includes('[IMPORT_ROLLED_BACK]'))).toBe(true);
     expect(h.exits).toEqual([1]);
@@ -676,8 +695,8 @@ describe('importChatroom (offline listing)', () => {
     expect(h.err).toEqual([]);
   });
 
-  it('--list on a single file prints its details and needs no auth', async () => {
-    const h = await createHarness();
+  it('a single-chatroom file is refused as not a machine export before auth or any backend call', async () => {
+    const h = await createHarness({ storeJson: await buildExport() });
     const scripted = createScriptedPort();
     const auth = authSpy();
 
@@ -686,18 +705,37 @@ describe('importChatroom (offline listing)', () => {
       makePort: () => scripted.port,
     });
 
-    expect(h.out).toContain(
-      `Export of chatroom source-room exported ${new Date(NOW).toISOString()}`
-    );
-    expect(h.out).toContain('[1] Imported room');
+    expect(h.out).toEqual([]);
+    expect(
+      h.err.some(
+        (line) =>
+          line.startsWith('❌ [IMPORT_NOT_AN_EXPORT]') && line.includes('single-chatroom export')
+      )
+    ).toBe(true);
+    expect(h.exits).toEqual([1]);
     expect(auth.calls()).toBe(0);
     expect(h.machineIdCalls.count).toBe(0);
     expect(scripted.calls).toEqual([]);
-    expect(h.exits).toEqual([]);
   });
 
-  it('a single file with a bad checksum fails at listing before auth or any backend call', async () => {
-    const tampered = tamperChecksum(await buildExport());
+  it('a single-chatroom file is refused the same way when importing', async () => {
+    const h = await createHarness({ storeJson: await buildExport() });
+    const scripted = createScriptedPort();
+    const auth = authSpy();
+
+    await runImport({ path: EXPORT_PATH, select: 'all' }, h.deps, {
+      ensureAuth: auth.ensureAuth,
+      makePort: () => scripted.port,
+    });
+
+    expect(h.err.some((line) => line.startsWith('❌ [IMPORT_NOT_AN_EXPORT]'))).toBe(true);
+    expect(h.exits).toEqual([1]);
+    expect(auth.calls()).toBe(0);
+    expect(scripted.calls).toEqual([]);
+  });
+
+  it('a bundle with a bad checksum fails at listing before auth or any backend call', async () => {
+    const tampered = tamperChecksum((await buildBundle()).json);
     const h = await createHarness({ storeJson: tampered });
     const scripted = createScriptedPort();
     const auth = authSpy();

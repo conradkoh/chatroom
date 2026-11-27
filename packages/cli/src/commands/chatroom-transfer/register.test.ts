@@ -33,7 +33,7 @@ const NOW = '2026-11-25T13:04:05Z';
 const DESCRIPTION =
   'Export every chatroom you own that has an active workspace on this machine into ONE bundle JSON file. The file is plaintext and contains conversation content; keep it private.';
 const IMPORT_DESCRIPTION =
-  'Import chatrooms from an export file as NEW chatrooms owned by you. Listing the file needs no login. Importing needs a login and an owned target machine. Never merges; importing twice creates two chatrooms. Starts no agents.';
+  'Import chatrooms from a machine export bundle (chatroom-all-<machine>-<time>.json) as NEW chatrooms owned by you. Listing the file needs no login. Importing needs a login and an owned target machine. Never merges; importing twice creates two chatrooms. Starts no agents.';
 
 /** Temp directories created by the end-to-end case. */
 const tempDirs: string[] = [];

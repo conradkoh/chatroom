@@ -80,7 +80,7 @@ export function registerChatroomTransferCommands(
   program
     .command('import')
     .description(
-      'Import chatrooms from an export file as NEW chatrooms owned by you. Listing the file needs no login. Importing needs a login and an owned target machine. Never merges; importing twice creates two chatrooms. Starts no agents.'
+      'Import chatrooms from a machine export bundle (chatroom-all-<machine>-<time>.json) as NEW chatrooms owned by you. Listing the file needs no login. Importing needs a login and an owned target machine. Never merges; importing twice creates two chatrooms. Starts no agents.'
     )
     .option('--machine-id <id>', 'Machine to bind workspaces to (default: this machine)')
     .option('--dry-run', 'Validate and print the plan; write nothing')

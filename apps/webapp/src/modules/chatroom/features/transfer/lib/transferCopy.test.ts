@@ -166,7 +166,7 @@ describe('importRejectCopy', () => {
       'This file is not valid JSON or could not be read.'
     );
     expect(importRejectCopy('IMPORT_NOT_AN_EXPORT', 'raw')).toBe(
-      'This is not a chatroom export file.'
+      'This is not a machine export file. Save one with Export chatrooms on a machine card, or with chatroom export.'
     );
     expect(importRejectCopy('IMPORT_UNSUPPORTED_VERSION', 'raw')).toBe(
       'This export uses a format version this app does not support. Re-export it with a matching version.'

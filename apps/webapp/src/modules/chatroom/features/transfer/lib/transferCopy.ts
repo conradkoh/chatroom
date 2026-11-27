@@ -147,7 +147,7 @@ export function importRejectCopy(code: string, message: string, fileSizeBytes?: 
     case 'IMPORT_FILE_UNREADABLE':
       return 'This file is not valid JSON or could not be read.';
     case 'IMPORT_NOT_AN_EXPORT':
-      return 'This is not a chatroom export file.';
+      return 'This is not a machine export file. Save one with Export chatrooms on a machine card, or with chatroom export.';
     case 'IMPORT_UNSUPPORTED_VERSION':
       return 'This export uses a format version this app does not support. Re-export it with a matching version.';
     case 'IMPORT_CHECKSUM_MISMATCH':

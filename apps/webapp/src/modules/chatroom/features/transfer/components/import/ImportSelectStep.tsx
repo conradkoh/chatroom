@@ -66,8 +66,7 @@ export function ImportSelectStep({
             className="min-w-0 truncate font-mono text-[10px] text-chatroom-text-muted"
             title={state.fileName}
           >
-            {state.fileName} · {listing.kind === 'bundle' ? 'Bundle' : 'Single chatroom'} · exported{' '}
-            {formatTimestampFull(Date.parse(listing.exportedAt))}
+            {state.fileName} · exported {formatTimestampFull(Date.parse(listing.exportedAt))}
           </p>
           <Button ref={chooseDifferentRef} variant="ghost" size="xs" onClick={onReset}>
             Choose different file

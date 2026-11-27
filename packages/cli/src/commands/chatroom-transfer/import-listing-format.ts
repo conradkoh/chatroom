@@ -1,5 +1,5 @@
 /**
- * CLI presentation for a parsed export file.
+ * CLI presentation for a parsed machine export bundle.
  *
  * `formatListing` is one header plus one block per chatroom; the numbering is
  * the same `position` the prompt accepts. `parseSelectTokens` turns the answer
@@ -20,11 +20,7 @@ export function formatListing(listing: TransferListing): string[] {
 }
 
 function header(listing: TransferListing): string {
-  if (listing.kind === 'bundle') {
-    return `Bundle exported ${listing.exportedAt}: ${listing.entries.length} chatroom(s)`;
-  }
-  const source = listing.entries[0]?.sourceChatroomId ?? '';
-  return `Export of chatroom ${source} exported ${listing.exportedAt}`;
+  return `Bundle exported ${listing.exportedAt}: ${listing.entries.length} chatroom(s)`;
 }
 
 function formatEntry(entry: ListedEntry): string[] {

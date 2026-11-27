@@ -3,7 +3,10 @@ import { webcrypto } from 'node:crypto';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { ChatroomTransferError } from '@workspace/backend/src/domain/entities/chatroom-transfer-file';
 import { runExportBundle } from '@workspace/backend/src/domain/usecase/chatroom-transfer/export-bundle';
-import type { ChatroomExportPort } from '@workspace/backend/src/domain/usecase/chatroom-transfer/export-driver';
+import {
+  runExport,
+  type ChatroomExportPort,
+} from '@workspace/backend/src/domain/usecase/chatroom-transfer/export-driver';
 import type { ImportChunk } from '@workspace/backend/src/domain/usecase/chatroom-transfer/import-apply';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -208,7 +211,26 @@ describe('ImportDialog — file step', () => {
   it('reports a file that is not an export', async () => {
     renderDialog();
     await upload(fileFrom('{"kind":"other"}'));
-    expect(await screen.findByText('This is not a chatroom export file.')).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        'This is not a machine export file. Save one with Export chatrooms on a machine card, or with chatroom export.'
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('refuses a single-chatroom file with the machine export copy', async () => {
+    renderDialog();
+    const { json } = await runExport(EXPORT_PORT, {
+      chatroomId: IDS[0],
+      cliVersion: 'webapp',
+      now: () => AT,
+    });
+    await upload(fileFrom(json));
+    expect(
+      await screen.findByText(
+        'This is not a machine export file. Save one with Export chatrooms on a machine card, or with chatroom export.'
+      )
+    ).toBeInTheDocument();
   });
 
   it('drops a pending read when the dialog closes', async () => {
@@ -241,6 +263,7 @@ describe('ImportDialog — select step', () => {
     expect(screen.getByText('not importable: IMPORT_CHECKSUM_MISMATCH')).toBeInTheDocument();
     expect(screen.getByText('3 chatrooms · 1 not importable')).toBeInTheDocument();
     expect(screen.getByText('Select all (2 importable)')).toBeInTheDocument();
+    expect(screen.queryByText(/Single chatroom/)).not.toBeInTheDocument();
 
     const entries = screen.getAllByTestId('import-entry');
     const broken = entries.find((entry) => entry.dataset.key === 'src-3');

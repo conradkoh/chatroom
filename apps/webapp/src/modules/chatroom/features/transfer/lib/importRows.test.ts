@@ -24,7 +24,6 @@ function entry(key: string, ok = true): ListedEntry {
 }
 
 const LISTING: TransferListing = {
-  kind: 'bundle',
   exportedAt: '2026-01-02T03:04:05.000Z',
   entries: [entry('a'), entry('b'), entry('c'), entry('d')],
   files: new Map(),
