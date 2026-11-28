@@ -1,5 +1,5 @@
-// fallow-ignore-file unused-file
-// Unwired until the browser components import it; the components commit removes this marker.
+// fallow-ignore-file unused-file unused-export
+// Unwired until SetupFolderPickerField renders the browser; the field commit removes this marker.
 /**
  * Pure view derivations and exact copy for the remote folder browser.
  *
@@ -129,6 +129,13 @@ export function countsLabel(
   };
 }
 
+/** Copy for an empty list: a title, an optional body, and at most one action. */
+export interface EmptyCopy {
+  title: string;
+  body?: string;
+  action: 'clear-filter' | 'show-hidden' | null;
+}
+
 /**
  * Copy for an empty list, or null when rows exist. The variants are checked in order:
  * A (a filter matches nothing), B (an empty folder), C (only hidden items, still hidden),
@@ -141,7 +148,7 @@ export function emptyCopy(args: {
   hiddenCount: number;
   filter: string;
   showHidden: boolean;
-}): { title: string; body?: string; action: 'clear-filter' | 'show-hidden' | null } | null {
+}): EmptyCopy | null {
   if (args.filter !== '' && args.dirCount === 0) {
     return { title: `No folders match “${args.filter}”.`, action: 'clear-filter' };
   }
