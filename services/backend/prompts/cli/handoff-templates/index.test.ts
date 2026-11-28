@@ -482,6 +482,12 @@ describe('trio handoff graph', () => {
     expect(listHandoffTemplatePairs('trio', 'builder').map((p) => p.toRole)).toEqual(['specifier']);
   });
 
+  test('the prompt engineer returns only to the coordinator', () => {
+    expect(listHandoffTemplatePairs('trio', 'prompt-engineer')).toEqual([
+      { teamId: 'trio', fromRole: 'prompt-engineer', toRole: 'coordinator' },
+    ]);
+  });
+
   test('the coordinator never hands off to builder', () => {
     expect(listHandoffTemplatePairs('trio', 'coordinator').map((p) => p.toRole)).not.toContain(
       'builder'
