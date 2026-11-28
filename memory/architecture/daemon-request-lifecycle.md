@@ -1,7 +1,7 @@
 ---
 type: best-practice
 title: Daemon request lifecycle
-description: Request row, daemon command and report mutations, monotonic states, by-id reads, client-derived waiting and timeouts, and the daemon dispatch rule.
+description: Request row, daemon command and report mutations, the pending-row session variant for interactive work, monotonic states, by-id reads, client-derived waiting and timeouts, and the daemon dispatch rule.
 tags: [daemon, convex, requests, lifecycle, git-clone, folder-browse]
 status: stable
 ---
@@ -120,8 +120,9 @@ behind a slow command.
 - The daemon side is `startFolderBrowse`
   ([start-folder-browse.ts](../../packages/cli/src/daemon/entry/folder-browse/start-folder-browse.ts)):
   it subscribes with `folderBrowse.daemonPending`, lists one directory per navigation through the
-  `list-browse-directory` local action, and reports with `reportListing`. It keeps no queue, and it
-  recovers after a restart because the pending rows are re-delivered.
+  `list-browse-directory` local action, and reports with `reportListing`. It keeps no durable queue:
+  at most one listing per browse runs at a time, a newer navigation waits behind it and replaces any
+  older queued one, and it recovers after a restart because the pending rows are re-delivered.
 - An idle session expires 10 minutes after `open` or the last `navigate`
   (`FOLDER_BROWSE_IDLE_TTL_MS`). `folderBrowse.cleanupExpiredFolderBrowseSessions` runs every five
   minutes, deletes 100 sessions per run with their listings, and reschedules itself when the batch
