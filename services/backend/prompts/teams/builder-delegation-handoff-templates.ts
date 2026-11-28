@@ -27,8 +27,7 @@ function getVerificationKindFlagLine(kind: VerificationKind): string {
   const choice = kind.lightweight
     ? '**required**. Lightweight: the builder always runs it, so never mark it `not applicable`.'
     : '**required** or **not applicable: <reason>**.';
-  const note = kind.note ? ` ${kind.note}` : '';
-  return `- \`${kind.label}\` — ${choice} Command: \`${kind.command}\`${note}`;
+  return `- \`${kind.label}\` — ${choice} Command: \`${kind.command}\``;
 }
 
 const PLACEHOLDER_PROSE_LINE =

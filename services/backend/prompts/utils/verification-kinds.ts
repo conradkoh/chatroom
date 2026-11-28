@@ -10,8 +10,6 @@ export interface VerificationKind {
   readonly lightweight: boolean;
   /** Placeholder command the brief author replaces with the command from the target repository's package scripts or agent guidance files. */
   readonly command: string;
-  /** Optional extra sentence appended to the flag line. */
-  readonly note?: string;
 }
 
 /** Verification kinds in report order. Derive every kind line from this list; do not hand-type kind names in templates. */
