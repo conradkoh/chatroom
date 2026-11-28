@@ -224,6 +224,9 @@ export const MACHINE_SCOPED_TABLES: readonly MachineScopedTable[] = [
   // Request tables (their by_machineId indexes exist only for this purge).
   byMachine('chatroom_folderPickerRequests', 'by_machineId'),
   byMachine('chatroom_gitCloneRequests', 'by_machineId'),
+  byMachine('chatroom_folderBrowseSessions', 'by_machine_state'),
+  // Listings can approach 1 MiB (500 names + overhead), so they cost 30 like other large rows.
+  byMachine('chatroom_folderBrowseListings', 'by_machineId', 30),
   byMachine('chatroom_machineProjectRoots', 'by_machineId'),
   byMachine('chatroom_capabilities_refresh_machine_results', 'by_machineId'),
   byMachine('chatroom_repositoryLedgerRequests', 'by_machineId_createdAt'),
