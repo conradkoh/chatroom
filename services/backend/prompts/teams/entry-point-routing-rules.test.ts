@@ -108,8 +108,12 @@ describe.each(ENTRY_POINT_FIXTURES)(
 
     test('applies the product-manager UI and UX review section', () => {
       expect(guidance).toContain(
-        'read its `## UI and UX review` section and follow it (routing rule 3)'
+        'read its `## UI and UX review` section and follow it (the new-UI-feature routing rule)'
       );
+    });
+
+    test('refers to routing rules by topic, never by number', () => {
+      expect(guidance).not.toMatch(/\brule \d/i);
     });
   }
 );
@@ -195,7 +199,7 @@ describe.each(ENTRY_POINT_FIXTURES)(
   (_name, _entry, _impl, guidance) => {
     test('routes agent-facing prompt text through the prompt engineer', () => {
       expect(guidance).toContain('goes to `prompt-engineer` for a prompt-change brief');
-      expect(guidance).toContain('Rule 5 applies first');
+      expect(guidance).toContain('The architect routing rule applies first');
     });
   }
 );
