@@ -111,8 +111,8 @@ inline under the field. The pure copy and derivations live in `remoteFolderBrows
   focus to Browse.
 - While mounted the panel registers with `pushOverlayDismiss`, so Escape closes the panel before the
   wizard or the switch dialog. Escape with a non-empty filter clears the filter instead.
-- No native dialog, no dialog/sheet/toast, no stored history. Do not call `useFolderPicker` from a
-  setup surface.
+- No native dialog, no dialog/sheet/toast, no stored history. Do not call the retired native folder-picker
+  hook from a setup surface.
 
 ## Consumers
 
