@@ -52,7 +52,7 @@ Instructions (not part of the message): Return exactly one recommended, evidence
 - Specify complete user flows with explicit loading, empty, error, success, disabled, and retry states where applicable.
 - For any user-facing workflow, draw each affected screen as an ASCII wireframe and each flow as a Mermaid flowchart, using the "Screens, Flows, and Layouts" section. Each screen drawing labels every button, input, and link with its exact text and the repository component it uses; each flow drawing shows the loading, empty, error, success, disabled, and retry transitions that apply.
 - Define component hierarchy and ownership, props/state/events, data boundaries, and interaction behavior.
-- Choose concrete existing ShadCN components with the Base UI backend and lucide-react/react-icons conventions; do not write "use an appropriate component."
+- Choose concrete components and icons from the project's existing component library and icon set; do not propose new libraries, and do not write "use an appropriate component."
 - Specify the project's styling utility classes or semantic theme-token classes for layout, spacing, sizing, typography, states, responsive behavior, and dark mode.
 - Provide the target HTML markup with exact class attributes and any required CSS/styles in the handoff.
 - Specify responsive breakpoints/layout behavior, visual feedback, destructive-action safeguards, exact files/components, and the UI/integration test plan.
@@ -187,7 +187,7 @@ Instructions (not part of the message): Return exactly one recommended, evidence
 - Specify complete user flows with explicit loading, empty, error, success, disabled, and retry states where applicable.
 - For any user-facing workflow, draw each affected screen as an ASCII wireframe and each flow as a Mermaid flowchart, using the "Screens, Flows, and Layouts" section. Each screen drawing labels every button, input, and link with its exact text and the repository component it uses; each flow drawing shows the loading, empty, error, success, disabled, and retry transitions that apply.
 - Define component hierarchy and ownership, props/state/events, data boundaries, and interaction behavior.
-- Choose concrete existing ShadCN components with the Base UI backend and lucide-react/react-icons conventions; do not write "use an appropriate component."
+- Choose concrete components and icons from the project's existing component library and icon set; do not propose new libraries, and do not write "use an appropriate component."
 - Specify the project's styling utility classes or semantic theme-token classes for layout, spacing, sizing, typography, states, responsive behavior, and dark mode.
 - Provide the target HTML markup with exact class attributes and any required CSS/styles in the handoff.
 - Specify responsive breakpoints/layout behavior, visual feedback, destructive-action safeguards, exact files/components, and the UI/integration test plan.
@@ -322,7 +322,7 @@ Instructions (not part of the message): Return exactly one recommended, evidence
 - Specify complete user flows with explicit loading, empty, error, success, disabled, and retry states where applicable.
 - For any user-facing workflow, draw each affected screen as an ASCII wireframe and each flow as a Mermaid flowchart, using the "Screens, Flows, and Layouts" section. Each screen drawing labels every button, input, and link with its exact text and the repository component it uses; each flow drawing shows the loading, empty, error, success, disabled, and retry transitions that apply.
 - Define component hierarchy and ownership, props/state/events, data boundaries, and interaction behavior.
-- Choose concrete existing ShadCN components with the Base UI backend and lucide-react/react-icons conventions; do not write "use an appropriate component."
+- Choose concrete components and icons from the project's existing component library and icon set; do not propose new libraries, and do not write "use an appropriate component."
 - Specify the project's styling utility classes or semantic theme-token classes for layout, spacing, sizing, typography, states, responsive behavior, and dark mode.
 - Provide the target HTML markup with exact class attributes and any required CSS/styles in the handoff.
 - Specify responsive breakpoints/layout behavior, visual feedback, destructive-action safeguards, exact files/components, and the UI/integration test plan.

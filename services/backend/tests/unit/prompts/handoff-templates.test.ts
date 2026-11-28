@@ -99,7 +99,7 @@ describe('handoff-templates > resolver', () => {
       /keyboard shortcuts|focus order|focus restoration|accessible semantics|accessibility test/i
     );
     expect(template).toMatch(/component hierarchy and ownership|props\/state\/events/i);
-    expect(template).toMatch(/ShadCN|Base UI/i);
+    expect(template).toMatch(/component library and icon set/i);
     expect(template).toMatch(/theme-token|styling utility classes/i);
     expect(template).toMatch(/responsive breakpoints|responsive behavior/i);
     expect(template).toMatch(/UI\/integration test plan/i);
