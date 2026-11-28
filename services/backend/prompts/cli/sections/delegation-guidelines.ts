@@ -30,6 +30,8 @@ Break complex features into small, focused slices. For code review guidance, act
 
 **UI/UX work:** The UI/UX engineer owns the design. Request its markup, classes, and styles, and implement to match them.
 
+**Prompt text:** The prompt engineer owns the wording of agent-facing prompt changes. Apply its proposed text verbatim, then run the snapshot tests its brief names.
+
 - Implement one slice at a time; each slice ≈ one focused review surface.
 - Review your own work before moving on; re-validate after rework.
 - ${feedingNote}.`;
@@ -41,7 +43,7 @@ export function getSliceHeuristicsBlock(): string {
 
 - **Each slice should name a concrete artifact** ("the X schema", "the Y entity", "the Z endpoint") — not a vague layer ("backend work", "implementation"). Weak builders fail when scope is unbounded.
 - **File-level detail, zero ambiguity.** List every file (full paths) and paste snippets until the builder cannot guess wrong — not vague layers ("backend work", "the component").
-- **Architecture:** for backend contract, API, or schema/persistence changes, the architect designs first and you delegate only after its design returns. You own slicing and sequencing of builder work, using the architect's proposed sequence as input; the UI/UX engineer owns UI/UX design.
+- **Architecture:** for backend contract, API, or schema/persistence changes, the architect designs first and you delegate only after its design returns. You own slicing and sequencing of builder work, using the architect's proposed sequence as input; the UI/UX engineer owns UI/UX design; the prompt engineer owns the wording of agent-facing prompt text, which you paste into the brief verbatim.
 - **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
 - **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
 - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.

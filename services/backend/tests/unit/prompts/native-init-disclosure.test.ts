@@ -55,8 +55,10 @@ const CONVEX_URL = 'http://127.0.0.1:3210';
  * the product-manager gate (~440 characters),
  * then from 24000 to admit the grounding publish guidance paragraph and its
  * heredoc command block (~1000 characters).
+ * then from 25000 to admit the prompt-engineer routing rule, its per-team
+ * delegation wording, and the product-manager gate addition (~510 characters).
  */
-const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 25000;
+const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 26000;
 
 function nativeInitPrompt(team: keyof typeof TEAM_CONFIGS, role: string): string {
   const config = TEAM_CONFIGS[team];

@@ -59,14 +59,15 @@ describe.each(ENTRY_POINTS)('%s routing rules', (_name, entryPoint, implementer,
     expect(guidance).toContain('never decides scope');
   });
 
-  test('states the six rules in order', () => {
+  test('states the seven rules in order', () => {
     const markers = [
       '1. **Bug report:** goes to `triage` first.',
       '2. **New feature to build, with undecided or ambiguous scope:** goes to `product-manager` first',
       '3. **New feature with a UI surface and agreed scope:**',
       '4. **Non-game icons, illustrations, and asset files:**',
       '5. **Backend contract, API, or schema change:** goes to `architect` first.',
-      '6. **Existing UI with no new surface and no design decision:** goes straight to',
+      '6. **Agent-facing prompt text that needs a design decision:** ',
+      '7. **Existing UI with no new surface and no design decision:** goes straight to',
     ];
     let previous = -1;
     for (const marker of markers) {
@@ -177,6 +178,34 @@ describe.each(ENTRY_POINTS)('%s decision routing', (_name, entryPoint, _implemen
     expect(guidance).toContain(
       'settle any open question it raises under the decision-routing rule'
     );
+  });
+});
+
+describe.each(ENTRY_POINTS)('%s prompt-engineer routing', (_name, _entry, _impl, guidance) => {
+  test('routes agent-facing prompt text through the prompt engineer', () => {
+    expect(guidance).toContain('goes to `prompt-engineer` for a prompt-change brief');
+    expect(guidance).toContain('Rule 5 applies first');
+  });
+});
+
+describe('prompt engineer routing is team-correct', () => {
+  const trio = ENTRY_POINTS[0][3];
+  const duo = ENTRY_POINTS[1][3];
+  const solo = ENTRY_POINTS[2][3];
+
+  test('trio and duo pass the proposed text to the implementation role', () => {
+    expect(trio).toContain('before any `specifier` delegation; pass its proposed text verbatim');
+    expect(duo).toContain('before any `builder` delegation; pass its proposed text verbatim');
+  });
+
+  test('solo applies the proposed text itself', () => {
+    expect(solo).toContain('before you edit it; apply its proposed text verbatim');
+    expect(solo).toContain('goes straight to you');
+  });
+
+  test('duo and trio product-manager gate names the prompt engineer', () => {
+    expect(duo).toContain('any researcher, architect, prompt-engineer, or');
+    expect(trio).toContain('any researcher, architect, prompt-engineer, or');
   });
 });
 

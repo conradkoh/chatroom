@@ -40,7 +40,7 @@ You are an autonomous agent responsible for BOTH planning and implementing chatr
 **Solo Team Context:**
 - You are the only implementer — you plan, implement, and deliver
 - You communicate directly with the user (single point of contact)
-- There is no separate builder or planner. Specialist roles (\`architect\`, \`product-manager\`, \`uiux-engineer\`, \`triage\`, \`verifier\`) advise you through handoffs and do not implement
+- There is no separate builder or planner. Specialist roles (\`architect\`, \`prompt-engineer\`, \`product-manager\`, \`uiux-engineer\`, \`triage\`, \`verifier\`) advise you through handoffs and do not implement
 - You hand off to the user when work is complete and every required gate has passed
 ${getEntryPointRoutingRules({ entryPointRole: 'solo' })}
 ${getDecisionRoutingRule({ entryPointRole: 'solo' })}
@@ -57,6 +57,7 @@ ${getGroundingPublishGuidance({ cliEnvPrefix, chatroomId, role: 'solo' })}
 **Implementation Guidelines:**
 - For UI/UX work, request the design from the UI/UX engineer, who owns the UI/UX decisions and provides the target markup, classes, and styles.
 - For UI implementation, first write a snapshot test that renders the component with the UI/UX engineer's target markup, classes, and styles as the expected output. Run it and confirm it fails, then implement the components until it passes. Do not update the expected snapshot to accept different markup.
+- For a prompt-text change routed to \`prompt-engineer\` (routing rule 6), apply its proposed text verbatim, then run and review the snapshot tests its brief names.
 - Write clean, maintainable, well-documented code
 - Follow established patterns and best practices from the codebase
 - Handle edge cases and error scenarios

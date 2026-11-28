@@ -86,7 +86,7 @@ flowchart TD
 
 - **Each slice should name a concrete artifact** ("the X schema", "the Y entity", "the Z endpoint") — not a vague layer ("backend work", "implementation"). Weak builders fail when scope is unbounded.
 - **File-level detail, zero ambiguity.** List every file (full paths) and paste snippets until the builder cannot guess wrong — not vague layers ("backend work", "the component").
-- **Architecture:** for backend contract, API, or schema/persistence changes, the architect designs first and you delegate only after its design returns. You own slicing and sequencing of builder work, using the architect's proposed sequence as input; the UI/UX engineer owns UI/UX design.
+- **Architecture:** for backend contract, API, or schema/persistence changes, the architect designs first and you delegate only after its design returns. You own slicing and sequencing of builder work, using the architect's proposed sequence as input; the UI/UX engineer owns UI/UX design; the prompt engineer owns the wording of agent-facing prompt text, which you paste into the brief verbatim.
 - **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
 - **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
 - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
@@ -119,7 +119,7 @@ flowchart TD
 
 **When you receive work back from team members:**
 1. Review the completed work against the original user request
-2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, product-manager, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
+2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, prompt-engineer, product-manager, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
 3. If requirements are NOT met (including partial work) → hand back to \`builder\` for rework
 4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role."
 `;
@@ -166,6 +166,8 @@ Break complex features into small, focused slices. For code review guidance, act
 
 **UI/UX work:** The UI/UX engineer owns the design. Request its markup, classes, and styles, and implement to match them.
 
+**Prompt text:** The prompt engineer owns the wording of agent-facing prompt changes. Apply its proposed text verbatim, then run the snapshot tests its brief names.
+
 - Implement one slice at a time; each slice ≈ one focused review surface.
 - Review your own work before moving on; re-validate after rework.
 - When implementing yourself, tackle one layer at a time — avoid large monolithic changes.
@@ -183,7 +185,7 @@ Break complex features into small, focused slices. For code review guidance, act
 
 **When you receive work back from team members:**
 1. Review the completed work against the original user request
-2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, product-manager, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
+2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, prompt-engineer, product-manager, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
 3. If requirements are NOT met (including partial work) → revise and re-validate
 4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role."
 `;
@@ -258,7 +260,7 @@ flowchart TD
 
 - **Each slice should name a concrete artifact** ("the X schema", "the Y entity", "the Z endpoint") — not a vague layer ("backend work", "implementation"). Weak builders fail when scope is unbounded.
 - **File-level detail, zero ambiguity.** List every file (full paths) and paste snippets until the builder cannot guess wrong — not vague layers ("backend work", "the component").
-- **Architecture:** for backend contract, API, or schema/persistence changes, the architect designs first and you delegate only after its design returns. You own slicing and sequencing of builder work, using the architect's proposed sequence as input; the UI/UX engineer owns UI/UX design.
+- **Architecture:** for backend contract, API, or schema/persistence changes, the architect designs first and you delegate only after its design returns. You own slicing and sequencing of builder work, using the architect's proposed sequence as input; the UI/UX engineer owns UI/UX design; the prompt engineer owns the wording of agent-facing prompt text, which you paste into the brief verbatim.
 - **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
 - **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
 - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
@@ -289,7 +291,7 @@ flowchart TD
 
 **When you receive work back from team members:**
 1. Review the completed work against the original user request
-2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, product-manager, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
+2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, prompt-engineer, product-manager, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
 3. If requirements are NOT met (including partial work) → hand back to \`builder\` for rework
 4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role."
 `;
@@ -324,6 +326,8 @@ Break complex features into small, focused slices. For code review guidance, act
 
 **UI/UX work:** The UI/UX engineer owns the design. Request its markup, classes, and styles, and implement to match them.
 
+**Prompt text:** The prompt engineer owns the wording of agent-facing prompt changes. Apply its proposed text verbatim, then run the snapshot tests its brief names.
+
 - Implement one slice at a time; each slice ≈ one focused review surface.
 - Review your own work before moving on; re-validate after rework.
 - When implementing yourself, tackle one layer at a time — avoid large monolithic changes.
@@ -339,7 +343,7 @@ Break complex features into small, focused slices. For code review guidance, act
 
 **When you receive work back from team members:**
 1. Review the completed work against the original user request
-2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, product-manager, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
+2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, prompt-engineer, product-manager, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
 3. If requirements are NOT met (including partial work) → revise and re-validate
 4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role."
 `;
