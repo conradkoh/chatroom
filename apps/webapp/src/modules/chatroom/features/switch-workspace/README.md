@@ -11,6 +11,7 @@ result screen reports exactly what happened. The backend contract is
 - `choose` — `SwitchWorkspaceChooseStep.tsx`. Reuses the setup chooser (`SetupMachineSection`,
   `SetupFolderPickerField`, `useSetupWorkspaceFolderPicker`). Offline machines are labelled but
   selectable; Browse needs the daemon, so it is disabled for them while the typed path stays usable.
+  Browse opens the inline remote browser under the field, and Select fills the typed path.
   The primary button is "Review switch", never the destructive action.
 - `review` — `SwitchWorkspaceReviewStep.tsx`. From/To, the five consequence lines
   (`CONSEQUENCES`), the "Expected" carry-over preview (`lib/carryOverPreview.ts`), and an

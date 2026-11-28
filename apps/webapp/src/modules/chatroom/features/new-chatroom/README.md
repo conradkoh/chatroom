@@ -92,7 +92,7 @@ Leave action cancels the wizard.
 | `NewChatroomWorkspaceStep.tsx`                                 | Step 2: the Clone and Existing folder tabs, and the leave confirm.        |
 | `CloneRepoForm.tsx`, `CloneFields.tsx`, `CloneStatusPanel.tsx` | The clone form and its status.                                            |
 | `CloneLeaveDialog.tsx`                                         | The leave confirm for a clone that is still running or already completed. |
-| `ExistingFolderForm.tsx`                                       | The folder picker form for a folder that already exists.                  |
+| `ExistingFolderForm.tsx`                                       | The existing-folder form: typed path field with the inline browser.       |
 | `NewChatroomAgentsStep.tsx`                                    | Step 3.                                                                   |
 | `hooks/`                                                       | `useCloneTarget`, `useGitCloneRequest`, `useWorkspaceEscape`.             |
 | `lib/`                                                         | `deriveGitCloneViewState.ts`, the pure clone state rule.                  |

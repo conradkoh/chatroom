@@ -1,6 +1,6 @@
 # Feature: Remote Folder Browsing
 
-**Status:** Backend session API implemented (P1). Daemon fulfiller, webapp data hook and UI land in follow-up packages.
+**Status:** Implemented end to end; the native folder picker is retired.
 **Last Updated:** 2026-11-28
 
 ---
@@ -110,5 +110,5 @@ is gone in about 15 minutes. Machine deletion purges both tables.
 ## Non-goals
 
 File selection, previews, multi-select, bookmarks, Windows paths, tree push, and per-directory
-subscriptions. No native dialog is opened by the new path; the `daemon.pickFolder` dispatch is
-retired in a later package.
+subscriptions. No native dialog is opened: `daemon.pickFolder` is a retired no-op that logs and
+acknowledges, and nothing in the webapp or the daemon opens a dialog.

@@ -68,7 +68,7 @@ a workspace, and the daemon may start later. Those flows pass `offlineSelectable
 
 | Prop                | Meaning                                                                  |
 | ------------------- | ------------------------------------------------------------------------ |
-| `variant`           | `'setup'` or `'clone'`. Chooses the heading style and the status order.  |
+| `variant`           | `'setup'` or `'clone'`. Chooses the heading style only.                  |
 | `heading`           | The visible heading.                                                     |
 | `inputAriaLabel`    | The text input's accessible name.                                        |
 | `waitingText`       | The caption the browser shows while its first listing loads.             |
@@ -111,8 +111,8 @@ inline under the field. The pure copy and derivations live in `remoteFolderBrows
   focus to Browse.
 - While mounted the panel registers with `pushOverlayDismiss`, so Escape closes the panel before the
   wizard or the switch dialog. Escape with a non-empty filter clears the filter instead.
-- No native dialog, no dialog/sheet/toast, no stored history. Do not call the retired native folder-picker
-  hook from a setup surface.
+- Browse is inline only: no dialog, sheet or toast, and no stored history. The selected path lives in
+  the field until the caller submits it. Do not reintroduce `daemon.pickFolder` or a native picker.
 
 ## Consumers
 
