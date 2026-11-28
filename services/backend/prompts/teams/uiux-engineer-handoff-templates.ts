@@ -12,7 +12,7 @@ function getUiuxEngineerRequirements(): string {
 - For any user-facing workflow, draw each affected screen as an ASCII wireframe and each flow as a Mermaid flowchart, using the "Screens, Flows, and Layouts" section. Each screen drawing labels every button, input, and link with its exact text and the repository component it uses; each flow drawing shows the loading, empty, error, success, disabled, and retry transitions that apply.
 - Define component hierarchy and ownership, props/state/events, data boundaries, and interaction behavior.
 - Choose concrete existing ShadCN components with the Base UI backend and lucide-react/react-icons conventions; do not write "use an appropriate component."
-- Specify Tailwind utility classes or semantic theme-token classes for layout, spacing, sizing, typography, states, responsive behavior, and dark mode.
+- Specify the project's styling utility classes or semantic theme-token classes for layout, spacing, sizing, typography, states, responsive behavior, and dark mode.
 - Provide the target HTML markup with exact class attributes and any required CSS/styles in the handoff.
 - Specify responsive breakpoints/layout behavior, visual feedback, destructive-action safeguards, exact files/components, and the UI/integration test plan.
 - Do not propose or require web accessibility implementation work unless the user explicitly requests it.
@@ -81,7 +81,7 @@ flowchart TD
 - Keep the design within the repository's established source-of-truth boundaries and avoid introducing a new registry or abstraction without evidence.
 
 ## Files to implement (exhaustive, file-level)
-List every file or product surface the implementer must create or modify. Mark each \`(Required)\` or \`(Optional)\`. For every file, give the exact responsibility, exported types/signatures/props, state/data/event boundaries, component hierarchy, and target Tailwind/theme-token snippet detailed enough to implement without guessing.
+List every file or product surface the implementer must create or modify. Mark each \`(Required)\` or \`(Optional)\`. For every file, give the exact responsibility, exported types/signatures/props, state/data/event boundaries, component hierarchy, and target utility or theme-token snippet detailed enough to implement without guessing.
 ${getFileReferenceGuidanceComment()}
 
 ### \`<repo-relative/path.ext>\` (Required)

@@ -143,11 +143,11 @@ describe('Native task delivery — architect and UI/UX design briefs', () => {
       expect(templates).toContain(`--next-role="${scenario.primaryHandoffTarget}"`);
       if (scenario.role === 'architect') {
         expect(templates).toMatch(
-          /domain model|concurrent writers|Convex reactivity|migration\/backfill/i
+          /domain model|concurrent writers|reactive fanout|migration\/backfill/i
         );
       } else {
         expect(templates).toMatch(
-          /loading, empty, error, success|keyboard shortcuts|Tailwind|UI\/integration/i
+          /loading, empty, error, success|keyboard shortcuts|theme-token|UI\/integration/i
         );
       }
     });

@@ -75,14 +75,14 @@ describe('handoff-templates > resolver', () => {
     expect(template).toContain(`--next-role="${target}"`);
   });
 
-  test('architect design brief requires domain, concurrency, read-model, Convex, and migration detail', () => {
+  test('architect design brief requires domain, concurrency, read-model, reactive fanout, and migration detail', () => {
     const template = getHandoffTemplate({ fromRole: 'architect', toRole: 'planner' });
 
     expect(template).toMatch(/domain model|entity ownership/i);
     expect(template).toMatch(/service and module boundaries|public and internal APIs/i);
     expect(template).toMatch(/concurrent writers|idempotency|ordering and monotonicity/i);
     expect(template).toMatch(/primary read paths|indexes|projections\/read models/i);
-    expect(template).toMatch(/Convex reactivity|bandwidth|reactive fanout/i);
+    expect(template).toMatch(/reactive fanout|bandwidth/i);
     expect(template).toMatch(/high-frequency|low-frequency/i);
     expect(template).toMatch(/migration\/backfill|schema.*query.*mutation/i);
     expect(template).toMatch(/tests|verification order/i);
@@ -100,7 +100,7 @@ describe('handoff-templates > resolver', () => {
     );
     expect(template).toMatch(/component hierarchy and ownership|props\/state\/events/i);
     expect(template).toMatch(/ShadCN|Base UI/i);
-    expect(template).toMatch(/Tailwind|theme-token/i);
+    expect(template).toMatch(/theme-token|styling utility classes/i);
     expect(template).toMatch(/responsive breakpoints|responsive behavior/i);
     expect(template).toMatch(/UI\/integration test plan/i);
   });

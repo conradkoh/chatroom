@@ -55,7 +55,7 @@ What a good review covers:
 - Stay within the stated focus, and do not duplicate issues.
 - Name what you did not check under \`## Not reviewed\`.
 
-Audit authentication and authorization for every backend endpoint in review scope, regardless of the stated focus. An endpoint is any exported Convex query, mutation, or action, HTTP route, or API handler that the target adds or changes, plus any such endpoint the changed code calls or exposes. For each endpoint, check:
+Audit authentication and authorization for every backend endpoint in review scope, regardless of the stated focus. An endpoint is any exported backend query, mutation, or action, HTTP route, or API handler that the target adds or changes, plus any such endpoint the changed code calls or exposes. For each endpoint, check:
 - **Authentication:** the endpoint establishes the caller's identity before it reads or writes data, using the shared auth helper the sibling endpoints use. It does not trust a caller-supplied user id, role, or team id as proof of identity.
 - **Authorization:** the endpoint checks that the authenticated caller may act on the specific resource the request names (for example chatroom membership, ownership, or role) before it returns data or changes state. A login check alone is not sufficient.
 - **Coverage:** no code path returns or changes data before its check runs. An internal helper that skips checks may be called only from endpoints that already performed them.
@@ -141,7 +141,7 @@ What a good review covers:
 - Stay within the stated focus, and do not duplicate issues.
 - Name what you did not check under \`## Not reviewed\`.
 
-Audit authentication and authorization for every backend endpoint in review scope, regardless of the stated focus. An endpoint is any exported Convex query, mutation, or action, HTTP route, or API handler that the target adds or changes, plus any such endpoint the changed code calls or exposes. For each endpoint, check:
+Audit authentication and authorization for every backend endpoint in review scope, regardless of the stated focus. An endpoint is any exported backend query, mutation, or action, HTTP route, or API handler that the target adds or changes, plus any such endpoint the changed code calls or exposes. For each endpoint, check:
 - **Authentication:** the endpoint establishes the caller's identity before it reads or writes data, using the shared auth helper the sibling endpoints use. It does not trust a caller-supplied user id, role, or team id as proof of identity.
 - **Authorization:** the endpoint checks that the authenticated caller may act on the specific resource the request names (for example chatroom membership, ownership, or role) before it returns data or changes state. A login check alone is not sufficient.
 - **Coverage:** no code path returns or changes data before its check runs. An internal helper that skips checks may be called only from endpoints that already performed them.

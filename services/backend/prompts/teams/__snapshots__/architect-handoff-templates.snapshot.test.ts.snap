@@ -25,7 +25,7 @@ Instructions (not part of the message): Return exactly one recommended, evidence
 - Define service and module boundaries, public and internal APIs, function signatures, and ownership of side effects.
 - Analyze concurrency and races: concurrent writers, idempotency, ordering and monotonicity, retries, transactions, and failure/recovery behavior.
 - Design read patterns first: primary read paths, indexes, projections/read models, query shapes, scan and transaction limits, and invalidation/subscription scope.
-- Account for Convex reactivity and bandwidth: query invalidation patterns, avoiding unnecessary reactive fanout, and separating high-frequency heartbeat/liveness/status fields from low-frequency identity/configuration fields.
+- Account for reactive query fanout and bandwidth: query invalidation patterns, avoiding unnecessary reactive re-reads, and separating high-frequency liveness or status fields from low-frequency identity or configuration fields.
 - Specify concrete schema, query, and mutation changes; migration/backfill sequence; tests; and verification order.
 - Make every new or changed interface complete: list each method or field with its callers, its inputs and outputs, and the failure modes it must signal to those callers. An interface with an unnamed caller or an unspecified failure mode is incomplete.
 - Apply the deletion test to every new module, class, or abstraction: name what complexity would reappear across its callers if it were deleted. A module that fails the test (its callers would be no more complex without it) must be removed from the design.
@@ -149,7 +149,7 @@ Instructions (not part of the message): Return exactly one recommended, evidence
 - Define service and module boundaries, public and internal APIs, function signatures, and ownership of side effects.
 - Analyze concurrency and races: concurrent writers, idempotency, ordering and monotonicity, retries, transactions, and failure/recovery behavior.
 - Design read patterns first: primary read paths, indexes, projections/read models, query shapes, scan and transaction limits, and invalidation/subscription scope.
-- Account for Convex reactivity and bandwidth: query invalidation patterns, avoiding unnecessary reactive fanout, and separating high-frequency heartbeat/liveness/status fields from low-frequency identity/configuration fields.
+- Account for reactive query fanout and bandwidth: query invalidation patterns, avoiding unnecessary reactive re-reads, and separating high-frequency liveness or status fields from low-frequency identity or configuration fields.
 - Specify concrete schema, query, and mutation changes; migration/backfill sequence; tests; and verification order.
 - Make every new or changed interface complete: list each method or field with its callers, its inputs and outputs, and the failure modes it must signal to those callers. An interface with an unnamed caller or an unspecified failure mode is incomplete.
 - Apply the deletion test to every new module, class, or abstraction: name what complexity would reappear across its callers if it were deleted. A module that fails the test (its callers would be no more complex without it) must be removed from the design.
@@ -282,7 +282,7 @@ CHATROOM_PLAN_END
 - Define service and module boundaries, public and internal APIs, function signatures, and ownership of side effects.
 - Analyze concurrency and races: concurrent writers, idempotency, ordering and monotonicity, retries, transactions, and failure/recovery behavior.
 - Design read patterns first: primary read paths, indexes, projections/read models, query shapes, scan and transaction limits, and invalidation/subscription scope.
-- Account for Convex reactivity and bandwidth: query invalidation patterns, avoiding unnecessary reactive fanout, and separating high-frequency heartbeat/liveness/status fields from low-frequency identity/configuration fields.
+- Account for reactive query fanout and bandwidth: query invalidation patterns, avoiding unnecessary reactive re-reads, and separating high-frequency liveness or status fields from low-frequency identity or configuration fields.
 - Specify concrete schema, query, and mutation changes; migration/backfill sequence; tests; and verification order.
 - Make every new or changed interface complete: list each method or field with its callers, its inputs and outputs, and the failure modes it must signal to those callers. An interface with an unnamed caller or an unspecified failure mode is incomplete.
 - Apply the deletion test to every new module, class, or abstraction: name what complexity would reappear across its callers if it were deleted. A module that fails the test (its callers would be no more complex without it) must be removed from the design.
