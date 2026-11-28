@@ -19,7 +19,8 @@
     "./domain/task-envelope": "./src/domain/task-envelope.ts",
     "./domain/git-clone": "./src/domain/git-clone.ts",
     "./domain/file-attachment": "./src/domain/file-attachment.ts",
-    "./domain/machine-backup": "./src/domain/machine-backup.ts"
+    "./domain/machine-backup": "./src/domain/machine-backup.ts",
+    "./domain/folder-browse": "./src/domain/folder-browse.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
