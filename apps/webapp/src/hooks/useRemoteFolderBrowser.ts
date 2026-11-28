@@ -56,8 +56,15 @@ export interface RemoteFolderBrowserListing {
   fellBack: boolean;
 }
 
+/**
+ * Error codes the browser surfaces: daemon codes pass through, and `FOLDER_BROWSE_INVALID_PATH`
+ * becomes the webapp-only `INVALID_PATH` so the UI can say the path is invalid instead of that the
+ * folder could not be read.
+ */
+export type RemoteFolderBrowserErrorCode = FolderBrowseErrorCode | 'INVALID_PATH';
+
 export interface RemoteFolderBrowserError {
-  code: FolderBrowseErrorCode;
+  code: RemoteFolderBrowserErrorCode;
   message: string;
   path: string;
 }
@@ -162,9 +169,10 @@ function phaseDeadlines(header: BrowseHeaderView): number[] {
   return [header.expiresAt, header.pendingSince + FOLDER_BROWSE_NO_RESPONSE_MS];
 }
 
-/** A daemon-visible error code; backend-only codes collapse to READ_FAILED. */
-function toFolderBrowseErrorCode(error: unknown): FolderBrowseErrorCode {
+/** Daemon codes pass through; FOLDER_BROWSE_INVALID_PATH becomes INVALID_PATH; else READ_FAILED. */
+function toFolderBrowseErrorCode(error: unknown): RemoteFolderBrowserErrorCode {
   const code = convexErrorCode(error);
+  if (code === 'FOLDER_BROWSE_INVALID_PATH') return 'INVALID_PATH';
   if (code !== null && FOLDER_BROWSE_CODE_SET.has(code)) return code as FolderBrowseErrorCode;
   return 'READ_FAILED';
 }
@@ -203,6 +211,9 @@ export function useRemoteFolderBrowser({
   );
 
   // `clock` marks the last deadline timer fire; `now` never goes backwards.
+  // `now` is the client clock while `expiresAt` and `pendingSince` are server times, so clock skew
+  // can show `ended` or `no-response` early or late. Accepted tolerance: the server stays the
+  // authority for expiry, and the next server write re-derives the phase.
   const now = Math.max(clock ?? 0, Date.now());
   const listing = listingView ? toBrowserListing(listingView) : null;
   const phase = derivePhase({

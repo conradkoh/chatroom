@@ -175,6 +175,9 @@ describe('errorCopy', () => {
     expect(errorCopy({ code: 'READ_FAILED', path: '/srv' }, 'laptop-m2')).toBe(
       'Could not read /srv. Try again or choose another folder.'
     );
+    expect(errorCopy({ code: 'INVALID_PATH', path: 'relative/path' }, 'laptop-m2')).toBe(
+      "That path isn't valid. Use an absolute path without '..'."
+    );
   });
 });
 

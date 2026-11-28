@@ -34,11 +34,11 @@ deletes both rows. The selected path is never stored server-side.
 | `close`         | `browseId`                                                          | `{ closed }`                                        | `NOT_AUTHENTICATED`                                                                                   |
 | `get`           | `browseId`                                                          | header view or `null`                               | —                                                                                                     |
 | `getListing`    | `browseId`                                                          | listing view or `null`                              | —                                                                                                     |
-| `daemonPending` | `machineId`                                                         | pending rows (max 20)                               | — (empty when unauthorized)                                                                           |
+| `daemonPending` | `machineId`                                                         | pending rows for the caller (max 20, unexpired)     | — (empty when unauthorized)                                                                           |
 | `reportListing` | `machineId`, `browseId`, `navSeq`, `result`                         | `applied / stale / duplicate / expired / not_found` | `NOT_AUTHENTICATED`, `MACHINE_NOT_FOUND`, `NOT_AUTHORIZED_MACHINE`, `FOLDER_BROWSE_INVALID_LISTING`   |
 
-`reportListing` checks run in this order: `not_found`, machine mismatch (throw), `expired`, `stale`,
-`duplicate`, listing validation, then the write.
+`reportListing` checks run in this order: `not_found` (missing, or owned by another user), machine
+mismatch (throw), `expired`, `stale`, `duplicate`, listing validation, then the write.
 
 ## Listing contract and caps
 
@@ -69,16 +69,20 @@ which replaces pagination for huge directories.
 ## Paths
 
 `normalizeBrowsePath` (shared) trims, requires a leading `/`, caps at 1024 characters, rejects
-`\0`, `\r`, `\n` and any `..` segment, collapses repeated `/`, drops `.`, and strips a trailing `/`
-except at root. `/` is browsable. It deliberately does not apply the working-directory shell
-blocklist, so names such as `My (old) #2` can be browsed. Whether a folder may be _selected_ is
+any C0 control character or DEL (including `\0`, `\t`, `\r`, `\n`, ESC and `\x7f`) and any `..`
+segment, collapses repeated `/`, drops `.`, and strips a trailing `/` except at root. `/` is
+browsable. Daemon-side, a directory whose name contains a control character or `/` is never listed;
+it is counted with the files, so a report never violates the backend's entry-name rule. The
+normalizer deliberately does not apply the working-directory shell blocklist, so names such as
+`My (old) #2` can be browsed. Whether a folder may be _selected_ is
 `listing.selectable`, computed by the backend with `normalizeWorkingDir`, which rejects `/` and the
 shell blocklist. Paths are POSIX only; a Windows daemon reports `UNSUPPORTED_PLATFORM`.
 
 ## Security boundary
 
 Owner plus machine only: `userId` is the opener and `machineId` must be owned by the caller
-(`getOwnedMachine`); `daemonPending` serves only machines the daemon session's user owns. There is
+(`getOwnedMachine`); `daemonPending` serves only rows that the daemon session's user owns, on a
+machine that user owns, and only while they are unexpired. There is
 no containment root — the owner may browse any absolute directory the daemon's OS user can read,
 which is no broader than what that owner's agents already execute on the machine. Exposure is
 minimal (directory names only, no file names or contents), only on explicit request, and deleted at

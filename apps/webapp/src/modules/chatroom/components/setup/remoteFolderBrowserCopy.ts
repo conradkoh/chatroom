@@ -5,12 +5,12 @@
  * and returns strings or models, so the wording and the precedence rules are unit-tested without
  * a DOM. The components in this folder only lay these results out.
  */
-import {
-  FOLDER_BROWSE_NO_RESPONSE_MS,
-  type FolderBrowseErrorCode,
-} from '@workspace/shared/domain/folder-browse';
+import { FOLDER_BROWSE_NO_RESPONSE_MS } from '@workspace/shared/domain/folder-browse';
 
-import type { RemoteFolderBrowserState } from '@/hooks/useRemoteFolderBrowser';
+import type {
+  RemoteFolderBrowserErrorCode,
+  RemoteFolderBrowserState,
+} from '@/hooks/useRemoteFolderBrowser';
 
 export type BrowserBodyKind = 'loading' | 'list' | 'error' | 'no-response' | 'ended';
 export type NoticeTone = 'error' | 'warning' | 'info';
@@ -91,10 +91,10 @@ export function selectDisabledReason(
   return null;
 }
 
-/** The message for a daemon-reported browse failure, naming the folder it concerns. */
+/** The message for a browse failure, naming the folder where there is one to name. */
 // fallow-ignore-next-line complexity
 export function errorCopy(
-  error: { code: FolderBrowseErrorCode; path: string },
+  error: { code: RemoteFolderBrowserErrorCode; path: string },
   machineName: string
 ): string {
   switch (error.code) {
@@ -104,6 +104,8 @@ export function errorCopy(
       return `Reading ${error.path} took too long. Try again.`;
     case 'UNSUPPORTED_PLATFORM':
       return `Folder browsing is not available on ${machineName}. Type the folder path instead.`;
+    case 'INVALID_PATH':
+      return "That path isn't valid. Use an absolute path without '..'.";
     case 'READ_FAILED':
       return `Could not read ${error.path}. Try again or choose another folder.`;
   }

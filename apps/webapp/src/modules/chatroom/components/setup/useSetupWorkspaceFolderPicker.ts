@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { FolderPickerState } from './SetupFolderPickerField';
 import { getMachineDisplayName } from '../../types/machine';
@@ -60,13 +60,11 @@ export function useSetupWorkspaceFolderPicker({
     setError(null);
   }, [close]);
 
-  const picker: FolderPickerState = {
-    browser,
-    machineDisplayName,
-    error,
-    onBrowse,
-    onCloseBrowser,
-  };
+  // Memoized so `memo(SetupFolderPickerField)` skips renders while nothing it shows has changed.
+  const picker = useMemo<FolderPickerState>(
+    () => ({ browser, machineDisplayName, error, onBrowse, onCloseBrowser }),
+    [browser, machineDisplayName, error, onBrowse, onCloseBrowser]
+  );
 
   return { picker, reset };
 }

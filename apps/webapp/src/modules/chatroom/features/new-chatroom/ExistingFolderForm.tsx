@@ -106,6 +106,7 @@ export function ExistingFolderForm({
       }
     >
       <form id={formId} onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {/* Browsing no longer disables the input; the typed path stays editable. */}
         <SetupFolderPickerField
           variant="setup"
           heading="Workspace Folder"

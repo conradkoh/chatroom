@@ -532,7 +532,7 @@ describe('useRemoteFolderBrowser', () => {
     expect(result.current.browser?.phase).toBe('ended');
   });
 
-  it('shows a non-terminal navigate rejection as error with the backend message', async () => {
+  it('shows a non-terminal navigate rejection as an invalid-path error', async () => {
     mutations.navigate.mockRejectedValue(
       new ConvexError({ code: 'FOLDER_BROWSE_INVALID_PATH', message: 'Path must be absolute' })
     );
@@ -547,7 +547,7 @@ describe('useRemoteFolderBrowser', () => {
 
     expect(result.current.browser?.phase).toBe('error');
     expect(result.current.browser?.error).toEqual({
-      code: 'READ_FAILED',
+      code: 'INVALID_PATH',
       message: 'Path must be absolute',
       path: 'relative',
     });
