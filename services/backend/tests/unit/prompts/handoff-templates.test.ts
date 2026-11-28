@@ -285,8 +285,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - Requirements (one bullet per user requirement from the user's message — met/not met + evidence):
         - <requirement> — <PR URL, commit hash, or file evidence>
       - Files changed (code tasks — list every file modified):
-      <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
-      - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
+      <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`src/path/to/foo.ts\` or [src/foo.ts](src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+      - \`src/path/to/file.ts\` — <what changed and why>
         - <additional files as needed>
       ## Backlog Tasks Implemented
       <!-- REQUIRED. List backlog items addressed if none were in scope, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
@@ -402,8 +402,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       ## Proof of Completion
       - [ ] I confirm the delegation brief is fully met: all (Required) files done, verified end-to-end, acceptance criteria pass
       <!-- Reference the ## Goal and ## Requirements (acceptance criteria) sections from the planner handoff you received. State the delegation goal and confirm it was achieved. -->
-      <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
-      - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
+      <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`src/path/to/foo.ts\` or [src/foo.ts](src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+      - \`src/path/to/file.ts\` — <what changed and why>
       <evidence the goal was met — list every file you modified; for each behavior the brief's \`## Test seams\` section names a seam for: the test name, the seam it calls, the failure output observed before the implementation, and the passing output after>
 
       ## Code Change Verification
@@ -495,9 +495,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Files to implement (exhaustive, file-level)
       List **every** file in this slice. Mark each file **(Required)** or **(Optional)** — all Required files must land before PR. For each file, state the exact change and paste the code the builder should match (no guessing).
-      <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+      <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`src/path/to/foo.ts\` or [src/foo.ts](src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
 
-      ### \`apps/webapp/src/path/to/file.ts\`
+      ### \`src/path/to/file.ts\`
       **Change:** <precisely what to add, modify, or remove in this file>
 
       \`\`\`typescript
@@ -505,7 +505,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       // Enough that the builder can implement this file without inventing structure
       \`\`\`
 
-      ### \`apps/webapp/src/path/to/other-file.ts\`
+      ### \`src/path/to/other-file.ts\`
       **Change:** <...>
 
       \`\`\`typescript
@@ -540,13 +540,13 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       Mark each kind \`required\` or \`not applicable: <reason>\`. The builder runs every \`required\` kind with the command shown, always runs typecheck and lint, and records each \`not applicable\` kind in its hand-back.
       Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this brief's scope and keep only that definition below.
       - \`focused\` — each run covers only the test files and workspaces that touch this brief's files.
-      - \`round-final\` — each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed, typecheck and lint of those workspaces (\`pnpm lint\` for the whole repository), and every e2e spec this brief affects.
-      - \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm turbo run typecheck --filter=<package>\`
-      - \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm exec eslint <files in scope>\`
-      - \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <test files in scope>\`
-      - \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <integration specs in scope>\` The chatroom-cli suite is \`pnpm --filter chatroom-cli test:integration\`.
-      - \`e2e\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir apps/webapp exec playwright test --config=tests/e2e/playwright.config.ts <specs in scope> --project=chromium\`
-      \`<workspace>\` is a directory: \`services/backend\`, \`apps/webapp\`, \`packages/cli\`, or \`packages/shared\`. \`--filter\` takes the package name: \`@workspace/backend\`, \`@workspace/webapp\`, \`chatroom-cli\`, or \`@workspace/shared\`.
+      - \`round-final\` — each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed, typecheck and lint of those workspaces (lint across the whole repository), and every e2e spec this brief affects.
+      - \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`<typecheck command>\`
+      - \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`<lint command>\`
+      - \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`<unit test command> <test files in scope>\`
+      - \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`<integration test command> <integration specs in scope>\`
+      - \`e2e\` — **required** or **not applicable: <reason>**. Command: \`<e2e test command> <specs in scope>\`
+      \`<workspace>\` and \`<package>\` are placeholders: replace them with the project's own directory and package name, and replace every other \`<…>\` in a command with the project's own command, flag, or file list.
 
       ## What to avoid
       - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
@@ -618,9 +618,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Files to implement (exhaustive, file-level)
       List **every** file in this slice. Mark each file **(Required)** or **(Optional)** — all Required files must land before PR. For each file, state the exact change and paste the code the builder should match (no guessing).
-      <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+      <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`src/path/to/foo.ts\` or [src/foo.ts](src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
 
-      ### \`apps/webapp/src/path/to/file.ts\`
+      ### \`src/path/to/file.ts\`
       **Change:** <precisely what to add, modify, or remove in this file>
 
       \`\`\`typescript
@@ -628,7 +628,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       // Enough that the builder can implement this file without inventing structure
       \`\`\`
 
-      ### \`apps/webapp/src/path/to/other-file.ts\`
+      ### \`src/path/to/other-file.ts\`
       **Change:** <...>
 
       \`\`\`typescript
@@ -663,13 +663,13 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       Mark each kind \`required\` or \`not applicable: <reason>\`. The builder runs every \`required\` kind with the command shown, always runs typecheck and lint, and records each \`not applicable\` kind in its hand-back.
       Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this brief's scope and keep only that definition below.
       - \`focused\` — each run covers only the test files and workspaces that touch this brief's files.
-      - \`round-final\` — each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed, typecheck and lint of those workspaces (\`pnpm lint\` for the whole repository), and every e2e spec this brief affects.
-      - \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm turbo run typecheck --filter=<package>\`
-      - \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm exec eslint <files in scope>\`
-      - \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <test files in scope>\`
-      - \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <integration specs in scope>\` The chatroom-cli suite is \`pnpm --filter chatroom-cli test:integration\`.
-      - \`e2e\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir apps/webapp exec playwright test --config=tests/e2e/playwright.config.ts <specs in scope> --project=chromium\`
-      \`<workspace>\` is a directory: \`services/backend\`, \`apps/webapp\`, \`packages/cli\`, or \`packages/shared\`. \`--filter\` takes the package name: \`@workspace/backend\`, \`@workspace/webapp\`, \`chatroom-cli\`, or \`@workspace/shared\`.
+      - \`round-final\` — each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed, typecheck and lint of those workspaces (lint across the whole repository), and every e2e spec this brief affects.
+      - \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`<typecheck command>\`
+      - \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`<lint command>\`
+      - \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`<unit test command> <test files in scope>\`
+      - \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`<integration test command> <integration specs in scope>\`
+      - \`e2e\` — **required** or **not applicable: <reason>**. Command: \`<e2e test command> <specs in scope>\`
+      \`<workspace>\` and \`<package>\` are placeholders: replace them with the project's own directory and package name, and replace every other \`<…>\` in a command with the project's own command, flag, or file list.
 
       ## What to avoid
       - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
@@ -777,8 +777,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - Requirements (one bullet per user requirement from the user's message — met/not met + evidence):
         - <requirement> — <PR URL, commit hash, or file evidence>
       - Files changed (code tasks — list every file modified):
-      <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
-      - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
+      <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`src/path/to/foo.ts\` or [src/foo.ts](src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+      - \`src/path/to/file.ts\` — <what changed and why>
         - <additional files as needed>
       ## Backlog Tasks Implemented
       <!-- REQUIRED. List backlog items addressed if none were in scope, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->

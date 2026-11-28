@@ -33,7 +33,7 @@ const SECTION_BODY: Record<GroundingSectionName, readonly string[]> = {
     '  <A>->><B>: <observed call or data hand-off>',
     FENCE,
   ],
-  priorRecords: ['- `<memory/ or docs/ path>` — <what it states>'],
+  priorRecords: ['- `<decision-record or documentation path>` — <what it states>'],
   notInspected: ['- <area, file or question not examined or not determinable>'],
 };
 

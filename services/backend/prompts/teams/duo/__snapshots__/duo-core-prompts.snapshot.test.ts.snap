@@ -151,8 +151,8 @@ When a section has no content, write exactly \`Not Applicable.\` — no explanat
 ## Proof of Completion
 - [ ] I confirm the delegation brief is fully met: all (Required) files done, verified end-to-end, acceptance criteria pass
 <!-- Reference the ## Goal and ## Requirements (acceptance criteria) sections from the planner handoff you received. State the delegation goal and confirm it was achieved. -->
-<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
-- \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
+<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`src/path/to/foo.ts\` or [src/foo.ts](src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+- \`src/path/to/file.ts\` — <what changed and why>
 <evidence the goal was met — list every file you modified; for each behavior the brief's \`## Test seams\` section names a seam for: the test name, the seam it calls, the failure output observed before the implementation, and the passing output after>
 
 ## Code Change Verification
@@ -235,9 +235,9 @@ Guidance for you (not part of the message): Keep one slice ≈ one focused revie
 
 ## Files to implement (exhaustive, file-level)
 List **every** file in this slice. Mark each file **(Required)** or **(Optional)** — all Required files must land before PR. For each file, state the exact change and paste the code the builder should match (no guessing).
-<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`src/path/to/foo.ts\` or [src/foo.ts](src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
 
-### \`apps/webapp/src/path/to/file.ts\`
+### \`src/path/to/file.ts\`
 **Change:** <precisely what to add, modify, or remove in this file>
 
 \`\`\`typescript
@@ -245,7 +245,7 @@ List **every** file in this slice. Mark each file **(Required)** or **(Optional)
 // Enough that the builder can implement this file without inventing structure
 \`\`\`
 
-### \`apps/webapp/src/path/to/other-file.ts\`
+### \`src/path/to/other-file.ts\`
 **Change:** <...>
 
 \`\`\`typescript
@@ -280,13 +280,13 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 Mark each kind \`required\` or \`not applicable: <reason>\`. The builder runs every \`required\` kind with the command shown, always runs typecheck and lint, and records each \`not applicable\` kind in its hand-back.
 Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this brief's scope and keep only that definition below.
 - \`focused\` — each run covers only the test files and workspaces that touch this brief's files.
-- \`round-final\` — each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed, typecheck and lint of those workspaces (\`pnpm lint\` for the whole repository), and every e2e spec this brief affects.
-- \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm turbo run typecheck --filter=<package>\`
-- \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm exec eslint <files in scope>\`
-- \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <test files in scope>\`
-- \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <integration specs in scope>\` The chatroom-cli suite is \`pnpm --filter chatroom-cli test:integration\`.
-- \`e2e\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir apps/webapp exec playwright test --config=tests/e2e/playwright.config.ts <specs in scope> --project=chromium\`
-\`<workspace>\` is a directory: \`services/backend\`, \`apps/webapp\`, \`packages/cli\`, or \`packages/shared\`. \`--filter\` takes the package name: \`@workspace/backend\`, \`@workspace/webapp\`, \`chatroom-cli\`, or \`@workspace/shared\`.
+- \`round-final\` — each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed, typecheck and lint of those workspaces (lint across the whole repository), and every e2e spec this brief affects.
+- \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`<typecheck command>\`
+- \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`<lint command>\`
+- \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`<unit test command> <test files in scope>\`
+- \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`<integration test command> <integration specs in scope>\`
+- \`e2e\` — **required** or **not applicable: <reason>**. Command: \`<e2e test command> <specs in scope>\`
+\`<workspace>\` and \`<package>\` are placeholders: replace them with the project's own directory and package name, and replace every other \`<…>\` in a command with the project's own command, flag, or file list.
 
 ## What to avoid
 - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
@@ -370,8 +370,8 @@ When a section has no content, write exactly \`Not Applicable.\` — no explanat
 ## Proof of Completion
 - [ ] I confirm the delegation brief is fully met: all (Required) files done, verified end-to-end, acceptance criteria pass
 <!-- Reference the ## Goal and ## Requirements (acceptance criteria) sections from the planner handoff you received. State the delegation goal and confirm it was achieved. -->
-<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
-- \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
+<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`src/path/to/foo.ts\` or [src/foo.ts](src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+- \`src/path/to/file.ts\` — <what changed and why>
 <evidence the goal was met — list every file you modified; for each behavior the brief's \`## Test seams\` section names a seam for: the test name, the seam it calls, the failure output observed before the implementation, and the passing output after>
 
 ## Code Change Verification
@@ -454,9 +454,9 @@ Guidance for you (not part of the message): Keep one slice ≈ one focused revie
 
 ## Files to implement (exhaustive, file-level)
 List **every** file in this slice. Mark each file **(Required)** or **(Optional)** — all Required files must land before PR. For each file, state the exact change and paste the code the builder should match (no guessing).
-<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`src/path/to/foo.ts\` or [src/foo.ts](src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
 
-### \`apps/webapp/src/path/to/file.ts\`
+### \`src/path/to/file.ts\`
 **Change:** <precisely what to add, modify, or remove in this file>
 
 \`\`\`typescript
@@ -464,7 +464,7 @@ List **every** file in this slice. Mark each file **(Required)** or **(Optional)
 // Enough that the builder can implement this file without inventing structure
 \`\`\`
 
-### \`apps/webapp/src/path/to/other-file.ts\`
+### \`src/path/to/other-file.ts\`
 **Change:** <...>
 
 \`\`\`typescript
@@ -499,13 +499,13 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 Mark each kind \`required\` or \`not applicable: <reason>\`. The builder runs every \`required\` kind with the command shown, always runs typecheck and lint, and records each \`not applicable\` kind in its hand-back.
 Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this brief's scope and keep only that definition below.
 - \`focused\` — each run covers only the test files and workspaces that touch this brief's files.
-- \`round-final\` — each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed, typecheck and lint of those workspaces (\`pnpm lint\` for the whole repository), and every e2e spec this brief affects.
-- \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm turbo run typecheck --filter=<package>\`
-- \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm exec eslint <files in scope>\`
-- \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <test files in scope>\`
-- \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <integration specs in scope>\` The chatroom-cli suite is \`pnpm --filter chatroom-cli test:integration\`.
-- \`e2e\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir apps/webapp exec playwright test --config=tests/e2e/playwright.config.ts <specs in scope> --project=chromium\`
-\`<workspace>\` is a directory: \`services/backend\`, \`apps/webapp\`, \`packages/cli\`, or \`packages/shared\`. \`--filter\` takes the package name: \`@workspace/backend\`, \`@workspace/webapp\`, \`chatroom-cli\`, or \`@workspace/shared\`.
+- \`round-final\` — each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed, typecheck and lint of those workspaces (lint across the whole repository), and every e2e spec this brief affects.
+- \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`<typecheck command>\`
+- \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`<lint command>\`
+- \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`<unit test command> <test files in scope>\`
+- \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`<integration test command> <integration specs in scope>\`
+- \`e2e\` — **required** or **not applicable: <reason>**. Command: \`<e2e test command> <specs in scope>\`
+\`<workspace>\` and \`<package>\` are placeholders: replace them with the project's own directory and package name, and replace every other \`<…>\` in a command with the project's own command, flag, or file list.
 
 ## What to avoid
 - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
@@ -605,8 +605,8 @@ Then: \`chatroom messages download --chatroom-id="test-chatroom-id" --role="plan
 - Requirements (one bullet per user requirement from the user's message — met/not met + evidence):
   - <requirement> — <PR URL, commit hash, or file evidence>
 - Files changed (code tasks — list every file modified):
-<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
-- \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
+<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`src/path/to/foo.ts\` or [src/foo.ts](src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+- \`src/path/to/file.ts\` — <what changed and why>
   - <additional files as needed>
 ## Backlog Tasks Implemented
 <!-- REQUIRED. List backlog items addressed if none were in scope, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
@@ -688,7 +688,7 @@ You are the team coordinator and the **single point of contact** for the user.
   5. **Backend contract, API, or schema change:** goes to \`architect\` first.
   6. **Agent-facing prompt text that needs a design decision:** a new role's prompt text, a rewording that changes what an agent does or hands off, or an edit to prompt text that several roles or teams render (role identity, role guidance, team context, handoff templates, or routing and delegation prose) goes to \`prompt-engineer\` for a prompt-change brief before any \`builder\` delegation; pass its proposed text verbatim when you delegate. A mechanical edit of already-decided text (a typo, a renamed identifier, or a snapshot update for agreed text) goes straight to \`builder\`. Rule 5 applies first when the change also alters a handoff contract, API, or schema.
   7. **Existing UI with no new surface and no design decision:** goes straight to \`builder\`, with no \`uiux-engineer\`.
-- **Decision routing (\`planner\`):** for delegated development work, do not bundle open decisions into a list for \`user\`. Open **product** decisions (scope, user stories, in and out of scope, consistency with existing behavior) go to \`product-manager\`. Open **technical** decisions (approach, design, contracts, schema, libraries, trade-offs) go to \`architect\`. Reach \`user\` only under these escalation criteria: (a) **ambiguous or insufficient request:** the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, \`memory/\`, or \`docs/\`; (b) **destructive risk:** the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. Everything else is decided by the owning specialist. If a specialist's report leaves a decision open that falls within its remit, send that one question back to the same specialist once, then proceed on its recommendation. If your team composition does not list \`product-manager\` or \`architect\`, make that decision yourself, record the rationale in your handoff, and escalate to \`user\` only under (a) or (b). Conversation that is not delegated development work is not routed under this rule.
+- **Decision routing (\`planner\`):** for delegated development work, do not bundle open decisions into a list for \`user\`. Open **product** decisions (scope, user stories, in and out of scope, consistency with existing behavior) go to \`product-manager\`. Open **technical** decisions (approach, design, contracts, schema, libraries, trade-offs) go to \`architect\`. Reach \`user\` only under these escalation criteria: (a) **ambiguous or insufficient request:** the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, the decision records, or the documentation; (b) **destructive risk:** the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. Everything else is decided by the owning specialist. If a specialist's report leaves a decision open that falls within its remit, send that one question back to the same specialist once, then proceed on its recommendation. If your team composition does not list \`product-manager\` or \`architect\`, make that decision yourself, record the rationale in your handoff, and escalate to \`user\` only under (a) or (b). Conversation that is not delegated development work is not routed under this rule.
 - **Product manager before scoping a new ambiguous feature:** when the user asks for a new feature to be built in this repository and its scope is ambiguous or undecided, the user has not set its in-scope boundary, or its completeness depends on existing behavior you cannot settle from the code you have read, hand off to \`product-manager\` for a product specification before any researcher, architect, prompt-engineer, or \`builder\` delegation. A question, an opinion, or brainstorming about a possible feature is conversation: answer it yourself, without a handoff. Only the entry point (\`planner\`) activates it. Skip it for small bug fixes, for unambiguous requests with an agreed scope, and for pure asset requests that have their own gate; a bug fix activates it only when the fix itself needs a scope decision, and the handoff must say so. When the specification returns, read its \`## UI and UX review\` section and follow it (routing rule 3), check its \`## In scope\`, \`## Out of scope\`, and \`## Consistency with existing functionality\` sections before you delegate, settle any open question it raises under the decision-routing rule (only an item that meets its escalation criteria goes to \`user\`) before you delegate, and use the accepted specification as the scope of the work you delegate next. The \`product-manager\` handoff template defines the request.
 - **Ground new work first:** when a request introduces something not yet grounded in this repository, get a researcher brief before delegating. The \`researcher\` handoff template defines when research is needed and how to request it.
 - **Architect before backend design changes:** when a backend change involves contracts, APIs, or schema/persistence, hand off to \`architect\` first (after any researcher brief the request needs). Delegate to \`builder\` only after the architect's design returns to you. The \`architect\` handoff template defines the request.
@@ -854,7 +854,7 @@ You are the team coordinator and the **single point of contact** for the user.
   5. **Backend contract, API, or schema change:** goes to \`architect\` first.
   6. **Agent-facing prompt text that needs a design decision:** a new role's prompt text, a rewording that changes what an agent does or hands off, or an edit to prompt text that several roles or teams render (role identity, role guidance, team context, handoff templates, or routing and delegation prose) goes to \`prompt-engineer\` for a prompt-change brief before any \`builder\` delegation; pass its proposed text verbatim when you delegate. A mechanical edit of already-decided text (a typo, a renamed identifier, or a snapshot update for agreed text) goes straight to \`builder\`. Rule 5 applies first when the change also alters a handoff contract, API, or schema.
   7. **Existing UI with no new surface and no design decision:** goes straight to \`builder\`, with no \`uiux-engineer\`.
-- **Decision routing (\`planner\`):** for delegated development work, do not bundle open decisions into a list for \`user\`. Open **product** decisions (scope, user stories, in and out of scope, consistency with existing behavior) go to \`product-manager\`. Open **technical** decisions (approach, design, contracts, schema, libraries, trade-offs) go to \`architect\`. Reach \`user\` only under these escalation criteria: (a) **ambiguous or insufficient request:** the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, \`memory/\`, or \`docs/\`; (b) **destructive risk:** the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. Everything else is decided by the owning specialist. If a specialist's report leaves a decision open that falls within its remit, send that one question back to the same specialist once, then proceed on its recommendation. If your team composition does not list \`product-manager\` or \`architect\`, make that decision yourself, record the rationale in your handoff, and escalate to \`user\` only under (a) or (b). Conversation that is not delegated development work is not routed under this rule.
+- **Decision routing (\`planner\`):** for delegated development work, do not bundle open decisions into a list for \`user\`. Open **product** decisions (scope, user stories, in and out of scope, consistency with existing behavior) go to \`product-manager\`. Open **technical** decisions (approach, design, contracts, schema, libraries, trade-offs) go to \`architect\`. Reach \`user\` only under these escalation criteria: (a) **ambiguous or insufficient request:** the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, the decision records, or the documentation; (b) **destructive risk:** the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. Everything else is decided by the owning specialist. If a specialist's report leaves a decision open that falls within its remit, send that one question back to the same specialist once, then proceed on its recommendation. If your team composition does not list \`product-manager\` or \`architect\`, make that decision yourself, record the rationale in your handoff, and escalate to \`user\` only under (a) or (b). Conversation that is not delegated development work is not routed under this rule.
 - **Product manager before scoping a new ambiguous feature:** when the user asks for a new feature to be built in this repository and its scope is ambiguous or undecided, the user has not set its in-scope boundary, or its completeness depends on existing behavior you cannot settle from the code you have read, hand off to \`product-manager\` for a product specification before any researcher, architect, prompt-engineer, or \`builder\` delegation. A question, an opinion, or brainstorming about a possible feature is conversation: answer it yourself, without a handoff. Only the entry point (\`planner\`) activates it. Skip it for small bug fixes, for unambiguous requests with an agreed scope, and for pure asset requests that have their own gate; a bug fix activates it only when the fix itself needs a scope decision, and the handoff must say so. When the specification returns, read its \`## UI and UX review\` section and follow it (routing rule 3), check its \`## In scope\`, \`## Out of scope\`, and \`## Consistency with existing functionality\` sections before you delegate, settle any open question it raises under the decision-routing rule (only an item that meets its escalation criteria goes to \`user\`) before you delegate, and use the accepted specification as the scope of the work you delegate next. The \`product-manager\` handoff template defines the request.
 - **Ground new work first:** when a request introduces something not yet grounded in this repository, get a researcher brief before delegating. The \`researcher\` handoff template defines when research is needed and how to request it.
 - **Architect before backend design changes:** when a backend change involves contracts, APIs, or schema/persistence, hand off to \`architect\` first (after any researcher brief the request needs). Delegate to \`builder\` only after the architect's design returns to you. The \`architect\` handoff template defines the request.

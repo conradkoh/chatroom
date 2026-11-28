@@ -56,7 +56,7 @@ export function getPromptEngineerToEntryPointHandoffTemplate(query: HandoffTempl
 <only a product-scope question for \`product-manager\`, a contract or schema question for \`architect\`, or an item that meets the escalation criteria for \`user\`; write exactly \`None observed.\` if none remain>
 
 ## Work completed
-<paths, decision records under \`memory/\` and \`docs/\`, and snapshots inspected, with what each showed>
+<paths, decision records and documentation, and snapshots inspected, with what each showed>
 
 Instructions after the body (not part of the message): run the normal handoff command to \`${entryPoint}\` with the complete body above, then stop.
 

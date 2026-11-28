@@ -19,7 +19,7 @@ Instructions (not part of the message): Return exactly one recommended, evidence
 - Produce exactly one recommended design for module boundaries, APIs, schemas, indexes and queries, invariants, failure and recovery handling, tests, and implementation sequence.
 - Name concrete repository paths, existing abstractions, APIs/types, state/data flow, acceptance criteria, risks, and verification steps.
 - Name every seam the design introduces. A test seam is the public interface where a test observes behavior. Substitution in a test is allowed only at a port or adapter boundary (an external dependency injected through a port). Do not mock internal collaborators. Each seam must have a named consumer: a test that substitutes it, or a second real adapter. Do not introduce a seam with neither.
-- Check \`memory/\` and \`docs/\` for prior decisions about the area being designed. Cite each relevant decision by path and state whether the design preserves it or overturns it, with the reason. Verify each path exists with \`ls\` before citing it.
+- Check the decision records and documentation for prior decisions about the area being designed. Cite each relevant decision by path and state whether the design preserves it or overturns it, with the reason. Verify each path exists with \`ls\` before citing it.
 
 - Cite repository evidence for domain model/entity ownership, lifecycle, invariants, identifiers, and relationships.
 - Define service and module boundaries, public and internal APIs, function signatures, and ownership of side effects.
@@ -36,7 +36,7 @@ Instructions (not part of the message): Return exactly one recommended, evidence
 
 ## Files to implement (exhaustive, file-level)
 List every file or product surface the implementer must create or modify. Mark each \`(Required)\` or \`(Optional)\`. For every file, give the exact responsibility, exported types/signatures/query shape, state/data/event boundaries, and target code detailed enough to implement without guessing.
-<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`src/path/to/foo.ts\` or [src/foo.ts](src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
 
 ### \`<repo-relative/path.ext>\` (Required)
 **Change:** <precise add/modify/remove responsibility and why>
@@ -80,7 +80,7 @@ List every file or product surface the implementer must create or modify. Mark e
 - <explicit files, flows, behavior, or migration work the implementer must not touch>
 
 ## Escalation items for the user
-<only items that meet the escalation criteria: (a) the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, \`memory/\`, or \`docs/\`; (b) the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. For each, give the item, why it meets the criteria, the options with the consequence of each, and a recommended default. Do not list technical choices here: decide them in the design. Write exactly \`None observed.\` if no item meets the criteria>
+<only items that meet the escalation criteria: (a) the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, the decision records, or the documentation; (b) the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. For each, give the item, why it meets the criteria, the options with the consequence of each, and a recommended default. Do not list technical choices here: decide them in the design. Write exactly \`None observed.\` if no item meets the criteria>
 
 Instructions after the body (not part of the message): run the normal handoff command to \`planner\` with the complete body above, then stop.
 
@@ -102,7 +102,7 @@ The automatically injected \`<user-message>\` is the authoritative request. Add 
 
 Use this before any backend contract, API, or schema/persistence change.
 
-Provide the request, relevant constraints, and the files or product surfaces that need inspection. Name any prior decision in \`memory/\` or \`docs/\` the design must respect, and name the known test constraints (for example, an existing fake, or a rule that tests run against a real database). Ask for one evidence-backed design focused on module boundaries, APIs, schemas, indexes and queries, invariants, failure and recovery handling, tests, and implementation sequence.
+Provide the request, relevant constraints, and the files or product surfaces that need inspection. Name any prior decision in the decision records or documentation the design must respect, and name the known test constraints (for example, an existing fake, or a rule that tests run against a real database). Ask for one evidence-backed design focused on module boundaries, APIs, schemas, indexes and queries, invariants, failure and recovery handling, tests, and implementation sequence.
 
 After completing the design, the \`architect\` must hand it back to \`planner\` with the normal handoff command, then stop; it must not implement the design or delegate further work.
 
@@ -143,7 +143,7 @@ Instructions (not part of the message): Return exactly one recommended, evidence
 - Produce exactly one recommended design for module boundaries, APIs, schemas, indexes and queries, invariants, failure and recovery handling, tests, and implementation sequence.
 - Name concrete repository paths, existing abstractions, APIs/types, state/data flow, acceptance criteria, risks, and verification steps.
 - Name every seam the design introduces. A test seam is the public interface where a test observes behavior. Substitution in a test is allowed only at a port or adapter boundary (an external dependency injected through a port). Do not mock internal collaborators. Each seam must have a named consumer: a test that substitutes it, or a second real adapter. Do not introduce a seam with neither.
-- Check \`memory/\` and \`docs/\` for prior decisions about the area being designed. Cite each relevant decision by path and state whether the design preserves it or overturns it, with the reason. Verify each path exists with \`ls\` before citing it.
+- Check the decision records and documentation for prior decisions about the area being designed. Cite each relevant decision by path and state whether the design preserves it or overturns it, with the reason. Verify each path exists with \`ls\` before citing it.
 
 - Cite repository evidence for domain model/entity ownership, lifecycle, invariants, identifiers, and relationships.
 - Define service and module boundaries, public and internal APIs, function signatures, and ownership of side effects.
@@ -160,7 +160,7 @@ Instructions (not part of the message): Return exactly one recommended, evidence
 
 ## Files to implement (exhaustive, file-level)
 List every file or product surface the implementer must create or modify. Mark each \`(Required)\` or \`(Optional)\`. For every file, give the exact responsibility, exported types/signatures/query shape, state/data/event boundaries, and target code detailed enough to implement without guessing.
-<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`src/path/to/foo.ts\` or [src/foo.ts](src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
 
 ### \`<repo-relative/path.ext>\` (Required)
 **Change:** <precise add/modify/remove responsibility and why>
@@ -204,7 +204,7 @@ List every file or product surface the implementer must create or modify. Mark e
 - <explicit files, flows, behavior, or migration work the implementer must not touch>
 
 ## Escalation items for the user
-<only items that meet the escalation criteria: (a) the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, \`memory/\`, or \`docs/\`; (b) the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. For each, give the item, why it meets the criteria, the options with the consequence of each, and a recommended default. Do not list technical choices here: decide them in the design. Write exactly \`None observed.\` if no item meets the criteria>
+<only items that meet the escalation criteria: (a) the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, the decision records, or the documentation; (b) the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. For each, give the item, why it meets the criteria, the options with the consequence of each, and a recommended default. Do not list technical choices here: decide them in the design. Write exactly \`None observed.\` if no item meets the criteria>
 
 Instructions after the body (not part of the message): run the normal handoff command to \`solo\` with the complete body above, then stop.
 
@@ -226,7 +226,7 @@ The automatically injected \`<user-message>\` is the authoritative request. Add 
 
 Use this before any backend contract, API, or schema/persistence change.
 
-Provide the request, relevant constraints, and the files or product surfaces that need inspection. Name any prior decision in \`memory/\` or \`docs/\` the design must respect, and name the known test constraints (for example, an existing fake, or a rule that tests run against a real database). Ask for one evidence-backed design focused on module boundaries, APIs, schemas, indexes and queries, invariants, failure and recovery handling, tests, and implementation sequence.
+Provide the request, relevant constraints, and the files or product surfaces that need inspection. Name any prior decision in the decision records or documentation the design must respect, and name the known test constraints (for example, an existing fake, or a rule that tests run against a real database). Ask for one evidence-backed design focused on module boundaries, APIs, schemas, indexes and queries, invariants, failure and recovery handling, tests, and implementation sequence.
 
 After completing the design, the \`architect\` must hand it back to \`solo\` with the normal handoff command, then stop; it must not implement the design or delegate further work.
 
@@ -276,7 +276,7 @@ CHATROOM_PLAN_END
 - Produce exactly one recommended design for module boundaries, APIs, schemas, indexes and queries, invariants, failure and recovery handling, tests, and implementation sequence.
 - Name concrete repository paths, existing abstractions, APIs/types, state/data flow, acceptance criteria, risks, and verification steps.
 - Name every seam the design introduces. A test seam is the public interface where a test observes behavior. Substitution in a test is allowed only at a port or adapter boundary (an external dependency injected through a port). Do not mock internal collaborators. Each seam must have a named consumer: a test that substitutes it, or a second real adapter. Do not introduce a seam with neither.
-- Check \`memory/\` and \`docs/\` for prior decisions about the area being designed. Cite each relevant decision by path and state whether the design preserves it or overturns it, with the reason. Verify each path exists with \`ls\` before citing it.
+- Check the decision records and documentation for prior decisions about the area being designed. Cite each relevant decision by path and state whether the design preserves it or overturns it, with the reason. Verify each path exists with \`ls\` before citing it.
 
 - Cite repository evidence for domain model/entity ownership, lifecycle, invariants, identifiers, and relationships.
 - Define service and module boundaries, public and internal APIs, function signatures, and ownership of side effects.
@@ -293,7 +293,7 @@ CHATROOM_PLAN_END
 
 ## Files to implement (exhaustive, file-level)
 List every file or product surface the implementer must create or modify. Mark each \`(Required)\` or \`(Optional)\`. For every file, give the exact responsibility, exported types/signatures/query shape, state/data/event boundaries, and target code detailed enough to implement without guessing.
-<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`src/path/to/foo.ts\` or [src/foo.ts](src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
 
 ### \`<repo-relative/path.ext>\` (Required)
 **Change:** <precise add/modify/remove responsibility and why>
@@ -337,7 +337,7 @@ List every file or product surface the implementer must create or modify. Mark e
 - <explicit files, flows, behavior, or migration work the implementer must not touch>
 
 ## Escalation items for the user
-<only items that meet the escalation criteria: (a) the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, \`memory/\`, or \`docs/\`; (b) the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. For each, give the item, why it meets the criteria, the options with the consequence of each, and a recommended default. Do not list technical choices here: decide them in the design. Write exactly \`None observed.\` if no item meets the criteria>
+<only items that meet the escalation criteria: (a) the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, the decision records, or the documentation; (b) the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. For each, give the item, why it meets the criteria, the options with the consequence of each, and a recommended default. Do not list technical choices here: decide them in the design. Write exactly \`None observed.\` if no item meets the criteria>
 
 Instructions after the body (not part of the message): run the normal handoff command to \`coordinator\` with the complete body above, then stop.
 
@@ -359,7 +359,7 @@ The automatically injected \`<user-message>\` is the authoritative request. Add 
 
 Use this before any backend contract, API, or schema/persistence change.
 
-Provide the request, relevant constraints, and the files or product surfaces that need inspection. Name any prior decision in \`memory/\` or \`docs/\` the design must respect, and name the known test constraints (for example, an existing fake, or a rule that tests run against a real database). Ask for one evidence-backed design focused on module boundaries, APIs, schemas, indexes and queries, invariants, failure and recovery handling, tests, and implementation sequence.
+Provide the request, relevant constraints, and the files or product surfaces that need inspection. Name any prior decision in the decision records or documentation the design must respect, and name the known test constraints (for example, an existing fake, or a rule that tests run against a real database). Ask for one evidence-backed design focused on module boundaries, APIs, schemas, indexes and queries, invariants, failure and recovery handling, tests, and implementation sequence.
 
 After completing the design, the \`architect\` must hand it back to \`coordinator\` with the normal handoff command, then stop; it must not implement the design or delegate further work.
 
