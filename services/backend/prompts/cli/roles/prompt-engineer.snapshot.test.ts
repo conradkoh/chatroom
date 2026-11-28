@@ -27,4 +27,26 @@ describe('prompt-engineer guidance snapshots', () => {
     expect(guidance).not.toContain('{ENTRY_POINT_ROLE}');
     expect(guidance).not.toContain('{SESSION_CONTINUITY}');
   });
+
+  test('encodes the multi-role and single-prompt success factors without repo-specific paths', () => {
+    const guidance = getPromptEngineerGuidance({
+      nativeIntegration: false,
+      recipientRole: 'planner',
+    });
+
+    for (const phrase of [
+      'Inventory the roles the change touches',
+      'Map the high-level cross-role interactions',
+      'Audit the handoff context',
+      'structured information handoffs',
+      'Name the audit test that encodes the cross-role script',
+      'keep the prompt concise',
+      'positive, specific instruction',
+      'strict must-avoid case',
+    ]) {
+      expect(guidance).toContain(phrase);
+    }
+
+    expect(guidance).not.toMatch(/memory\/|docs\/|apps\/|services\/|packages\//);
+  });
 });

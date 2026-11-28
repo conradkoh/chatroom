@@ -23,8 +23,13 @@ function renderPair(pair: HandoffTemplatePair): string {
 
 const briefHeadings = [
   '## Summary',
+  '## Roles and responsibilities',
+  '## Cross-role interactions',
+  '## Handoff context audit',
   '## Prompt surfaces affected',
   '## Proposed text',
+  '## Structured handoff updates',
+  '## Audit test',
   '## Cross-team effect',
   '## Snapshots and guards affected',
   '## Acceptance criteria',
@@ -60,6 +65,18 @@ describe('prompt-engineer handoff template snapshots', () => {
     expect(template).toContain('None observed.');
     expect(template.trimEnd().endsWith('```')).toBe(true);
     expect(template).toContain('next-role="planner"');
+  });
+
+  test('brief requires the multi-role maps, structured handoff updates, and audit test', () => {
+    const template = renderPair({ teamId: 'duo', fromRole: 'prompt-engineer', toRole: 'planner' });
+
+    expect(template).toContain('## Roles and responsibilities');
+    expect(template).toContain('## Cross-role interactions');
+    expect(template).toContain('## Handoff context audit');
+    expect(template).toContain('## Structured handoff updates');
+    expect(template).toContain('## Audit test');
+    expect(template).toContain('None required.');
+    expect(template).not.toMatch(/memory\/|docs\/|apps\/|services\/|packages\//);
   });
 
   test('trio prompt-engineer brief returns to the coordinator without plan publishing', () => {

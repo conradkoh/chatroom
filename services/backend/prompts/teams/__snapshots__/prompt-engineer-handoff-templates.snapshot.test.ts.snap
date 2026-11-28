@@ -6,7 +6,7 @@ exports[`prompt-engineer handoff template snapshots > 'duo' 'planner' → 'promp
 
 Handoff template \`planner\` → \`prompt-engineer\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
-The automatically injected \`<user-message>\` is the authoritative request. Pass the agent behavior the prompt must produce, stop producing, or hand off differently; the roles and teams affected; observed agent output that motivates the change (quote only the lines that carry the signal and redact secrets as \`<REDACTED>\`); the prompt files or symbols already suspected; and constraints (prior decisions, the specialist decisions already accepted). Ask the prompt engineer for a prompt-change brief only: do not edit files, run builds, tests, or snapshot updates, or publish plans.
+The automatically injected \`<user-message>\` is the authoritative request. Pass the agent behavior the prompt must produce, stop producing, or hand off differently; the roles and teams affected, with the responsibility each role owns and the context each role receives through its handoff; observed agent output that motivates the change (quote only the lines that carry the signal and redact secrets as \`<REDACTED>\`); the prompt files or symbols already suspected; and constraints (prior decisions, the specialist decisions already accepted). Ask the prompt engineer for a prompt-change brief only: do not edit files, run builds, tests, or snapshot updates, or publish plans.
 
 ### When to use the prompt engineer
 
@@ -48,11 +48,26 @@ Instructions (not part of the message): Return one complete prompt-change brief 
 ## Summary
 <state the behavior change in two to four sentences and whether text is proposed>
 
+## Roles and responsibilities
+<one line per role the change touches: the role, the responsibility it owns, and the outcome it hands to another role>
+
+## Cross-role interactions
+<the high-level sequence: which role produces work for which other role, in what order, and what each interaction must carry>
+
+## Handoff context audit
+<for each receiving role: the context it actually gets through the handoff, how it learns the decisions made before it, and where an assumption about missing context can start; write exactly \`None observed.\` when the change crosses no role boundary>
+
 ## Prompt surfaces affected
 <one line per changed path: the path, the unit that owns it (for example a team folder or a shared module), and its kind (role identity, role guidance, team context, handoff template, routing or delegation prose)>
 
 ## Proposed text
-<for each path: the current excerpt, then the exact proposed text, ready to paste; one instruction per behavior, using the terms the surrounding prompt already uses>
+<for each path: the current excerpt, then the exact proposed text, ready to paste; concise, each requirement stated as a positive, specific instruction, with a negative rule only for a strict must-avoid case>
+
+## Structured handoff updates
+<for each grounding document or handoff template that must change: its path, the section names to add, remove, or reword, and the content each receiving role needs; write exactly \`None required.\` when no information must survive a role change>
+
+## Audit test
+<the cross-role test to add or update: its path, the roles and handoff order it encodes, the context each role receives, and the false assumption it must fail on; write exactly \`None required.\` when the change crosses no role boundary>
 
 ## Cross-team effect
 <each team and role whose rendered prompt changes, and why; an edit to one team's own prompt must change no other team; write exactly \`None observed.\` when only the named unit changes>
@@ -90,11 +105,26 @@ Instructions (not part of the message): Return one complete prompt-change brief 
 ## Summary
 <state the behavior change in two to four sentences and whether text is proposed>
 
+## Roles and responsibilities
+<one line per role the change touches: the role, the responsibility it owns, and the outcome it hands to another role>
+
+## Cross-role interactions
+<the high-level sequence: which role produces work for which other role, in what order, and what each interaction must carry>
+
+## Handoff context audit
+<for each receiving role: the context it actually gets through the handoff, how it learns the decisions made before it, and where an assumption about missing context can start; write exactly \`None observed.\` when the change crosses no role boundary>
+
 ## Prompt surfaces affected
 <one line per changed path: the path, the unit that owns it (for example a team folder or a shared module), and its kind (role identity, role guidance, team context, handoff template, routing or delegation prose)>
 
 ## Proposed text
-<for each path: the current excerpt, then the exact proposed text, ready to paste; one instruction per behavior, using the terms the surrounding prompt already uses>
+<for each path: the current excerpt, then the exact proposed text, ready to paste; concise, each requirement stated as a positive, specific instruction, with a negative rule only for a strict must-avoid case>
+
+## Structured handoff updates
+<for each grounding document or handoff template that must change: its path, the section names to add, remove, or reword, and the content each receiving role needs; write exactly \`None required.\` when no information must survive a role change>
+
+## Audit test
+<the cross-role test to add or update: its path, the roles and handoff order it encodes, the context each role receives, and the false assumption it must fail on; write exactly \`None required.\` when the change crosses no role boundary>
 
 ## Cross-team effect
 <each team and role whose rendered prompt changes, and why; an edit to one team's own prompt must change no other team; write exactly \`None observed.\` when only the named unit changes>
@@ -127,7 +157,7 @@ exports[`prompt-engineer handoff template snapshots > 'solo' 'solo' → 'prompt-
 
 Handoff template \`solo\` → \`prompt-engineer\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
-The automatically injected \`<user-message>\` is the authoritative request. Pass the agent behavior the prompt must produce, stop producing, or hand off differently; the roles and teams affected; observed agent output that motivates the change (quote only the lines that carry the signal and redact secrets as \`<REDACTED>\`); the prompt files or symbols already suspected; and constraints (prior decisions, the specialist decisions already accepted). Ask the prompt engineer for a prompt-change brief only: do not edit files, run builds, tests, or snapshot updates, or publish plans.
+The automatically injected \`<user-message>\` is the authoritative request. Pass the agent behavior the prompt must produce, stop producing, or hand off differently; the roles and teams affected, with the responsibility each role owns and the context each role receives through its handoff; observed agent output that motivates the change (quote only the lines that carry the signal and redact secrets as \`<REDACTED>\`); the prompt files or symbols already suspected; and constraints (prior decisions, the specialist decisions already accepted). Ask the prompt engineer for a prompt-change brief only: do not edit files, run builds, tests, or snapshot updates, or publish plans.
 
 ### When to use the prompt engineer
 
@@ -164,7 +194,7 @@ exports[`prompt-engineer handoff template snapshots > 'trio' 'coordinator' → '
 
 Handoff template \`coordinator\` → \`prompt-engineer\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
-The automatically injected \`<user-message>\` is the authoritative request. Pass the agent behavior the prompt must produce, stop producing, or hand off differently; the roles and teams affected; observed agent output that motivates the change (quote only the lines that carry the signal and redact secrets as \`<REDACTED>\`); the prompt files or symbols already suspected; and constraints (prior decisions, the specialist decisions already accepted). Ask the prompt engineer for a prompt-change brief only: do not edit files, run builds, tests, or snapshot updates, or publish plans.
+The automatically injected \`<user-message>\` is the authoritative request. Pass the agent behavior the prompt must produce, stop producing, or hand off differently; the roles and teams affected, with the responsibility each role owns and the context each role receives through its handoff; observed agent output that motivates the change (quote only the lines that carry the signal and redact secrets as \`<REDACTED>\`); the prompt files or symbols already suspected; and constraints (prior decisions, the specialist decisions already accepted). Ask the prompt engineer for a prompt-change brief only: do not edit files, run builds, tests, or snapshot updates, or publish plans.
 
 ### When to use the prompt engineer
 
@@ -206,11 +236,26 @@ Instructions (not part of the message): Return one complete prompt-change brief 
 ## Summary
 <state the behavior change in two to four sentences and whether text is proposed>
 
+## Roles and responsibilities
+<one line per role the change touches: the role, the responsibility it owns, and the outcome it hands to another role>
+
+## Cross-role interactions
+<the high-level sequence: which role produces work for which other role, in what order, and what each interaction must carry>
+
+## Handoff context audit
+<for each receiving role: the context it actually gets through the handoff, how it learns the decisions made before it, and where an assumption about missing context can start; write exactly \`None observed.\` when the change crosses no role boundary>
+
 ## Prompt surfaces affected
 <one line per changed path: the path, the unit that owns it (for example a team folder or a shared module), and its kind (role identity, role guidance, team context, handoff template, routing or delegation prose)>
 
 ## Proposed text
-<for each path: the current excerpt, then the exact proposed text, ready to paste; one instruction per behavior, using the terms the surrounding prompt already uses>
+<for each path: the current excerpt, then the exact proposed text, ready to paste; concise, each requirement stated as a positive, specific instruction, with a negative rule only for a strict must-avoid case>
+
+## Structured handoff updates
+<for each grounding document or handoff template that must change: its path, the section names to add, remove, or reword, and the content each receiving role needs; write exactly \`None required.\` when no information must survive a role change>
+
+## Audit test
+<the cross-role test to add or update: its path, the roles and handoff order it encodes, the context each role receives, and the false assumption it must fail on; write exactly \`None required.\` when the change crosses no role boundary>
 
 ## Cross-team effect
 <each team and role whose rendered prompt changes, and why; an edit to one team's own prompt must change no other team; write exactly \`None observed.\` when only the named unit changes>
