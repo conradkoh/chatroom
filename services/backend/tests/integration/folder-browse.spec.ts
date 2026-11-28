@@ -9,7 +9,7 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { api } from '../../convex/_generated/api';
+import { api, internal } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import { createTestSession, registerMachineWithDaemon } from '../helpers/integration';
@@ -80,6 +80,10 @@ async function userIdFor(sessionId: string): Promise<Id<'users'>> {
     if (!session?.userId) throw new Error(`No session for ${sessionId}`);
     return session.userId;
   });
+}
+
+async function drainScheduler(): Promise<void> {
+  await t.finishAllScheduledFunctions(() => vi.runAllTimers());
 }
 
 afterEach(() => {
@@ -779,5 +783,112 @@ describe('folder browse sessions', () => {
 
     // The listing content is unchanged while the new navigation is pending.
     expect(await t.query(api.folderBrowse.getListing, { sessionId, browseId })).toEqual(listed);
+  });
+  // ── cleanup ───────────────────────────────────────────────────────────────
+
+  test('cleanup deletes expired sessions and their listings and keeps live ones', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(START);
+    const { sessionId, machineId } = await setupMachine('fb-cleanup-owner', 'machine-fb-cleanup');
+    const userId = await userIdFor(sessionId);
+
+    const expiredId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert('chatroom_folderBrowseSessions', {
+        userId,
+        machineId,
+        state: 'ready',
+        navSeq: 1,
+        requestedPath: '/old',
+        showHidden: false,
+        createdAt: START - 60_000,
+        expiresAt: START - 1,
+      });
+      await ctx.db.insert('chatroom_folderBrowseListings', {
+        browseId: id,
+        userId,
+        machineId,
+        seq: 1,
+        requestedPath: '/old',
+        path: '/old',
+        parentPath: '/',
+        entries: [],
+        dirCount: 0,
+        fileCount: 0,
+        hiddenCount: 0,
+        truncated: false,
+        complete: true,
+        selectable: true,
+        listedAt: START - 60_000,
+      });
+      return id;
+    });
+    const liveId = await openSession(sessionId, machineId);
+    await t.mutation(api.folderBrowse.reportListing, {
+      sessionId,
+      machineId,
+      browseId: liveId,
+      navSeq: 1,
+      result: listingReport(),
+    });
+
+    await t.mutation(internal.folderBrowse.cleanupExpiredFolderBrowseSessions, {});
+
+    expect(await countSessionsFor(userId, machineId)).toBe(1);
+    expect(await countListingsFor(expiredId)).toBe(0);
+    expect(await countListingsFor(liveId)).toBe(1);
+    expect(await t.query(api.folderBrowse.get, { sessionId, browseId: liveId })).not.toBeNull();
+  });
+
+  test('cleanup reschedules on a full batch', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(START);
+    const { sessionId, machineId } = await setupMachine('fb-cleanup-batch', 'machine-fb-batch');
+    const userId = await userIdFor(sessionId);
+
+    const withListing: Id<'chatroom_folderBrowseSessions'>[] = await t.run(async (ctx) => {
+      const ids: Id<'chatroom_folderBrowseSessions'>[] = [];
+      for (let i = 0; i < 101; i++) {
+        const id = await ctx.db.insert('chatroom_folderBrowseSessions', {
+          userId,
+          machineId,
+          state: 'pending',
+          navSeq: 1,
+          requestedPath: null,
+          showHidden: false,
+          createdAt: START - 60_000,
+          expiresAt: START - 1,
+        });
+        ids.push(id);
+        if (i < 3) {
+          await ctx.db.insert('chatroom_folderBrowseListings', {
+            browseId: id,
+            userId,
+            machineId,
+            seq: 1,
+            requestedPath: null,
+            path: '/',
+            parentPath: null,
+            entries: [],
+            dirCount: 0,
+            fileCount: 0,
+            hiddenCount: 0,
+            truncated: false,
+            complete: true,
+            selectable: false,
+            listedAt: START - 60_000,
+          });
+        }
+      }
+      return ids.slice(0, 3);
+    });
+
+    await t.mutation(internal.folderBrowse.cleanupExpiredFolderBrowseSessions, {});
+    expect(await countSessionsFor(userId, machineId)).toBe(1);
+
+    await drainScheduler();
+    expect(await countSessionsFor(userId, machineId)).toBe(0);
+    for (const browseId of withListing) {
+      expect(await countListingsFor(browseId)).toBe(0);
+    }
   });
 });
