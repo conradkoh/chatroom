@@ -2,15 +2,16 @@
  * Repo-wide cross-role script audit (test-only helper).
  *
  * Renders every preset team's role prompts and handoff templates, then checks
- * the cross-role promises they make: an advertised handoff target is a declared
- * contract target, the delegator's template carries the context the recipient's
- * brief expects, and every structured handoff artifact named by the sender is
- * addressed to the receiver.
+ * the cross-role promises they make: an advertised handoff target equals the
+ * runtime-available target set, the delegator's template carries the context
+ * the recipient's own guidance says it expects, and every structured handoff
+ * artifact named by the sender is addressed to the receiver.
  *
  * Test-only: `cross-role-script-audit.test.ts` imports this module; no
  * production prompt path imports it.
  */
 
+import { CHATROOM_ROLE_USER } from '@workspace/shared/domain/chatroom-role';
 import {
   CONVERSATION_MODES,
   type ConversationMode,
@@ -18,83 +19,197 @@ import {
 import {
   TEAM_PRESET_IDS,
   TEAM_PRESETS,
-  type TeamHandoffGraphPolicy,
   type TeamPresetId,
 } from '@workspace/shared/domain/team-presets';
 
-import { pairCarriesGroundingReference } from '../cli/grounding/reference';
-import { listHandoffTemplatePairs, renderHandoffTemplate } from '../cli/handoff-templates';
-import { listDuoRoleHandoffContracts } from './duo/handoff-templates';
 import {
   CHARACTERISATION_CHATROOM_ID,
   renderInitSystemPrompt,
 } from './role-prompt-characterisation';
-import { listSoloRoleHandoffContracts } from './solo/handoff-templates';
-import { listTrioRoleHandoffContracts } from './trio/handoff-templates';
-import type { RoleHandoffContract } from '../cli/handoff-templates/contracts';
+import { buildAvailableHandoffRoles } from '../../convex/lib/handoffRoles';
+import {
+  GROUNDING_REFERENCE_HEADING,
+  type GroundingReferencePair,
+} from '../cli/grounding/reference';
+import { listHandoffTemplatePairs, renderHandoffTemplate } from '../cli/handoff-templates';
 
-const USER_ROLE = 'user';
-const GROUNDING_REFERENCE_HEADING = '### Grounding reference';
 const HANDOFF_OPTIONS_PATTERN = /^### Handoff Options\nAvailable targets: (.+)$/m;
 
+/** Report sections each entry point expects from each sender. */
+const REPORT_CONTEXT_BY_SENDER = {
+  architect: ['## Summary', '## Requirements (acceptance criteria)', '## Shared contracts'],
+  builder: ['## Summary', '## Proof of Completion', '## Code Change Verification'],
+  'game-asset-designer': ['## Summary', '## Asset manifest', '## Quality checklist results'],
+  'product-manager': ['## Summary', '## In scope', '## Out of scope'],
+  'prompt-engineer': ['## Summary', '## Proposed text', '## Acceptance criteria'],
+  researcher: ['## Summary', '## Research questions', '## Answers'],
+  reviewer: ['## Summary', '## Review scope', '## Issues', '## Not reviewed'],
+  // Chat-mode report has no headings; both modes carry the status line and Plan phases.
+  specifier: ['delivered | partial | blocked', 'Plan phases'],
+  triage: ['## Summary', '## Reported behavior', '## Root cause'],
+  'uiux-engineer': [
+    '## Summary',
+    '## Screens, Flows, and Layouts',
+    '## Requirements (acceptance criteria)',
+  ],
+  verifier: ['## Verdict', '## Objective', '## Requirements', '## Evidence'],
+} as const satisfies Record<string, readonly string[]>;
+
 /**
- * The context each receiving role's own guidance says it recovers from a
- * handoff. Each inner array is an AND-set of literal tokens; the outer array is
- * an OR of alternatives, because one role can receive more than one kind of
- * brief. A recipient with no entry makes the audit fail.
+ * What each recipient expects from a brief addressed to it.
+ *
+ * `requiredBySender[sender]` is an AND-set of literal tokens; `'*'` applies to
+ * every sender. Every set carries at least two substantive tokens, so no
+ * recipient passes on `## Summary` alone.
+ *
+ * `guidanceAnchors` are literal phrases from the recipient's own rendered
+ * guidance; the audit checks them so a stale table fails. Entry points that
+ * only receive reports do not enumerate their inputs, so they pin the report
+ * contract with `requiredBySender` instead.
  */
-export const RECIPIENT_CONTEXT_EXPECTATIONS: Readonly<
-  Record<string, readonly (readonly string[])[]>
-> = {
-  architect: [['authoritative request', 'relevant constraints']],
-  builder: [['## Files to implement', '## Test seams', '## Verification flags']],
-  'game-asset-designer': [
-    ['## Lighting contract', '## Budgets and conventions', '## Style reference'],
-  ],
-  'product-manager': [['authoritative request', 'the problem it solves']],
-  'prompt-engineer': [['agent behavior the prompt must produce', 'the roles and teams affected']],
-  researcher: [['authoritative request', 'research questions']],
-  reviewer: [['review target and the review focus']],
-  triage: [['observed and expected behavior', 'reproduction details']],
-  'uiux-engineer': [['authoritative request', 'relevant constraints']],
-  verifier: [
-    [
-      '## Round',
-      '## Mode',
-      '## Deliverable type',
-      '## User message id',
-      '## Log message ids',
-      '## Claimed outcome',
-      '## Evidence pointers',
-      '## Known gaps',
-    ],
-  ],
-  specifier: [
-    [
-      '## Summary',
-      '## Goal',
-      '## User requirements',
-      '## Inputs from specialists',
-      '## Scope',
-      '## Plan phases',
-      '## Prior deliveries',
-      '## Rework findings',
-    ],
-    ['## Summary', '## Proof of Completion'],
-    ['Plan phases:'],
-  ],
-  coordinator: [['## Summary'], ['## Verdict'], ['Plan phases:']],
-  planner: [['## Summary'], ['## Verdict'], ['Plan phases:']],
-  solo: [['## Summary'], ['## Verdict'], ['Plan phases:']],
-};
+export interface RecipientContextExpectation {
+  readonly guidanceAnchors: readonly string[];
+  readonly requiredBySender: Readonly<Record<string, readonly string[]>>;
+}
+
+export const RECIPIENT_CONTEXT_EXPECTATIONS: Readonly<Record<string, RecipientContextExpectation>> =
+  {
+    architect: {
+      guidanceAnchors: [
+        'authoritative user request',
+        'relevant chatroom history',
+        'constrain the change',
+      ],
+      requiredBySender: { '*': ['authoritative request', 'relevant constraints'] },
+    },
+    builder: {
+      guidanceAnchors: ['## Verification flags'],
+      requiredBySender: {
+        '*': ['## Files to implement', '## Test seams', '## Verification flags'],
+      },
+    },
+    'game-asset-designer': {
+      guidanceAnchors: ['## Lighting contract', 'Style reference', 'budgets'],
+      requiredBySender: {
+        '*': ['## Lighting contract', '## Budgets and conventions', '## Style reference'],
+      },
+    },
+    'product-manager': {
+      guidanceAnchors: ['authoritative request', 'problem the user is trying to solve'],
+      requiredBySender: { '*': ['authoritative request', 'the problem it solves'] },
+    },
+    'prompt-engineer': {
+      guidanceAnchors: ['authoritative request', 'behavior the prompt must produce'],
+      requiredBySender: {
+        '*': ['agent behavior the prompt must produce', 'the roles and teams affected'],
+      },
+    },
+    researcher: {
+      guidanceAnchors: ['authoritative request', 'research questions'],
+      requiredBySender: { '*': ['authoritative request', 'research questions'] },
+    },
+    reviewer: {
+      guidanceAnchors: ['review target and focus'],
+      requiredBySender: { '*': ['review target', 'review focus'] },
+    },
+    specifier: {
+      guidanceAnchors: ['work package', '## Rework findings (prior delivery)'],
+      requiredBySender: {
+        coordinator: [
+          '## Summary',
+          '## Goal',
+          '## User requirements',
+          '## Inputs from specialists',
+          '## Scope',
+          '## Plan phases',
+          '## Prior deliveries',
+        ],
+        builder: REPORT_CONTEXT_BY_SENDER.builder,
+      },
+    },
+    triage: {
+      guidanceAnchors: ['observed behavior', 'expected behavior', 'reproduction details'],
+      requiredBySender: { '*': ['observed and expected behavior', 'reproduction details'] },
+    },
+    'uiux-engineer': {
+      guidanceAnchors: [
+        'authoritative user request',
+        'relevant chatroom history',
+        'constrain the experience',
+      ],
+      requiredBySender: { '*': ['authoritative request', 'relevant constraints'] },
+    },
+    verifier: {
+      guidanceAnchors: [
+        'verification request',
+        'deliverable type',
+        'evidence pointers',
+        'known gaps',
+      ],
+      requiredBySender: {
+        '*': [
+          '## Round',
+          '## Mode',
+          '## Deliverable type',
+          '## User message id',
+          '## Log message ids',
+          '## Requested test runs',
+          '## Claimed outcome',
+          '## Evidence pointers',
+          '## Known gaps',
+        ],
+      },
+    },
+    coordinator: {
+      guidanceAnchors: [],
+      requiredBySender: {
+        architect: REPORT_CONTEXT_BY_SENDER.architect,
+        'game-asset-designer': REPORT_CONTEXT_BY_SENDER['game-asset-designer'],
+        'product-manager': REPORT_CONTEXT_BY_SENDER['product-manager'],
+        'prompt-engineer': REPORT_CONTEXT_BY_SENDER['prompt-engineer'],
+        researcher: REPORT_CONTEXT_BY_SENDER.researcher,
+        reviewer: REPORT_CONTEXT_BY_SENDER.reviewer,
+        specifier: REPORT_CONTEXT_BY_SENDER.specifier,
+        triage: REPORT_CONTEXT_BY_SENDER.triage,
+        'uiux-engineer': REPORT_CONTEXT_BY_SENDER['uiux-engineer'],
+        verifier: REPORT_CONTEXT_BY_SENDER.verifier,
+      },
+    },
+    planner: {
+      guidanceAnchors: [],
+      requiredBySender: {
+        architect: REPORT_CONTEXT_BY_SENDER.architect,
+        builder: REPORT_CONTEXT_BY_SENDER.builder,
+        'game-asset-designer': REPORT_CONTEXT_BY_SENDER['game-asset-designer'],
+        'product-manager': REPORT_CONTEXT_BY_SENDER['product-manager'],
+        'prompt-engineer': REPORT_CONTEXT_BY_SENDER['prompt-engineer'],
+        researcher: REPORT_CONTEXT_BY_SENDER.researcher,
+        reviewer: REPORT_CONTEXT_BY_SENDER.reviewer,
+        triage: REPORT_CONTEXT_BY_SENDER.triage,
+        'uiux-engineer': REPORT_CONTEXT_BY_SENDER['uiux-engineer'],
+        verifier: REPORT_CONTEXT_BY_SENDER.verifier,
+      },
+    },
+    solo: {
+      guidanceAnchors: [],
+      requiredBySender: {
+        architect: REPORT_CONTEXT_BY_SENDER.architect,
+        'product-manager': REPORT_CONTEXT_BY_SENDER['product-manager'],
+        'prompt-engineer': REPORT_CONTEXT_BY_SENDER['prompt-engineer'],
+        triage: REPORT_CONTEXT_BY_SENDER.triage,
+        'uiux-engineer': REPORT_CONTEXT_BY_SENDER['uiux-engineer'],
+        verifier: REPORT_CONTEXT_BY_SENDER.verifier,
+      },
+    },
+  };
 
 export interface RenderedRolePrompt {
   readonly teamId: string;
-  readonly handoffGraph: TeamHandoffGraphPolicy;
   readonly role: string;
-  readonly teamRoles: readonly string[];
+  /** Full rendered init prompt, used to verify the recipient's guidance anchors. */
+  readonly text: string;
   readonly advertisedTargets: readonly string[];
-  readonly contractTargets: readonly string[];
+  readonly availableTargets: readonly string[];
 }
 
 export interface RenderedHandoffTemplate {
@@ -111,6 +226,7 @@ export type CrossRoleViolationKind =
   | 'missing-template'
   | 'missing-expectation'
   | 'missing-context'
+  | 'recipient-guidance-drift'
   | 'return-path'
   | 'grounding-mismatch';
 
@@ -124,19 +240,12 @@ export interface CrossRoleViolation {
 export interface CrossRoleAuditInput {
   readonly rolePrompts: readonly RenderedRolePrompt[];
   readonly templates: readonly RenderedHandoffTemplate[];
-  readonly recipientExpectations: Readonly<Record<string, readonly (readonly string[])[]>>;
-  readonly carriesGroundingReference: (pair: {
-    teamId: string;
-    fromRole: string;
-    toRole: string;
-  }) => boolean;
+  readonly recipientExpectations: Readonly<Record<string, RecipientContextExpectation>>;
+  /** Independent spec: pairs whose rendered template must carry the grounding reference block. */
+  readonly groundingReferencePairs: readonly GroundingReferencePair[];
 }
 
-const CONTRACT_LISTS: Record<TeamPresetId, () => readonly RoleHandoffContract[]> = {
-  duo: listDuoRoleHandoffContracts,
-  solo: listSoloRoleHandoffContracts,
-  trio: listTrioRoleHandoffContracts,
-};
+export type CollectedCrossRoleAuditInput = Omit<CrossRoleAuditInput, 'groundingReferencePairs'>;
 
 function parseAdvertisedTargets(label: string, prompt: string): readonly string[] {
   const match = HANDOFF_OPTIONS_PATTERN.exec(prompt);
@@ -152,21 +261,20 @@ function parseAdvertisedTargets(label: string, prompt: string): readonly string[
 function collectRolePrompts(teamId: TeamPresetId): RenderedRolePrompt[] {
   const preset = TEAM_PRESETS[teamId];
   const teamRoles = [...preset.roles];
-  const contracts = CONTRACT_LISTS[teamId]();
 
   return teamRoles.map((role) => {
-    const contract = contracts.find((candidate) => candidate.role === role);
-    if (!contract) {
-      throw new Error(`${teamId}: no handoff contract for role "${role}"`);
-    }
-    const prompt = renderInitSystemPrompt({ teamId, teamName: preset.name, teamRoles }, role);
+    const text = renderInitSystemPrompt({ teamId, teamName: preset.name, teamRoles }, role);
     return {
       teamId,
-      handoffGraph: preset.handoffGraph,
       role,
-      teamRoles,
-      advertisedTargets: parseAdvertisedTargets(`${teamId}: ${role}`, prompt),
-      contractTargets: contract.returnsTo,
+      text,
+      advertisedTargets: parseAdvertisedTargets(`${teamId}: ${role}`, text),
+      availableTargets: buildAvailableHandoffRoles({
+        teamId,
+        teamRoles: [...teamRoles],
+        currentRole: role,
+        fallbackParticipantRoles: [],
+      }),
     };
   });
 }
@@ -189,12 +297,11 @@ function collectTemplates(teamId: TeamPresetId): RenderedHandoffTemplate[] {
 }
 
 /** Renders every preset team's role prompts and handoff templates into audit input. */
-export function collectCrossRoleAuditInput(): CrossRoleAuditInput {
+export function collectCrossRoleAuditInput(): CollectedCrossRoleAuditInput {
   return {
     rolePrompts: TEAM_PRESET_IDS.flatMap(collectRolePrompts),
     templates: TEAM_PRESET_IDS.flatMap(collectTemplates),
     recipientExpectations: RECIPIENT_CONTEXT_EXPECTATIONS,
-    carriesGroundingReference: pairCarriesGroundingReference,
   };
 }
 
@@ -204,58 +311,42 @@ export function collectCrossRoleAuditInput(): CrossRoleAuditInput {
  */
 export function auditCrossRoleScript(input: CrossRoleAuditInput): CrossRoleViolation[] {
   return [
-    ...input.rolePrompts.flatMap(auditRolePrompt),
+    ...input.rolePrompts.flatMap(auditAdvertisedTargets),
     ...input.templates.flatMap((template) => auditHandoffTemplate(template, input)),
   ];
 }
 
-/** Prompt-side promises: advertised targets and contract targets agree. */
-function auditRolePrompt(prompt: RenderedRolePrompt): CrossRoleViolation[] {
-  return [...auditAdvertisedTargets(prompt), ...auditContractTargets(prompt)];
-}
-
+/**
+ * Prompt-side promise: the advertised targets are exactly the runtime-available
+ * set (`buildAvailableHandoffRoles`), which is contract targets for trio and
+ * configured-membership plus `user` for duo/solo.
+ */
 function auditAdvertisedTargets(prompt: RenderedRolePrompt): CrossRoleViolation[] {
-  const contractTargets = new Set(prompt.contractTargets);
-
-  return prompt.advertisedTargets.flatMap((target): CrossRoleViolation[] => {
-    if (target === USER_ROLE) return [];
-    const pair = `${prompt.teamId}: ${prompt.role} → ${target}`;
-
-    if (!prompt.teamRoles.includes(target)) {
-      return [
-        {
-          kind: 'undeclared-target',
-          pair,
-          message: `${pair} — the ${prompt.role} prompt advertises "${target}", which is not a member of the ${prompt.teamId} team`,
-        },
-      ];
-    }
-    if (prompt.handoffGraph === 'enforced' && !contractTargets.has(target)) {
-      return [
-        {
-          kind: 'undeclared-target',
-          pair,
-          message: `${pair} — the ${prompt.role} prompt advertises "${target}", which is not a ${prompt.teamId} contract target (declared: ${[...contractTargets].join(', ')})`,
-        },
-      ];
-    }
-    return [];
-  });
-}
-
-function auditContractTargets(prompt: RenderedRolePrompt): CrossRoleViolation[] {
+  const available = new Set(prompt.availableTargets);
   const advertised = new Set(prompt.advertisedTargets);
+  const violations: CrossRoleViolation[] = [];
 
-  return prompt.contractTargets
-    .filter((target) => target !== USER_ROLE && !advertised.has(target))
-    .map((target) => {
-      const pair = `${prompt.teamId}: ${prompt.role} → ${target}`;
-      return {
-        kind: 'unadvertised-target',
-        pair,
-        message: `${pair} — the ${prompt.teamId} contract declares "${target}" as a target for "${prompt.role}", but its prompt does not advertise it`,
-      };
+  for (const target of prompt.advertisedTargets) {
+    if (available.has(target)) continue;
+    const pair = `${prompt.teamId}: ${prompt.role} → ${target}`;
+    violations.push({
+      kind: 'undeclared-target',
+      pair,
+      message: `${pair} — the ${prompt.role} prompt advertises "${target}", which is not runtime-available for the ${prompt.teamId} team`,
     });
+  }
+
+  for (const target of prompt.availableTargets) {
+    if (advertised.has(target)) continue;
+    const pair = `${prompt.teamId}: ${prompt.role} → ${target}`;
+    violations.push({
+      kind: 'unadvertised-target',
+      pair,
+      message: `${pair} — "${target}" is runtime-available to the ${prompt.role} role, but its prompt does not advertise it`,
+    });
+  }
+
+  return violations;
 }
 
 /** Template-side promises: the sender's brief supplies what the recipient expects. */
@@ -263,7 +354,7 @@ function auditHandoffTemplate(
   template: RenderedHandoffTemplate,
   input: CrossRoleAuditInput
 ): CrossRoleViolation[] {
-  if (template.toRole === USER_ROLE) return [];
+  if (template.toRole === CHATROOM_ROLE_USER) return [];
   const pair = `${template.teamId}: ${template.fromRole} → ${template.toRole}`;
 
   if (template.text.trim() === '') {
@@ -276,19 +367,19 @@ function auditHandoffTemplate(
     ];
   }
   return [
-    ...auditRecipientContext(template, pair, input.recipientExpectations),
+    ...auditRecipientContext(template, pair, input),
     ...auditReturnPaths(template, pair),
-    ...auditGroundingReference(template, pair, input.carriesGroundingReference),
+    ...auditGroundingReference(template, pair, input.groundingReferencePairs),
   ];
 }
 
 function auditRecipientContext(
   template: RenderedHandoffTemplate,
   pair: string,
-  expectations: CrossRoleAuditInput['recipientExpectations']
+  input: CrossRoleAuditInput
 ): CrossRoleViolation[] {
-  const alternatives = expectations[template.toRole];
-  if (!alternatives) {
+  const expectation = input.recipientExpectations[template.toRole];
+  if (!expectation) {
     return [
       {
         kind: 'missing-expectation',
@@ -297,20 +388,52 @@ function auditRecipientContext(
       },
     ];
   }
-  const satisfied = alternatives.some((tokens) =>
-    tokens.every((token) => template.text.includes(token))
-  );
-  if (satisfied) return [];
 
-  return [
-    {
+  const violations: CrossRoleViolation[] = [];
+  const recipientPrompt = input.rolePrompts.find(
+    (prompt) => prompt.teamId === template.teamId && prompt.role === template.toRole
+  );
+
+  if (!recipientPrompt) {
+    violations.push({
+      kind: 'missing-expectation',
+      pair,
+      message: `${pair} — no rendered guidance is available for the recipient "${template.toRole}"`,
+    });
+  } else {
+    for (const anchor of expectation.guidanceAnchors) {
+      if (recipientPrompt.text.includes(anchor)) continue;
+      violations.push({
+        kind: 'recipient-guidance-drift',
+        pair,
+        message: `${pair} — the "${template.toRole}" guidance no longer states "${anchor}", so its declared context expectation is stale`,
+      });
+    }
+  }
+
+  const required =
+    expectation.requiredBySender[template.fromRole] ?? expectation.requiredBySender['*'];
+  if (!required) {
+    violations.push({
+      kind: 'missing-expectation',
+      pair,
+      message: `${pair} — no context expectation is declared for "${template.fromRole}" → "${template.toRole}"`,
+    });
+    return violations;
+  }
+
+  const missing = required.filter((token) => !template.text.includes(token));
+  if (missing.length > 0) {
+    violations.push({
       kind: 'missing-context',
       pair,
-      message: `${pair} — the "${template.fromRole}" template does not supply the context "${template.toRole}" expects (${alternatives
-        .map((tokens) => tokens.join(' + '))
-        .join(' OR ')})`,
-    },
-  ];
+      message: `${pair} — the "${template.fromRole}" template does not supply the context "${template.toRole}" expects; missing ${missing
+        .map((token) => `"${token}"`)
+        .join(', ')}`,
+    });
+  }
+
+  return violations;
 }
 
 /** Every `--next-role` the template names must be the receiver or the sender (return path). */
@@ -328,17 +451,27 @@ function auditReturnPaths(template: RenderedHandoffTemplate, pair: string): Cros
     }));
 }
 
+/** The grounding block only, starting at its heading. */
+function getGroundingReferenceSection(text: string): string | undefined {
+  const start = text.indexOf(GROUNDING_REFERENCE_HEADING);
+  if (start === -1) return undefined;
+  const end = text.indexOf('\n### ', start + GROUNDING_REFERENCE_HEADING.length);
+  return text.slice(start, end === -1 ? undefined : end);
+}
+
 function auditGroundingReference(
   template: RenderedHandoffTemplate,
   pair: string,
-  carriesGroundingReference: CrossRoleAuditInput['carriesGroundingReference']
+  expectedPairs: readonly GroundingReferencePair[]
 ): CrossRoleViolation[] {
-  const carries = template.text.includes(GROUNDING_REFERENCE_HEADING);
-  const mustCarry = carriesGroundingReference({
-    teamId: template.teamId,
-    fromRole: template.fromRole,
-    toRole: template.toRole,
-  });
+  const groundingSection = getGroundingReferenceSection(template.text);
+  const carries = groundingSection !== undefined;
+  const mustCarry = expectedPairs.some(
+    (candidate) =>
+      candidate.teamId === template.teamId &&
+      candidate.fromRole === template.fromRole &&
+      candidate.toRole === template.toRole
+  );
   if (carries !== mustCarry) {
     return [
       {
@@ -348,7 +481,7 @@ function auditGroundingReference(
       },
     ];
   }
-  if (carries && !template.text.includes(`--role="${template.toRole}"`)) {
+  if (groundingSection !== undefined && !groundingSection.includes(`--role="${template.toRole}"`)) {
     return [
       {
         kind: 'grounding-mismatch',
