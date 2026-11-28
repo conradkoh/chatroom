@@ -34,7 +34,7 @@ const ROW_NAVIGATION = new Map<string, (current: number, last: number) => number
  * resets it to the first row without an effect that sets state.
  */
 interface ActiveRow {
-  path: string;
+  path: string | null;
   index: number;
 }
 

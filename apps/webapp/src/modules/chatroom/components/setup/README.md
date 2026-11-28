@@ -71,7 +71,7 @@ a workspace, and the daemon may start later. Those flows pass `offlineSelectable
 | `variant`           | `'setup'` or `'clone'`. Chooses the heading style and the status order.  |
 | `heading`           | The visible heading.                                                     |
 | `inputAriaLabel`    | The text input's accessible name.                                        |
-| `waitingText`       | The line shown while the picker waits for the daemon.                    |
+| `waitingText`       | The caption the browser shows while its first listing loads.             |
 | `value`, `onChange` | The path text.                                                           |
 | `placeholder`       | The input placeholder.                                                   |
 | `inputDisabled`     | Disables only the text input.                                            |
@@ -88,16 +88,31 @@ Four optional props extend the field without changing the defaults above:
 | `inputRef`      | Ref to the text input, for callers that restore focus after a mutation.                                                       |
 | `stackOnMobile` | Below `sm`, stacks input, Browse and `actions` vertically and makes Browse full width; from `sm` the row is horizontal again. |
 
-The `picker` state shows three things. While a pick is pending it shows `waitingText`. After a timeout
-it shows the timeout hint and the retry prompt. Otherwise it shows the picker's error.
+Browse opens an inline browser under the field instead of a native dialog. The typed input is disabled
+only by the caller's `inputDisabled`; browsing never changes it, and typing while the browser is open
+neither navigates nor closes it. `waitingText` is the browser's first-load caption. `picker.error` is the
+only field-level status line: a browser error shows inside the browser panel.
 
-- `variant: 'setup'` uses the wizard heading style. The status sits below the Browse row, with the
-  retry prompt before the error line.
-- `variant: 'clone'` uses the clone form's smaller heading. The error line sits above the retry
-  prompt.
+- `variant: 'setup'` uses the wizard heading style.
+- `variant: 'clone'` uses the clone form's smaller heading.
+- Both variants place the browser under the input row and the error line under the browser.
 
-Browse is disabled while a pick is pending. Each caller decides whether the text input is also
-disabled, through `inputDisabled`.
+## Remote folder browser
+
+`RemoteFolderBrowser.tsx` and its parts (`RemoteFolderBrowserNav`, `RemoteFolderBrowserToolbar`,
+`RemoteFolderBrowserList`, `RemoteFolderBrowserNotice`) render the selected machine's directories
+inline under the field. The pure copy and derivations live in `remoteFolderBrowserCopy.ts`.
+
+- `picker.browser` is `null` while closed and a `RemoteFolderBrowserState` while open. Only
+  `useSetupWorkspaceFolderPicker` (through `useRemoteFolderBrowser`) owns it.
+- Browse toggles: closed → `picker.onBrowse(value)`; open → `picker.onCloseBrowser()`.
+- Select calls `browser.select()` (the hook reports `listing.path` and deletes the session) and
+  returns focus to the input. Cancel and Escape (with an empty filter) delete the session and return
+  focus to Browse.
+- While mounted the panel registers with `pushOverlayDismiss`, so Escape closes the panel before the
+  wizard or the switch dialog. Escape with a non-empty filter clears the filter instead.
+- No native dialog, no dialog/sheet/toast, no stored history. Do not call `useFolderPicker` from a
+  setup surface.
 
 ## Consumers
 

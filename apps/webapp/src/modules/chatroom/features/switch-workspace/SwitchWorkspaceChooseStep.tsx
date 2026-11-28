@@ -96,8 +96,7 @@ function ChooseForm({
   const sameAsCurrent =
     chosenMachineId !== null &&
     isSameWorkspace(current, { machineId: chosenMachineId, workingDir: path });
-  const canReview =
-    chosenMachineId !== null && path.trim() !== '' && !picker.isPending && !sameAsCurrent;
+  const canReview = chosenMachineId !== null && path.trim() !== '' && !sameAsCurrent;
   const currentLabel = getWorkspaceDisplayHostname(current);
   const folderName = current.workingDir.split('/').filter(Boolean).pop() ?? current.workingDir;
 
@@ -196,7 +195,7 @@ function ChooseForm({
             ? `Select a folder on ${getMachineDisplayName(selectedMachine)}`
             : 'Select a machine first'
         }
-        inputDisabled={chosenMachineId === null || picker.isPending}
+        inputDisabled={chosenMachineId === null}
         browseDisabled={chosenMachineId === null || selectedOffline}
         picker={picker}
         invalid={flow.error?.kind === 'invalid-path'}

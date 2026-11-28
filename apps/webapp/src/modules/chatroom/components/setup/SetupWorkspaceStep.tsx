@@ -113,8 +113,7 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
     ? `Select a folder on ${getMachineDisplayName(selectedMachine)}`
     : 'Select a machine first';
 
-  const confirmDisabled =
-    !selectedMachineId || !selectedPath.trim() || isConfirming || picker.isPending;
+  const confirmDisabled = !selectedMachineId || !selectedPath.trim() || isConfirming;
 
   return (
     <SetupStepLayout
@@ -156,7 +155,7 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
         value={selectedPath}
         onChange={setSelectedPath}
         placeholder={folderPlaceholder}
-        inputDisabled={!selectedMachineId || picker.isPending}
+        inputDisabled={!selectedMachineId}
         browseDisabled={!selectedMachineId || isConfirming}
         picker={picker}
       />

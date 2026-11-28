@@ -114,7 +114,7 @@ export function ExistingFolderForm({
           value={selectedPath}
           onChange={setSelectedPath}
           placeholder={`Type or browse a folder on ${machineName}`}
-          inputDisabled={picker.isPending}
+          inputDisabled={false}
           browseDisabled={!isMachineConnected || isCreating}
           picker={picker}
         />

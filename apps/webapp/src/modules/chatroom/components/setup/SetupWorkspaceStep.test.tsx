@@ -9,14 +9,11 @@ vi.mock('@/hooks/useMachineCapabilities', () => ({
   useMachineCapabilities: () => ({ availableHarnesses: ['cursor-sdk'], harnessVersions: {} }),
 }));
 
-vi.mock('@/hooks/useFolderPicker', () => ({
-  useFolderPicker: () => ({
-    pickFolder: vi.fn(),
-    request: undefined,
-    requestId: null,
-    reset: vi.fn(),
-    isPending: false,
-    isTimedOut: false,
+vi.mock('@/hooks/useRemoteFolderBrowser', () => ({
+  useRemoteFolderBrowser: () => ({
+    browser: null,
+    open: vi.fn().mockResolvedValue(undefined),
+    close: vi.fn(),
   }),
 }));
 

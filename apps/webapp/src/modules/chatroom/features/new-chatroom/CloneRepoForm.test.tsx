@@ -8,14 +8,11 @@ import type { GitCloneViewState } from './lib/deriveGitCloneViewState';
 import type { UserMachine } from '../../types/machine';
 
 // The folder picker is covered by its own suites. This stub keeps the Browse button inert.
-vi.mock('@/hooks/useFolderPicker', () => ({
-  useFolderPicker: () => ({
-    pickFolder: vi.fn(),
-    request: undefined,
-    requestId: null,
-    reset: vi.fn(),
-    isPending: false,
-    isTimedOut: false,
+vi.mock('@/hooks/useRemoteFolderBrowser', () => ({
+  useRemoteFolderBrowser: () => ({
+    browser: null,
+    open: vi.fn().mockResolvedValue(undefined),
+    close: vi.fn(),
   }),
 }));
 

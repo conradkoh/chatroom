@@ -3,6 +3,9 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SwitchWorkspaceDialog } from './SwitchWorkspaceDialog';
+import { resetOverlayDismissStackForTests } from '../../components/shared/overlayDismissStack';
+
+import type { RemoteFolderBrowserState } from '@/hooks/useRemoteFolderBrowser';
 
 const CONSEQUENCES = [
   "Running agents are stopped. Work in progress may be interrupted. The stop request is queued for the machine's daemon.",
@@ -26,16 +29,57 @@ vi.mock('@/hooks/useMachineCapabilities', () => ({
   useMachineCapabilities: () => mockUseMachineCapabilities(),
 }));
 
-vi.mock('@/hooks/useFolderPicker', () => ({
-  useFolderPicker: () => ({
-    pickFolder: vi.fn(),
-    request: undefined,
-    requestId: null,
-    reset: vi.fn(),
-    isPending: false,
-    isTimedOut: false,
-  }),
-}));
+// A stateful stand-in for the remote browser hook: open shows a ready listing, and the browser
+// stays mounted until select, cancel or close, so the panel's Escape and machine-change paths can run.
+const mockBrowserClose = vi.hoisted(() => vi.fn());
+
+vi.mock('@/hooks/useRemoteFolderBrowser', async () => {
+  const ReactModule = await import('react');
+  return {
+    useRemoteFolderBrowser: ({ onSelected }: { onSelected: (path: string) => void }) => {
+      const [browser, setBrowser] = ReactModule.useState<RemoteFolderBrowserState | null>(null);
+      const close = () => {
+        mockBrowserClose();
+        setBrowser(null);
+      };
+      const open = async () => {
+        setBrowser({
+          phase: 'ready',
+          machineDisplayName: 'laptop',
+          listing: {
+            path: '/srv',
+            parentPath: '/',
+            requestedPath: '/srv',
+            entries: [{ name: 'alpha' }],
+            dirCount: 1,
+            fileCount: 0,
+            hiddenCount: 0,
+            truncated: false,
+            complete: true,
+            selectable: true,
+            fellBack: false,
+          },
+          isNavigating: false,
+          showHidden: false,
+          filter: '',
+          error: null,
+          navigate: vi.fn(),
+          goUp: vi.fn(),
+          goHome: vi.fn(),
+          setShowHidden: vi.fn(),
+          setFilter: vi.fn(),
+          retry: vi.fn(),
+          select: () => {
+            onSelected('/srv');
+            setBrowser(null);
+          },
+          cancel: close,
+        });
+      };
+      return { browser, open, close };
+    },
+  };
+});
 
 vi.mock('@/modules/chatroom/hooks/useAgentConfigs', () => ({
   useAgentConfigs: () => mockUseAgentConfigs(),
@@ -105,6 +149,8 @@ async function goToReview(user: ReturnType<typeof userEvent.setup>, path = '/srv
 describe('SwitchWorkspaceDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Element.prototype.scrollIntoView = vi.fn();
+    resetOverlayDismissStackForTests();
     setActiveWorkspace(CURRENT);
     mockUseConnectedMachines.mockReturnValue({
       machines: MACHINES,
@@ -344,5 +390,32 @@ describe('SwitchWorkspaceDialog', () => {
 
     expect(screen.getByTestId('switch-conflict')).toBeInTheDocument();
     expect(mockSwitch).not.toHaveBeenCalled();
+  });
+  it('Escape closes only the browser, and the dialog stays open', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<SwitchWorkspaceDialog onClose={onClose} />);
+
+    await user.click(screen.getByRole('button', { name: 'Browse' }));
+    expect(await screen.findByRole('region')).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByRole('region')).not.toBeInTheDocument();
+    expect(screen.getByTestId('switch-workspace-dialog')).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('choosing another machine closes the open browser and its session', async () => {
+    const user = userEvent.setup();
+    render(<SwitchWorkspaceDialog onClose={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Browse' }));
+    expect(await screen.findByRole('region')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /desktop/i }));
+
+    expect(screen.queryByRole('region')).not.toBeInTheDocument();
+    expect(mockBrowserClose).toHaveBeenCalled();
   });
 });
