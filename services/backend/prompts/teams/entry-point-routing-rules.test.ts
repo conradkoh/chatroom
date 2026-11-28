@@ -113,7 +113,7 @@ describe.each(ENTRY_POINT_FIXTURES)(
     });
 
     test('refers to routing rules by topic, never by number', () => {
-      expect(guidance).not.toMatch(/\brule \d/i);
+      expect(guidance).not.toMatch(/\brules? (?:\d+|one|two|three|four|five|six)\b|#\d/i);
     });
   }
 );
@@ -145,10 +145,11 @@ describe.each(ENTRY_POINT_FIXTURES)(
 
     test('has no absolute ban on conversation or product-defaults routing', () => {
       expect(guidance).not.toContain('never hand `user` a list of decisions');
-      const rule = guidance.slice(
-        guidance.indexOf('**Decision routing ('),
-        guidance.indexOf('**Product manager before scoping')
-      );
+      const routingStart = guidance.indexOf('**Decision routing (');
+      const routingEnd = guidance.indexOf('**Product manager before scoping');
+      expect(routingStart).toBeGreaterThan(-1);
+      expect(routingEnd).toBeGreaterThan(routingStart);
+      const rule = guidance.slice(routingStart, routingEnd);
       expect(rule).not.toMatch(/\bnever\b/i);
       expect(rule).not.toContain('product defaults');
     });

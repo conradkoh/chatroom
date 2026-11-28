@@ -2142,7 +2142,7 @@ describe('trio handoff graph and session policy', () => {
     expect(result.newTaskId).toBeNull();
   });
 
-  test('enforced graph keys on the caller-claimed senderRole, not the session (routing contract)', async () => {
+  test('pins the routing contract: the enforced graph keys on the caller-claimed senderRole, not the session', async () => {
     const { sessionId } = await createTestSession('trio-graph-routing-contract');
     const chatroomId = await createTrioChatroom(sessionId);
     await seedTrioTask(chatroomId, {
@@ -2156,7 +2156,7 @@ describe('trio handoff graph and session policy', () => {
     const rejected = await handoff(sessionId, chatroomId, 'builder', 'coordinator');
     expect(
       rejected.success,
-      'enforced graph bypassed: senderRole "builder" reached targetRole "coordinator" outside the builder contract'
+      'routing contract changed: senderRole "builder" must be rejected for targetRole "coordinator"'
     ).toBe(false);
     expect(rejected.error?.code).toBe('INVALID_TARGET_ROLE');
     expect(rejected.error?.suggestedTargets).toEqual(['specifier']);
@@ -2175,10 +2175,12 @@ describe('trio handoff graph and session policy', () => {
     expect(targetTask?.createdBy).toBe('specifier');
   });
 
-  test('sendMessage type handoff applies the enforced graph before any write', async () => {
+  test('sendMessage type handoff rejects the enforced-graph violation without persisting', async () => {
     const { sessionId } = await createTestSession('trio-graph-send-builder-coordinator');
     const chatroomId = await createTrioChatroom(sessionId);
 
+    // These row counts prove no write persisted. They cannot prove the check ran
+    // before the write: a write followed by a throw would roll back to the same counts.
     const messagesBefore = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_messages')
@@ -2201,7 +2203,7 @@ describe('trio handoff graph and session policy', () => {
         content: 'builder to coordinator via send',
         type: 'handoff',
       }),
-      'enforced graph bypassed via sendMessage: "builder" → "coordinator"'
+      'sendMessage accepted a handoff outside the builder contract: "builder" → "coordinator"'
     ).rejects.toMatchObject({
       data: { code: 'INVALID_TARGET_ROLE', suggestedTargets: ['specifier'] },
     });
