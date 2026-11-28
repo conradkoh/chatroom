@@ -61,6 +61,8 @@
     "**/chatroom-transfer/convex-test-ports.ts",
     // Test-only characterisation renderer imported by the per-team *.snapshot.test.ts files.
     "**/role-prompt-characterisation.ts",
+    // Test-only cross-role audit imported by cross-role-script-audit.test.ts (never imported by production code).
+    "**/cross-role-script-audit.ts",
     "**/vitest.config.{ts,mts}",
     "packages/cli/src/testing/**",
     "packages/cli/src/convex-api/**",
