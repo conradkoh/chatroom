@@ -389,7 +389,10 @@ export const getListing = query({
   },
 });
 
-/** Pending-row subscription for the daemon. Empty when unauthenticated or the machine is not owned. */
+/**
+ * Pending-row subscription for the daemon. Empty when unauthenticated, when the machine is not
+ * owned by the caller, or when no pending row is both owned by the caller and unexpired.
+ */
 export const daemonPending = query({
   args: {
     ...SessionIdArg,
@@ -409,17 +412,24 @@ export const daemonPending = query({
         q.eq('machineId', args.machineId).eq('state', 'pending')
       )
       .take(FOLDER_BROWSE_PENDING_LIMIT);
-    return rows.map((row) => ({
-      browseId: row._id,
-      navSeq: row.navSeq,
-      path: row.requestedPath,
-      showHidden: row.showHidden,
-      filter: row.filter ?? null,
-    }));
+    const now = Date.now();
+    return rows
+      .filter((row) => row.userId === auth.userId && row.expiresAt > now)
+      .map((row) => ({
+        browseId: row._id,
+        navSeq: row.navSeq,
+        path: row.requestedPath,
+        showHidden: row.showHidden,
+        filter: row.filter ?? null,
+      }));
   },
 });
 
-/** Record the daemon's result for one navigation. Checks run in this order; no write before them. */
+/**
+ * Record the daemon's result for one navigation. Checks run in this order and no write precedes
+ * them: row exists and is owned by the caller (`not_found`), machine matches (throw), not
+ * expired, `navSeq` matches, still pending, then listing validation.
+ */
 export const reportListing = mutation({
   args: {
     ...SessionIdArg,
@@ -435,7 +445,7 @@ export const reportListing = mutation({
     await getOwnedMachine(ctx, args.machineId, auth.userId);
 
     const row = await ctx.db.get('chatroom_folderBrowseSessions', args.browseId);
-    if (!row) return { outcome: 'not_found' as const };
+    if (!row || row.userId !== auth.userId) return { outcome: 'not_found' as const };
     if (row.machineId !== args.machineId) {
       throw new ConvexError({
         code: BACKEND_ERROR_CODES.NOT_AUTHORIZED_MACHINE,

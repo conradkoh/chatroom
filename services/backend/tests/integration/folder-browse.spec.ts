@@ -752,6 +752,64 @@ describe('folder browse sessions', () => {
     expect(pending.map((row) => row.browseId)).toEqual([second]);
   });
 
+  test('daemonPending and reportListing ignore rows owned by another user', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(START);
+    const { sessionId: ownerSession, machineId } = await setupMachine(
+      'fb-pending-b-owner',
+      'machine-fb-pending-b'
+    );
+    const { sessionId: foreignSession } = await createTestSession('fb-pending-b-foreign');
+    const foreignUserId = await userIdFor(foreignSession);
+
+    // A session owned by A, sitting on a machine owned by B.
+    const foreignBrowseId = await t.run(async (ctx) =>
+      ctx.db.insert('chatroom_folderBrowseSessions', {
+        userId: foreignUserId,
+        machineId,
+        state: 'pending',
+        navSeq: 1,
+        requestedPath: '/a-secret',
+        showHidden: false,
+        createdAt: START,
+        expiresAt: START + IDLE_TTL_MS,
+      })
+    );
+
+    // An expired session owned by B, plus one live session owned by B.
+    const expiredId = await openSession(ownerSession, machineId, '/expired');
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_folderBrowseSessions', expiredId, { expiresAt: START - 1 });
+    });
+    const liveId = await openSession(ownerSession, machineId, '/live');
+
+    expect(
+      await t.query(api.folderBrowse.daemonPending, { sessionId: ownerSession, machineId })
+    ).toEqual([{ browseId: liveId, navSeq: 1, path: '/live', showHidden: false, filter: null }]);
+
+    // B may not apply a listing for A's row, and nothing is written.
+    expect(
+      await t.mutation(api.folderBrowse.reportListing, {
+        sessionId: ownerSession,
+        machineId,
+        browseId: foreignBrowseId,
+        navSeq: 1,
+        result: listingReport(),
+      })
+    ).toEqual({ outcome: 'not_found' });
+
+    const foreignRow = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_folderBrowseSessions', foreignBrowseId)
+    );
+    expect(foreignRow?.state).toBe('pending');
+    expect(await countListingsFor(foreignBrowseId)).toBe(0);
+
+    // A does not own the machine, so A sees nothing even though A owns the row.
+    expect(
+      await t.query(api.folderBrowse.daemonPending, { sessionId: foreignSession, machineId })
+    ).toEqual([]);
+  });
+
   // ── end-to-end ────────────────────────────────────────────────────────────
 
   test('end-to-end: open, daemonPending, reportListing, then get and getListing', async () => {
