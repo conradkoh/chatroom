@@ -1,5 +1,3 @@
-// fallow-ignore-file unused-file unused-export
-// Unwired until SetupFolderPickerField renders the browser; the field commit removes this marker.
 'use client';
 
 import { AlertCircle, Info, Server, type LucideIcon } from 'lucide-react';

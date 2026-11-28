@@ -1,5 +1,3 @@
-// fallow-ignore-file unused-file
-// Unwired until P4 composes this hook into the folder picker; P4 removes this marker.
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
