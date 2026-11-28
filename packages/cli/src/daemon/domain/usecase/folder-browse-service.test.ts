@@ -105,6 +105,49 @@ describe('createFolderBrowseService', () => {
     expect(reportedSeqs).toEqual([1, 3]);
   });
 
+  it('keeps one active listing per browse and runs the newest after it finishes', async () => {
+    const gate = deferred<ListBrowseDirectoryResult>();
+    const listedPaths: string[] = [];
+    const ports = createPorts({
+      listDirectory: vi.fn((input) => {
+        listedPaths.push(input.path ?? '');
+        if (listedPaths.length === 1) return gate.promise;
+        return Promise.resolve(listing(input.path ?? ''));
+      }),
+    });
+    const service = createFolderBrowseService(ports); // default concurrency: 2
+
+    service.onPending([row({ navSeq: 1, path: '/v1' })]);
+    await settle();
+    service.onPending([row({ navSeq: 2, path: '/v2' })]);
+    await settle();
+
+    // The newer navSeq waits: only one listing runs for this browse, even with a free slot.
+    expect(ports.listDirectory).toHaveBeenCalledOnce();
+
+    gate.resolve(listing('/v1'));
+    await settle();
+
+    expect(listedPaths).toEqual(['/v1', '/v2']);
+    expect(vi.mocked(ports.reportListing).mock.calls.map(([args]) => args.navSeq)).toEqual([1, 2]);
+  });
+
+  it('drops a queued newer navSeq when the browse leaves the snapshot mid-run', async () => {
+    const gate = deferred<ListBrowseDirectoryResult>();
+    const ports = createPorts({ listDirectory: vi.fn(() => gate.promise) });
+    const service = createFolderBrowseService(ports);
+
+    service.onPending([row({ navSeq: 1 })]);
+    await settle();
+    service.onPending([row({ navSeq: 2, path: '/v2' })]);
+    service.onPending([]);
+    gate.resolve(listing());
+    await settle();
+
+    expect(ports.listDirectory).toHaveBeenCalledOnce();
+    expect(ports.reportListing).not.toHaveBeenCalled();
+  });
+
   it('runs at most two listings at once', async () => {
     const gates: ReturnType<typeof deferred<ListBrowseDirectoryResult>>[] = [];
     const ports = createPorts({

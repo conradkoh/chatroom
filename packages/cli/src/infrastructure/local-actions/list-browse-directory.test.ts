@@ -330,6 +330,27 @@ describe('listBrowseDirectory', () => {
     });
   });
 
+  it('never lists a directory name containing a control character', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'chatroom-browse-'));
+    try {
+      await mkdir(join(root, 'plain'));
+      await mkdir(join(root, 'tab\tname'));
+      await mkdir(join(root, 'esc\x1bname'));
+      await mkdir(join(root, 'del\x7fname'));
+
+      const result = await listBrowseDirectory({ path: root, showHidden: false, filter: null });
+
+      if (result.kind !== 'listing') throw new Error('expected listing');
+      expect(result.entries.map((entry) => entry.name)).toEqual(['plain']);
+      // Unlistable names follow the existing convention: not listed, counted with the files,
+      // and still included in dirCount so `dirCount >= entries.length` holds.
+      expect(result.fileCount).toBe(3);
+      expect(result.dirCount).toBe(4);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('marks the listing incomplete at the scan cap', async () => {
     const root = await createFixture();
     try {

@@ -7,7 +7,8 @@
  * - latest wins: only the newest navSeq per browse is listed, older queued work is replaced;
  * - cancellation: queued work and completed listings for a browse absent from the newest
  *   snapshot are dropped (never reported);
- * - bounded concurrency: at most `concurrency` (default 2) listings run at once;
+ * - bounded concurrency: at most `concurrency` (default 2) listings run at once, and at most one
+ *   per browseId (a newer navSeq waits for the in-flight run, then starts);
  * - one report retry, then the report is logged and dropped (the UI shows no-response and the
  *   user can retry).
  */
@@ -85,6 +86,8 @@ export function createFolderBrowseService(
   const present = new Set<string>();
   /** Cancel functions for report retries still waiting out their delay. */
   const retryWaits = new Set<() => void>();
+  /** Browse ids with a listing in flight, so a newer navSeq never runs in parallel with it. */
+  const running = new Set<string>();
 
   let active = 0;
   let stopped = false;
@@ -173,13 +176,15 @@ export function createFolderBrowseService(
 
   // fallow-ignore-next-line complexity
   function pump(): void {
-    while (!stopped && active < concurrency && queued.size > 0) {
-      const next = queued.values().next().value;
+    while (!stopped && active < concurrency) {
+      const next = [...queued.values()].find((row) => !running.has(row.browseId));
       if (next === undefined) return;
       queued.delete(next.browseId);
+      running.add(next.browseId);
       active += 1;
       void runRow(next).finally(() => {
         active -= 1;
+        running.delete(next.browseId);
         pump();
       });
     }

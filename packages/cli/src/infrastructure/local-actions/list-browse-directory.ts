@@ -27,6 +27,7 @@ import {
   FOLDER_BROWSE_MAX_NAME_BYTES,
   FOLDER_BROWSE_MAX_NAME_LENGTH,
   folderBrowseNameBytes,
+  hasFolderBrowseControlCharacter,
   normalizeBrowsePath,
   type FolderBrowseEntry,
   type FolderBrowseErrorCode,
@@ -218,9 +219,16 @@ function matchingSorted(
   return matched.sort(compareEntries);
 }
 
-/** Names that cannot be returned as a directory entry; they are counted as files instead. */
+/**
+ * Names that cannot be returned as a directory entry. They are excluded from `entries` and counted
+ * with the files, so a report never violates the backend's entry-name rule.
+ */
 function isUnlistableName(name: string): boolean {
-  return name.length > FOLDER_BROWSE_MAX_NAME_LENGTH || name.includes('/');
+  return (
+    name.length > FOLDER_BROWSE_MAX_NAME_LENGTH ||
+    name.includes('/') ||
+    hasFolderBrowseControlCharacter(name)
+  );
 }
 
 interface CappedEntries {
