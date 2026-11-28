@@ -26,6 +26,7 @@ import {
   FOLDER_BROWSE_MAX_PATH_LENGTH,
   FOLDER_BROWSE_PENDING_LIMIT,
   folderBrowseNameBytes,
+  hasFolderBrowseControlCharacter,
   normalizeBrowsePath,
   type FolderBrowseEntry,
   type FolderBrowseErrorCode,
@@ -178,11 +179,11 @@ function isCount(value: number): boolean {
   return Number.isInteger(value) && value >= 0;
 }
 
-/** Entry names: non-empty, bounded, and never containing a path separator or null byte. */
+/** Entry names: non-empty, bounded, and never containing a path separator or control character. */
 // fallow-ignore-next-line complexity
 function validateEntryName(name: string): void {
   if (name.length === 0 || name.length > FOLDER_BROWSE_MAX_NAME_LENGTH) invalidListing();
-  if (name.includes('/') || name.includes('\0')) invalidListing();
+  if (name.includes('/') || hasFolderBrowseControlCharacter(name)) invalidListing();
 }
 
 /** Entry count and byte budgets. */

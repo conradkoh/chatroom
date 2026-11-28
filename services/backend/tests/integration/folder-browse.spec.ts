@@ -280,6 +280,15 @@ describe('folder browse sessions', () => {
       t.mutation(api.folderBrowse.navigate, {
         sessionId,
         browseId,
+        path: '/tmp/a\tb',
+        showHidden: false,
+      })
+    ).rejects.toMatchObject({ data: { code: 'FOLDER_BROWSE_INVALID_PATH' } });
+
+    await expect(
+      t.mutation(api.folderBrowse.navigate, {
+        sessionId,
+        browseId,
         path: '/tmp',
         showHidden: false,
         filter: 'x'.repeat(129),
@@ -444,6 +453,10 @@ describe('folder browse sessions', () => {
       },
       // name containing a slash
       { entries: [{ name: 'a/b' }], dirCount: 1 },
+      // name containing a tab, ESC, or DEL
+      { entries: [{ name: 'a\tb' }], dirCount: 1 },
+      { entries: [{ name: 'a\x1bb' }], dirCount: 1 },
+      { entries: [{ name: 'a\x7fb' }], dirCount: 1 },
       // empty name
       { entries: [{ name: '' }], dirCount: 1 },
       // 256-character name

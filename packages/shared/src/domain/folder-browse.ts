@@ -39,11 +39,16 @@ export class FolderBrowsePathError extends Error {
   }
 }
 
+/** True when `value` contains a C0 control character (U+0000–U+001F) or DEL (U+007F). */
+export function hasFolderBrowseControlCharacter(value: string): boolean {
+  return /[\x00-\x1f\x7f]/.test(value);
+}
+
 /**
  * Normalizes a browsable absolute POSIX path.
  * Trim; require a leading '/'; at most FOLDER_BROWSE_MAX_PATH_LENGTH characters after trim;
- * reject '\0', '\r' and '\n'; collapse repeated '/', drop '.' segments; reject any '..' segment;
- * strip a trailing '/' unless the path is root. '/' is valid.
+ * reject any C0 control character or DEL; collapse repeated '/', drop '.' segments; reject any
+ * '..' segment; strip a trailing '/' unless the path is root. '/' is valid.
  * Deliberately does NOT apply the working-dir shell blocklist, so names such as
  * 'My (old) #2' can still be browsed.
  * @throws FolderBrowsePathError
@@ -60,8 +65,9 @@ export function normalizeBrowsePath(input: string): string {
   if (!trimmed.startsWith('/')) {
     throw new FolderBrowsePathError('Path must be absolute (start with /)');
   }
-  if (trimmed.includes('\0')) throw new FolderBrowsePathError('Path must not contain a null byte');
-  if (/[\r\n]/.test(trimmed)) throw new FolderBrowsePathError('Path must not contain newlines');
+  if (hasFolderBrowseControlCharacter(trimmed)) {
+    throw new FolderBrowsePathError('Path must not contain control characters');
+  }
 
   const segments: string[] = [];
   for (const segment of trimmed.split('/')) {

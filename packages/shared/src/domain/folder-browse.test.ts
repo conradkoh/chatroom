@@ -32,6 +32,9 @@ describe('normalizeBrowsePath', () => {
     ['/tmp/a\nb', 'newline'],
     ['/tmp/a\rb', 'carriage return'],
     ['/tmp/a\0b', 'null byte'],
+    ['/tmp/a\tb', 'tab'],
+    ['/tmp/a\x1bb', 'escape'],
+    ['/tmp/a\x7fb', 'delete'],
     ['/' + 'a'.repeat(1024), 'over the path cap'],
   ])('rejects %j (%s)', (input) => {
     expect(() => normalizeBrowsePath(input)).toThrow(FolderBrowsePathError);
