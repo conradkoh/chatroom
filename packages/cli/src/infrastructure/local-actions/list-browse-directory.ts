@@ -53,6 +53,7 @@ export type ListBrowseDirectoryResult =
     }
   | { kind: 'error'; code: FolderBrowseErrorCode; message: string; path: string };
 
+// fallow-ignore-next-line unused-export
 export const LIST_LIMITS = {
   scanMaxEntries: 20_000,
   timeBudgetMs: 3_000,

@@ -61,6 +61,9 @@ vi.mock('./files/file-tree-subscription.js', async () => {
 vi.mock('./handlers/process/log-observer-sync.js', () => ({
   startLogObserverSubscription: () => ({ stop: vi.fn() }),
 }));
+const folderBrowseStop = vi.fn();
+const startFolderBrowse = vi.fn(() => ({ stop: folderBrowseStop }));
+vi.mock('./folder-browse/start-folder-browse.js', () => ({ startFolderBrowse }));
 vi.mock('../../commands/machine/pid.js', () => ({
   releaseLock: vi.fn(),
 }));
@@ -154,6 +157,11 @@ describe('createDaemonRuntime', () => {
     expect(registerWorkspaceGitInboundHandler).toHaveBeenCalled();
     expect(onNativeDeliveryReady).toHaveBeenCalledWith(nativeDelivery);
     expect(registerCommandInboundHandler).toHaveBeenCalledAfter(onNativeDeliveryReady);
+    expect(startFolderBrowse).toHaveBeenCalledOnce();
+    expect(startFolderBrowse).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 's1', machineId: 'm1', backend: expect.anything() }),
+      expect.anything()
+    );
     expect(registerFileInboundHandler).toHaveBeenCalledBefore(drainPendingFileTreeReleaseRequests);
     expect(drainPendingFileTreeReleaseRequests).toHaveBeenCalledTimes(1);
     expect(workspaceService.start).toHaveBeenCalledTimes(1);
@@ -178,6 +186,7 @@ describe('createDaemonRuntime', () => {
     expect(unregisterFileInboundHandler).toHaveBeenCalled();
     expect(unregisterWorkspaceGitInboundHandler).toHaveBeenCalled();
     expect(onNativeDeliveryReady).toHaveBeenLastCalledWith(null);
+    expect(folderBrowseStop).toHaveBeenCalledOnce();
     expect(shutdownEffectStarted).toHaveBeenCalledOnce();
   });
 

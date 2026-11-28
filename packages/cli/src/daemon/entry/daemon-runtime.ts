@@ -35,6 +35,7 @@ import {
   type FileTreeSubscriptionHandle,
 } from './files/file-tree-subscription.js';
 import { drainPendingFileWriteRequests } from './files/file-write-subscription.js';
+import { startFolderBrowse } from './folder-browse/start-folder-browse.js';
 import { forceKillAllCommands } from './handlers/command-runner.js';
 import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { getRepositoryLedgerService } from './repository-ledger-runtime.js';
@@ -99,6 +100,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
   /** Owns the liveness sweep; started with the workspace service and stopped before it. */
   let livenessSweepOwner: DaemonAgentProcessManagerServiceShape | null = null;
   let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
+  let folderBrowseHandle: { stop: () => void } | null = null;
   let agenticQueryWorkerHandle: ReturnType<typeof startAgenticQuerySubscriptions> | null = null;
   let taskInboxHandle: { stop: () => Promise<void>; nativeDelivery: AgentWorkManager } | null =
     null;
@@ -148,6 +150,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     gitSubscriptionHandle?.stop();
     agentConfigRegistryHandle?.stop();
     logObserverSubscriptionHandle?.stop();
+    folderBrowseHandle?.stop();
     agenticQueryWorkerHandle?.stop();
     deps.onNativeDeliveryReady?.(null);
     await taskInboxHandle?.stop();
@@ -345,6 +348,11 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
 
     logObserverSubscriptionHandle = startLogObserverSubscription(
       { sessionId: session.sessionId, machineId: session.machineId },
+      deps.wsClient
+    );
+
+    folderBrowseHandle = startFolderBrowse(
+      { sessionId: session.sessionId, machineId: session.machineId, backend: session.backend },
       deps.wsClient
     );
 
