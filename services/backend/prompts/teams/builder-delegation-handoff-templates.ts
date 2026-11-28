@@ -32,7 +32,7 @@ function getVerificationKindFlagLine(kind: VerificationKind): string {
 }
 
 const PLACEHOLDER_PROSE_LINE =
-  "`<workspace>` and `<package>` are placeholders: replace them with the project's own directory and package name, and replace every other `<…>` in a command with the project's own command, flag, or file list.";
+  "`<workspace>` and `<package>` are placeholders: replace them with the project's own directory and package name. Take every other command, flag, and file list from the target repository's package scripts or its agent guidance files, and do not hand off the brief while it still contains a `<…>` placeholder.";
 
 /** Shared tail of the full-scope definition; differs only in the scope label. */
 const FULL_SCOPE_BODY =

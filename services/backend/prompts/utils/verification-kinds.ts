@@ -8,7 +8,7 @@ export interface VerificationKind {
   readonly timingLabel: string;
   /** Lightweight kinds always run: a brief never marks them `not applicable`, and a hand-back never records them as `not run`. */
   readonly lightweight: boolean;
-  /** Placeholder command the brief author replaces with the project's own command. */
+  /** Placeholder command the brief author replaces with the command from the target repository's package scripts or agent guidance files. */
   readonly command: string;
   /** Optional extra sentence appended to the flag line. */
   readonly note?: string;

@@ -546,7 +546,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`<unit test command> <test files in scope>\`
       - \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`<integration test command> <integration specs in scope>\`
       - \`e2e\` — **required** or **not applicable: <reason>**. Command: \`<e2e test command> <specs in scope>\`
-      \`<workspace>\` and \`<package>\` are placeholders: replace them with the project's own directory and package name, and replace every other \`<…>\` in a command with the project's own command, flag, or file list.
+      \`<workspace>\` and \`<package>\` are placeholders: replace them with the project's own directory and package name. Take every other command, flag, and file list from the target repository's package scripts or its agent guidance files, and do not hand off the brief while it still contains a \`<…>\` placeholder.
 
       ## What to avoid
       - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
@@ -669,7 +669,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`<unit test command> <test files in scope>\`
       - \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`<integration test command> <integration specs in scope>\`
       - \`e2e\` — **required** or **not applicable: <reason>**. Command: \`<e2e test command> <specs in scope>\`
-      \`<workspace>\` and \`<package>\` are placeholders: replace them with the project's own directory and package name, and replace every other \`<…>\` in a command with the project's own command, flag, or file list.
+      \`<workspace>\` and \`<package>\` are placeholders: replace them with the project's own directory and package name. Take every other command, flag, and file list from the target repository's package scripts or its agent guidance files, and do not hand off the brief while it still contains a \`<…>\` placeholder.
 
       ## What to avoid
       - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
