@@ -42,9 +42,6 @@ vi.mock('../../api.js', () => ({
       daemonHeartbeat: 'mock-daemonHeartbeat',
       refreshCapabilities: 'mock-refreshCapabilities',
     },
-    folderPickerRequests: {
-      reportResult: 'mock-folderPickerReportResult',
-    },
     gitCloneRequests: {
       reportProgress: 'mock-gitCloneReportProgress',
       reportResult: 'mock-gitCloneReportResult',
@@ -84,10 +81,6 @@ vi.mock('@workspace/backend/config/reliability.js', () => ({
 // mocked here, not the job module: a module mock cannot intercept the job's own internal calls.
 vi.mock('../../infrastructure/local-actions/git-clone.js', () => ({
   runGitClone: vi.fn(() => new Promise(() => {})),
-}));
-
-vi.mock('../../infrastructure/local-actions/pick-folder.js', () => ({
-  pickFolderDialog: vi.fn(() => ({ success: true, path: '/tmp/picked-folder' })),
 }));
 
 // The ledger runtime is the module boundary to the coalescing service. A never-settling
@@ -262,7 +255,6 @@ function createDedupTracker() {
     gitRefreshIds: new Map<string, number>(),
     capabilitiesRefreshIds: new Map<string, number>(),
     localActionIds: new Map<string, number>(),
-    pickFolderIds: new Map<string, number>(),
     gitCloneIds: new Map<string, number>(),
     syncProjectRootsIds: new Map<string, number>(),
     reportRepositoryLedgerIds: new Map<string, number>(),
@@ -396,49 +388,21 @@ describe('dispatchCommandEventEffect', () => {
     );
   });
 
-  it('processes daemon.pickFolder and reports result to backend', async () => {
+  it('acknowledges the retired daemon.pickFolder command without a backend mutation', async () => {
     const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
-    const { pickFolderDialog } = await import('../../infrastructure/local-actions/pick-folder.js');
-    const deps = createMockDaemonDeps();
-    const requestId = 'req-pick-folder-1';
-    const event = { _id: 'evt-d5-pick-folder-1', type: 'daemon.pickFolder', requestId } as any;
-    const tracker = createDedupTracker();
-
-    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), withDeps(deps));
-
-    expect(pickFolderDialog).toHaveBeenCalled();
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      'mock-folderPickerReportResult',
-      expect.objectContaining({
-        sessionId: 'test-session-id',
-        machineId: 'test-machine-id',
-        requestId,
-        status: 'completed',
-        selectedPath: '/tmp/picked-folder',
-      })
-    );
-    expect(tracker.pickFolderIds.has('evt-d5-pick-folder-1')).toBe(true);
-  });
-
-  it('deduplicates daemon.pickFolder events by event id', async () => {
-    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
-    const { pickFolderDialog } = await import('../../infrastructure/local-actions/pick-folder.js');
     const deps = createMockDaemonDeps();
     const event = {
-      _id: 'evt-d5-pick-folder-dup',
+      _id: 'evt-d5-pick-folder-retired',
       type: 'daemon.pickFolder',
-      requestId: 'req-pick-folder-dup',
+      requestId: 'req-pick-folder-retired',
     } as any;
-    const tracker = createDedupTracker();
-    tracker.pickFolderIds.set('evt-d5-pick-folder-dup', Date.now());
 
-    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), withDeps(deps));
-
-    expect(pickFolderDialog).not.toHaveBeenCalled();
-    expect(deps.backend.mutation).not.toHaveBeenCalledWith(
-      'mock-folderPickerReportResult',
-      expect.anything()
+    await runDispatch(
+      dispatchCommandEventEffect(event, createDedupTracker(), nativeDelivery),
+      withDeps(deps)
     );
+
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
   });
 });
 

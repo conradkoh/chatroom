@@ -114,6 +114,13 @@ crons.interval(
   internal.repositoryLedger.cleanupExpiredLedgerRequests
 );
 
+// Remote folder browse sessions — delete idle-expired sessions and their listings (every 5 minutes)
+crons.interval(
+  'cleanup expired folder browse sessions',
+  { minutes: 5 },
+  internal.folderBrowse.cleanupExpiredFolderBrowseSessions
+);
+
 // Machine backup requests — expire stale rows and delete their ephemeral blobs (every minute)
 crons.interval(
   'cleanup expired machine backup requests',

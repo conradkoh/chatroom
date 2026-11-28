@@ -6,6 +6,7 @@ import { ConvexError } from 'convex/values';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MachineProjectRoots, type MachineProjectRootsProps } from './MachineProjectRoots';
+import { resetOverlayDismissStackForTests } from '../../../components/shared/overlayDismissStack';
 
 interface RootRow {
   rootId: string;
@@ -13,22 +14,21 @@ interface RootRow {
   addedAt: number;
 }
 
-interface PickerRequestRow {
-  status: 'pending' | 'completed' | 'cancelled' | 'failed';
-  selectedPath?: string;
-  createdAt: number;
-  errorMessage?: string;
-}
-
 type QueryArgs = { machineId?: string; requestId?: string } | 'skip';
+
+const BROWSE_ID = 'jd7browse0000000000000000001';
+const TEN_MINUTES_MS = 10 * 60_000;
 
 const mocks = vi.hoisted(() => ({
   roots: undefined as RootRow[] | undefined,
-  pickerRequest: undefined as PickerRequestRow | undefined,
+  browseHeader: undefined as unknown,
+  browseListing: undefined as unknown,
   listMachineIds: [] as string[],
   add: vi.fn(),
   remove: vi.fn(),
-  requestPicker: vi.fn(),
+  openBrowse: vi.fn(),
+  navigateBrowse: vi.fn(),
+  closeBrowse: vi.fn(),
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
@@ -39,8 +39,11 @@ vi.mock('convex-helpers/react/sessions', () => ({
       mocks.listMachineIds.push(machineId);
       return mocks.roots === undefined ? undefined : { roots: mocks.roots };
     }
-    if (name === 'folderPickerRequests:get') {
-      return args === 'skip' ? undefined : mocks.pickerRequest;
+    if (name === 'folderBrowse:get') {
+      return args === 'skip' ? undefined : mocks.browseHeader;
+    }
+    if (name === 'folderBrowse:getListing') {
+      return args === 'skip' ? undefined : mocks.browseListing;
     }
     throw new Error(`Unexpected query: ${name}`);
   },
@@ -48,10 +51,44 @@ vi.mock('convex-helpers/react/sessions', () => ({
     const name = getFunctionName(mutation as FunctionReference<'mutation'>);
     if (name === 'machineProjectRoots:add') return mocks.add;
     if (name === 'machineProjectRoots:remove') return mocks.remove;
-    if (name === 'folderPickerRequests:request') return mocks.requestPicker;
+    if (name === 'folderBrowse:open') return mocks.openBrowse;
+    if (name === 'folderBrowse:navigate') return mocks.navigateBrowse;
+    if (name === 'folderBrowse:close') return mocks.closeBrowse;
     throw new Error(`Unexpected mutation: ${name}`);
   },
 }));
+
+function readyHeader() {
+  return {
+    browseId: BROWSE_ID,
+    machineId: 'm-1',
+    state: 'ready',
+    navSeq: 1,
+    requestedPath: '/Users/me/picked',
+    showHidden: false,
+    filter: null,
+    pendingSince: null,
+    error: null,
+    expiresAt: Date.now() + TEN_MINUTES_MS,
+  };
+}
+
+function pickedListing() {
+  return {
+    seq: 1,
+    requestedPath: '/Users/me/picked',
+    path: '/Users/me/picked',
+    parentPath: '/Users/me',
+    entries: [],
+    dirCount: 0,
+    fileCount: 0,
+    hiddenCount: 0,
+    truncated: false,
+    complete: true,
+    selectable: true,
+    listedAt: Date.now(),
+  };
+}
 
 function root(id: string, path: string): RootRow {
   return { rootId: id, path, addedAt: 1 };
@@ -81,11 +118,16 @@ function addButton(): HTMLElement {
 describe('MachineProjectRoots', () => {
   beforeEach(() => {
     mocks.roots = undefined;
-    mocks.pickerRequest = undefined;
+    mocks.browseHeader = undefined;
+    mocks.browseListing = undefined;
     mocks.listMachineIds = [];
     mocks.add.mockReset();
     mocks.remove.mockReset();
-    mocks.requestPicker.mockReset();
+    mocks.openBrowse.mockReset().mockResolvedValue({ browseId: BROWSE_ID });
+    mocks.navigateBrowse.mockReset().mockResolvedValue(null);
+    mocks.closeBrowse.mockReset().mockResolvedValue(null);
+    Element.prototype.scrollIntoView = vi.fn();
+    resetOverlayDismissStackForTests();
   });
 
   it('renders three loading skeletons before the first result', () => {
@@ -352,57 +394,49 @@ describe('MachineProjectRoots', () => {
     expect(pathInput().value).toBe('/x/other');
   });
 
-  it('fills the input from a completed Browse without adding it', async () => {
+  it('fills the input from a selected folder without adding it', async () => {
     const user = userEvent.setup();
     mocks.roots = [];
-    mocks.requestPicker.mockResolvedValue({ requestId: 'req-1' });
-    mocks.pickerRequest = {
-      status: 'completed',
-      selectedPath: '/Users/me/picked',
-      createdAt: Date.now(),
-    };
+    mocks.browseHeader = readyHeader();
+    mocks.browseListing = pickedListing();
     renderSection();
 
     await user.click(screen.getByRole('button', { name: /browse/i }));
+    await user.click(await screen.findByRole('button', { name: 'Select' }));
 
-    await waitFor(() => expect(pathInput().value).toBe('/Users/me/picked'));
-    expect(mocks.requestPicker).toHaveBeenCalledWith({ machineId: 'm-1' });
+    expect(pathInput().value).toBe('/Users/me/picked');
+    expect(mocks.openBrowse).toHaveBeenCalledWith({ machineId: 'm-1' });
+    expect(mocks.closeBrowse).toHaveBeenCalledWith({ browseId: BROWSE_ID });
     expect(mocks.add).not.toHaveBeenCalled();
   });
 
-  it('shows the waiting line and disables Browse while the picker is pending', async () => {
+  it('opens the inline browser and keeps the typed input editable', async () => {
     const user = userEvent.setup();
     mocks.roots = [];
-    mocks.requestPicker.mockResolvedValue({ requestId: 'req-1' });
-    mocks.pickerRequest = { status: 'pending', createdAt: Date.now() };
     renderSection();
 
-    await user.click(screen.getByRole('button', { name: /browse/i }));
+    const browse = screen.getByRole('button', { name: /browse/i });
+    await user.click(browse);
 
     expect(
       await screen.findByText('Waiting for a folder to be selected on Work MacBook…')
     ).toBeDefined();
-    expect(screen.getByRole('button', { name: /browse/i })).toBeDisabled();
+    expect(browse).toHaveAttribute('aria-expanded', 'true');
+    expect(browse).toBeEnabled();
+    expect(pathInput()).toBeEnabled();
   });
 
-  it('shows the timeout retry prompt and clears it when retried', async () => {
+  it('closes the browser from Browse', async () => {
     const user = userEvent.setup();
     mocks.roots = [];
-    mocks.requestPicker.mockResolvedValue({ requestId: 'req-1' });
-    mocks.pickerRequest = { status: 'pending', createdAt: Date.now() - 6 * 60_000 };
     renderSection();
+    const browse = screen.getByRole('button', { name: /browse/i });
+    await user.click(browse);
+    await screen.findByRole('region');
 
-    await user.click(screen.getByRole('button', { name: /browse/i }));
+    await user.click(browse);
 
-    const retry = await screen.findByRole('button', {
-      name: 'Folder picker timed out — click to try again',
-    });
-    await user.click(retry);
-
-    await waitFor(() =>
-      expect(
-        screen.queryByRole('button', { name: 'Folder picker timed out — click to try again' })
-      ).toBeNull()
-    );
+    expect(mocks.closeBrowse).toHaveBeenCalledWith({ browseId: BROWSE_ID });
+    expect(screen.queryByRole('region')).toBeNull();
   });
 });

@@ -18,7 +18,7 @@ The section strip (`Chatrooms | Machines`) is shared with the chatroom list and 
 | `components/MachineCard.tsx`                            | One machine: status dot, alias field, status line, usage, harness chips, actions menu and the expandable body.            |
 | `components/MachineHarnessChips.tsx`                    | Per-card harness chips from `useMachineCapabilities`.                                                                     |
 | `components/MachineProjectRoots.tsx`                    | Expanded card's first section: roots list, add form, offline/limit notes.                                                 |
-| `components/AddProjectRootForm.tsx`                     | Typed or Browse-picked path field, add state, error and success notes.                                                    |
+| `components/AddProjectRootForm.tsx`                     | Typed path field with the inline remote browser, add state, error and success notes.                                      |
 | `components/ProjectRootRow.tsx`                         | One root path with a remove button and an inline retry error.                                                             |
 | `components/MachineRepositories.tsx`                    | Expanded card's second section: snapshot states, filter, virtualised rows and the bulk-create dialog.                     |
 | `components/RepositoryBanners.tsx`                      | Snapshot warning banners: truncated, root issues, changed roots, offline and omitted entries.                             |
@@ -85,8 +85,9 @@ therefore hold no `machineProjectRoots.list` subscription.
   callout, and the limit note.
 - Adding needs the machine online: offline disables the input, Browse and `Add root`. Removing works
   offline; a removal never deletes chatrooms or files on the machine, so there is no confirmation.
-- Browse reuses `useSetupWorkspaceFolderPicker` and only fills the input. Adding is always the user's
-  explicit action (`Add root` or Enter in the field).
+- Browse reuses `useSetupWorkspaceFolderPicker` and renders the inline remote browser under the
+  field; Select only fills the input. Adding is always the user's explicit action (`Add root` or
+  Enter in the field).
 - Backend errors are mapped in `lib/machineErrorCopy.ts`; unknown failures use the fallback copy. A
   typed value is kept on error and the input is marked `aria-invalid`.
 - `add` returns `collapsedPaths` when the new root replaces children; the success note names them

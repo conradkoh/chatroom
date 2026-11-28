@@ -223,6 +223,33 @@ async function seedMachineGraph(
       status: 'pending',
       createdAt: now,
     });
+    const browseId = await ctx.db.insert('chatroom_folderBrowseSessions', {
+      userId,
+      machineId,
+      state: 'ready',
+      navSeq: 2,
+      requestedPath: '/work',
+      showHidden: false,
+      createdAt: now,
+      expiresAt: now + 10 * 60_000,
+    });
+    await ctx.db.insert('chatroom_folderBrowseListings', {
+      browseId,
+      userId,
+      machineId,
+      seq: 2,
+      requestedPath: '/work',
+      path: '/work',
+      parentPath: '/',
+      entries: [{ name: 'e2e' }],
+      dirCount: 1,
+      fileCount: 0,
+      hiddenCount: 0,
+      truncated: false,
+      complete: true,
+      selectable: true,
+      listedAt: now,
+    });
     await ctx.db.insert('chatroom_gitCloneRequests', {
       userId,
       machineId,
@@ -467,6 +494,8 @@ describe('machines.deleteMachine happy path', () => {
       'chatroom_searchConfigFavorites',
       'chatroom_machineConfigFavorites',
       'chatroom_folderPickerRequests',
+      'chatroom_folderBrowseSessions',
+      'chatroom_folderBrowseListings',
       'chatroom_gitCloneRequests',
       'chatroom_commandRunsV2',
       'chatroom_machineObservedWorkspaceViews',

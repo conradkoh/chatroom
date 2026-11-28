@@ -65,6 +65,8 @@ export const MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS = 5 * 60_000;
 export const MACHINE_COMMAND_LOCAL_ACTION_TTL_MS = 60_000;
 /** Terminal ledger snapshot retention: a completed or failed request and its chunks expire this long after completion. */
 export const REPOSITORY_LEDGER_SNAPSHOT_TTL_MS = 10 * 60_000;
+/** Idle TTL of a remote folder-browse session. Refreshed by `open` and by every `navigate`; reads never write. */
+export const FOLDER_BROWSE_IDLE_TTL_MS = 10 * 60_000;
 
 // ─── Machine Backups ─────────────────────────────────────────────────────────
 

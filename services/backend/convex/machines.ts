@@ -9,7 +9,6 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
-import { recordFolderPickerResult, reportResultArgs } from './folderPickerRequests';
 import { str } from './utils/types';
 import {
   agentActivityFactValidator,
@@ -1094,17 +1093,6 @@ export const sendLocalAction = mutation({
     });
     return { success: true };
   },
-});
-
-/**
- * @deprecated Use `folderPickerRequests.reportResult`. This name stays for daemons published before
- * the folder picker moved, which still call it. The args and the handler are the same, so behaviour is
- * identical. Remove this delegate when the minimum supported CLI version calls
- * `folderPickerRequests.reportResult`.
- */
-export const reportFolderPickerResult = mutation({
-  args: reportResultArgs,
-  handler: recordFolderPickerResult,
 });
 
 /**

@@ -30,7 +30,6 @@ import { handlePing } from './handlers/ping.js';
 import { processManager } from './handlers/process/manager.js';
 import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
 import { executeLocalAction } from '../../infrastructure/local-actions/index.js';
-import { pickFolderDialog } from '../../infrastructure/local-actions/pick-folder.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { refreshMachineCapabilities } from '../domain/usecase/refresh-machine-capabilities.js';
 import { createGitCloneJobRunner } from '../domain/usecase/run-git-clone-job.js';
@@ -52,7 +51,6 @@ export interface DedupTracker {
   gitRefreshIds: Map<string, number>;
   capabilitiesRefreshIds: Map<string, number>;
   localActionIds: Map<string, number>;
-  pickFolderIds: Map<string, number>;
   gitCloneIds: Map<string, number>;
   syncProjectRootsIds: Map<string, number>;
   reportRepositoryLedgerIds: Map<string, number>;
@@ -80,7 +78,6 @@ export function evictStaleDedupEntries(tracker: DedupTracker): void {
   evictStaleEntries(tracker.gitRefreshIds, evictBefore);
   evictStaleEntries(tracker.capabilitiesRefreshIds, evictBefore);
   evictStaleEntries(tracker.localActionIds, evictBefore);
-  evictStaleEntries(tracker.pickFolderIds, evictBefore);
   evictStaleEntries(tracker.gitCloneIds, evictBefore);
   evictStaleEntries(tracker.syncProjectRootsIds, evictBefore);
   evictStaleEntries(tracker.reportRepositoryLedgerIds, evictBefore);
@@ -96,7 +93,6 @@ export function createDedupTracker(): DedupTracker {
     gitRefreshIds: new Map<string, number>(),
     capabilitiesRefreshIds: new Map<string, number>(),
     localActionIds: new Map<string, number>(),
-    pickFolderIds: new Map<string, number>(),
     gitCloneIds: new Map<string, number>(),
     syncProjectRootsIds: new Map<string, number>(),
     reportRepositoryLedgerIds: new Map<string, number>(),
@@ -216,42 +212,18 @@ function handleLocalActionCommandEffect(
   });
 }
 
-function handlePickFolderCommandEffect(
-  event: CommandEvent,
-  tracker: DedupTracker
-): Effect.Effect<void, never, DaemonSessionService> {
-  return Effect.gen(function* () {
-    const eventId = event._id.toString();
-    if (tracker.pickFolderIds.has(eventId)) return;
-    const typedEvent = event as Extract<CommandEvent, { type: 'daemon.pickFolder' }>;
-    console.log(`[${formatTimestamp()}] 📂 Folder picker requested`);
-    const result = yield* Effect.sync(() => pickFolderDialog());
-    const session = yield* DaemonSessionService;
-    const status = result.success ? 'completed' : result.cancelled ? 'cancelled' : 'failed';
-    yield* Effect.tryPromise({
-      try: () =>
-        session.backend.mutation(api.folderPickerRequests.reportResult, {
-          sessionId: session.sessionId,
-          requestId: typedEvent.requestId,
-          machineId: session.machineId,
-          status,
-          selectedPath: result.success ? result.path : undefined,
-          errorMessage: result.success ? undefined : result.error,
-        }),
-      catch: (error) => error,
-    }).pipe(
-      Effect.catch((error) =>
-        Effect.sync(() => {
-          console.warn(
-            `[${formatTimestamp()}] ⚠️  Folder picker report failed: ${getErrorMessage(error)}`
-          );
-        })
-      )
+/**
+ * `daemon.pickFolder` is retired: the native dialog was replaced by the inline remote folder
+ * browser (`folderBrowse.daemonPending`). A historical inbox row may still arrive, so acknowledge it
+ * without opening a dialog or touching the backend.
+ */
+function handleRetiredPickFolderCommandEffect(
+  event: CommandEvent
+): Effect.Effect<void, never, CommandDispatchDeps> {
+  return Effect.sync(() => {
+    console.warn(
+      `[${formatTimestamp()}] 📂 daemon.pickFolder is retired; ignoring ${event._id.toString()}`
     );
-    if (!result.success && !result.cancelled) {
-      console.warn(`[${formatTimestamp()}] ⚠️  Folder picker failed: ${result.error}`);
-    }
-    tracker.pickFolderIds.set(eventId, Date.now());
   });
 }
 
@@ -441,7 +413,7 @@ const commandEventHandlers: {
   'daemon.ping': handlePingCommandEffect,
   'daemon.gitRefresh': handleGitRefreshCommandEffect,
   'daemon.localAction': handleLocalActionCommandEffect,
-  'daemon.pickFolder': handlePickFolderCommandEffect,
+  'daemon.pickFolder': handleRetiredPickFolderCommandEffect,
   'daemon.gitClone': handleGitCloneCommandEffect,
   'daemon.syncProjectRoots': handleSyncProjectRootsEffect,
   'daemon.reportRepositoryLedger': handleReportRepositoryLedgerEffect,

@@ -25,6 +25,8 @@ All cleanup functions run as Convex `internalMutation` cron jobs. They process r
 | `chatroom_repositoryLedgerRequests`     | Expiry (`expiresAt`)          | Pending: 5 min (`MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS`); terminal: 10 min after completion (`REPOSITORY_LEDGER_SNAPSHOT_TTL_MS`)                                                                                                                                                                    | 100 rows, 20 chunk reads per run | Every 5 min      | `repositoryLedger.ts`      | Deletes each row's chunks first; reschedules when the batch is full or the chunk budget stops it early                                                 |
 | `chatroom_repositoryLedgerChunks`       | Deleted with its request      | —                                                                                                                                                                                                                                                                                                    | 10 per request read              | With its request | `repositoryLedger.ts`      | Transient snapshot entries; never a durable table                                                                                                      |
 | `chatroom_machineBackupRequests`        | Expiry (`expiresAt`)          | Pending: 5 min (`MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS`); preparing: 10 min; ready/downloading: 1 hour after ready or last download start (`MACHINE_BACKUP_READY_TTL_MS`); terminal: 10 min (`MACHINE_BACKUP_TERMINAL_RETENTION_MS`); inventory snapshot: 10 min (`MACHINE_BACKUP_INVENTORY_TTL_MS`) | 50                               | Every 1 min      | `machineBackups.ts`        | Deletes the `_storage` blob before the row; a non-terminal row past expiry is failed (`daemon_timeout`) or expired; reschedules when the batch is full |
+| `chatroom_folderBrowseSessions`         | Expiry (`expiresAt`)          | 10 min idle (`FOLDER_BROWSE_IDLE_TTL_MS`), refreshed by `open` and `navigate`; deleted immediately by `close`; at most 3 per user and machine (oldest evicted)                                                                                                                                       | 100                              | Every 5 min      | `folderBrowse.ts`          | Deletes the listing first; reschedules when the batch is full                                                                                          |
+| `chatroom_folderBrowseListings`         | Deleted with its session      | —                                                                                                                                                                                                                                                                                                    | 1 per session                    | With its session | `folderBrowse.ts`          | One current listing; never history                                                                                                                     |
 | `chatroom_participants`                 | Orphaned (chatroom deleted)   | —                                                                                                                                                                                                                                                                                                    | 500 scan / 300 delete cap        | Daily            | `chatroomCleanup.ts`       | Delete-capped to prevent infinite loops                                                                                                                |
 | `cliSessions`                           | Inactive + stale              | 30d (inactive) / 90d (stale)                                                                                                                                                                                                                                                                         | 500                              | Daily            | `chatroomCleanup.ts`       | Two passes with dedup Set to prevent double-delete                                                                                                     |
 | `cliAuthRequests`                       | Terminal status age           | 7 days                                                                                                                                                                                                                                                                                               | 500                              | Daily            | `chatroomCleanup.ts`       | Targets expired, denied, approved requests                                                                                                             |
@@ -51,6 +53,7 @@ This ensures eventual convergence without overloading a single mutation. Functio
 - `fileAttachments.expireStaleUploads` (batch 100)
 - `repositoryLedger.cleanupExpiredLedgerRequests` (batch 100)
 - `machineBackups.cleanupExpiredBackupRequests` (batch 50)
+- `folderBrowse.cleanupExpiredFolderBrowseSessions` (batch 100)
 
 ### Machine backup requests
 
@@ -60,6 +63,16 @@ is failed with `daemon_timeout` (requested or preparing) or moved to `expired` (
 downloading); both paths delete a stored blob. The inventory snapshot has no blob and is deleted
 after its 10-minute TTL. The job processes 50 rows per run and reschedules itself when the batch is
 full.
+
+### Folder browse sessions
+
+`folderBrowse.cleanupExpiredFolderBrowseSessions` runs every five minutes and deletes browse
+sessions whose `expiresAt` has passed, together with their one listing document. `expiresAt` is ten
+minutes after `open` and is refreshed by every `navigate`; reads never write, so an idle picker
+expires without traffic. `close` deletes both rows immediately when the user selects a folder or
+cancels, and `open` evicts the oldest session beyond three per user and machine. One run removes at
+most 100 sessions and reschedules itself when the batch is full, so an abandoned session is gone
+within about 15 minutes.
 
 ### File attachment upload expiry
 

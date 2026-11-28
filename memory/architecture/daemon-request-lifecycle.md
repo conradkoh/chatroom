@@ -1,8 +1,8 @@
 ---
 type: best-practice
 title: Daemon request lifecycle
-description: Request row, daemon command and report mutations, monotonic states, by-id reads, client-derived waiting and timeouts, and the daemon dispatch rule.
-tags: [daemon, convex, requests, lifecycle, git-clone, folder-picker]
+description: Request row, daemon command and report mutations, the pending-row session variant for interactive work, monotonic states, by-id reads, client-derived waiting and timeouts, and the daemon dispatch rule.
+tags: [daemon, convex, requests, lifecycle, git-clone, folder-browse]
 status: stable
 ---
 
@@ -17,6 +17,10 @@ three steps.
    command for the machine.
 2. The daemon performs the work, and reports progress and the result through `report*` mutations.
 3. The webapp follows the row by its id, and derives what to show from it.
+
+A second layout serves interactive work where only the latest value matters: the pending-row session
+used by folder browsing (see [Folder browse](#folder-browse-pending-row-session)). It keeps the
+request-row shape but replaces the machine command with a pending-row subscription.
 
 The git clone flow is the reference case:
 
@@ -95,23 +99,56 @@ For `daemon.gitClone` the dedup has two levels:
    `started`, `duplicate` (the same request is running) or `busy` (another request owns the target
    folder). A busy result is reported to the backend as a failed clone with `target_not_empty`.
 
-## Folder picker: legacy layout, migration pending
+## Folder browse: pending-row session
 
-The folder picker follows the same three steps, in an older layout. It is the case to migrate.
+Interactive work that must feel immediate does not go through the machine command inbox. It uses a
+pending-row session: the webapp writes a session row, the daemon subscribes to pending rows for its
+machine, and it reports the listing for the navigation it was asked for. The subscription is not
+serial and has no claim window, so a navigation can be superseded in place instead of queueing
+behind a slow command.
 
-- Its request row lives in `chatroom_folderPickerRequests`. The mutation that creates it, the query
-  that reads it by id, and the report mutation `reportFolderPickerResult` all live in
-  [machines.ts](../../services/backend/convex/machines.ts), not in a request module.
-- Its command is `daemon.pickFolder`.
-- It throws plain `Error` for an unknown request or a request on another machine. The clone module
-  throws `ConvexError` with registered codes.
-- A report on a request that is no longer `pending` returns `duplicate: true`.
-- The webapp side is the `useFolderPicker` hook (`apps/webapp/src/hooks/useFolderPicker.ts`).
+- The contract is [folderBrowse.ts](../../services/backend/convex/folderBrowse.ts): `open`,
+  `navigate`, `close`, `get`, `getListing`, the `daemonPending` subscription and `reportListing`.
+- One `chatroom_folderBrowseSessions` row per browse, plus one replaceable
+  `chatroom_folderBrowseListings` row. The selected path is never stored server-side.
+- `open` creates the session at `navSeq: 1` in `pending`. Each `navigate` advances `navSeq` in place
+  and returns the session to `pending`, so the latest navigation wins. A report applies only when
+  its `navSeq` matches and the session is still `pending`; `reportListing` returns `applied`,
+  `stale`, `duplicate`, `expired` or `not_found`, and anything but `applied` changes nothing.
+- `close` (select or cancel) deletes both rows, so a session is ephemeral for the lifetime of the
+  pick. `get` reads the header by id and `getListing` reads the one current listing, never history.
+- The daemon side is `startFolderBrowse`
+  ([start-folder-browse.ts](../../packages/cli/src/daemon/entry/folder-browse/start-folder-browse.ts)):
+  it subscribes with `folderBrowse.daemonPending`, lists one directory per navigation through the
+  `list-browse-directory` local action, and reports with `reportListing`. It keeps no durable queue:
+  at most one listing per browse runs at a time, a newer navigation waits behind it and replaces any
+  older queued one, and it recovers after a restart because the pending rows are re-delivered.
+- An idle session expires 10 minutes after `open` or the last `navigate`
+  (`FOLDER_BROWSE_IDLE_TTL_MS`). `folderBrowse.cleanupExpiredFolderBrowseSessions` runs every five
+  minutes, deletes 100 sessions per run with their listings, and reschedules itself when the batch
+  is full. Machine deletion purges both tables.
 
-The migration to the clone module's layout is pending. Until it lands, new request-based work should
-follow the clone flow, not this one.
+### When to use a pending-row session instead of a command
+
+- Use a `daemon.*` command for one-shot or long work where each item must run exactly once, in the
+  machine's order: git clone, git refresh, local actions, agent start.
+- Use a pending-row session for interactive or high-frequency work where only the latest state
+  matters: folder browsing. The row is the queue, so superseding a navigation is one in-place write.
+
+### Retired native folder picker
+
+The native dialog is retired end to end. `daemon.pickFolder` maps to a no-op dispatch that logs and
+acknowledges the event, and nothing enqueues it. The dispatch entry
+([command-dispatch.ts](../../packages/cli/src/daemon/entry/command-dispatch.ts)), the payload
+literal in
+[machine-command.ts](../../services/backend/src/domain/entities/machine-command.ts), the event-type
+label and the deprecated `chatroom_folderPickerRequests` table remain so historical inbox rows still
+validate and display. The table has no writers or readers; its rows are kept until a later, approved
+purge. Do not add new work on it.
 
 ## Related
 
 - [New chatroom feature](../../apps/webapp/src/modules/chatroom/features/new-chatroom/README.md) — the
   clone states, the retry and the leave guard as the user sees them.
+- [Remote folder browse feature](../../docs/features/remote-folder-browse.md) — the session contract,
+  listing caps, path rules and failure outcomes.

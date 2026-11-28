@@ -55,7 +55,8 @@ vi.mock('convex-helpers/react/sessions', () => ({
         if (!mocks.rootsMachineIds.includes(machineId)) mocks.rootsMachineIds.push(machineId);
         return { roots: [] };
       }
-      case 'folderPickerRequests:get':
+      case 'folderBrowse:get':
+      case 'folderBrowse:getListing':
         return undefined;
       case 'repositoryLedger:get':
         return undefined;

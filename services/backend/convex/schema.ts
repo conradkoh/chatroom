@@ -8,6 +8,11 @@ import { workspaceAgentConfigInboxEventValidator } from '../src/domain/entities/
 import { workspaceTaskInboxEventValidator } from '../src/domain/entities/chatroom-workspace-task-inbox';
 import { fileAttachmentStatusValidator } from '../src/domain/entities/file-attachment';
 import {
+  folderBrowseEntryValidator,
+  folderBrowseErrorCodeValidator,
+  folderBrowseStateValidator,
+} from '../src/domain/entities/folder-browse';
+import {
   gitCloneErrorCodeValidator,
   gitCloneStatusValidator,
 } from '../src/domain/entities/git-clone-request';
@@ -1520,8 +1525,9 @@ export default defineSchema({
     .index('by_machineId', ['machineId']),
 
   /**
-   * Folder picker requests initiated from the webapp setup wizard.
-   * The daemon opens a native folder dialog and reports the result back.
+   * @deprecated Retired native folder picker. No writers and no readers: the webapp browses through
+   * `chatroom_folderBrowseSessions` instead. The table, its rows, and its machine-deletion purge
+   * registration stay until a follow-up purge is approved. Do not add new work here.
    */
   chatroom_folderPickerRequests: defineTable({
     userId: v.id('users'),
@@ -1538,6 +1544,60 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
   })
     .index('by_userId_created', ['userId', 'createdAt'])
+    .index('by_machineId', ['machineId']),
+
+  /**
+   * Ephemeral remote folder-browse session. Created by `folderBrowse.open`, advanced in place by
+   * `folderBrowse.navigate` (monotonic `navSeq`, latest wins) and reported by the daemon through
+   * `folderBrowse.reportListing`. Read by id (web) and by `by_machine_state` pending (daemon) only;
+   * `by_user_machine` serves eviction and `by_machine_state` also serves the machine purge.
+   * Deleted by close, idle expiry, eviction, or machine purge. Never stores a selected path.
+   */
+  chatroom_folderBrowseSessions: defineTable({
+    userId: v.id('users'),
+    machineId: v.string(),
+    state: folderBrowseStateValidator,
+    navSeq: v.number(),
+    requestedPath: v.union(v.string(), v.null()), // null = the daemon's home directory
+    showHidden: v.boolean(),
+    filter: v.optional(v.string()),
+    pendingSince: v.optional(v.number()),
+    error: v.optional(
+      v.object({
+        code: folderBrowseErrorCodeValidator,
+        message: v.string(),
+        path: v.string(),
+      })
+    ),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index('by_machine_state', ['machineId', 'state'])
+    .index('by_user_machine', ['userId', 'machineId'])
+    .index('by_expiresAt', ['expiresAt']),
+
+  /**
+   * The one current listing of a browse session. Replaced per navigation; never history.
+   * Read by id only (`by_browseId`); `by_machineId` exists only for the machine-delete purge.
+   */
+  chatroom_folderBrowseListings: defineTable({
+    browseId: v.id('chatroom_folderBrowseSessions'),
+    userId: v.id('users'),
+    machineId: v.string(),
+    seq: v.number(),
+    requestedPath: v.union(v.string(), v.null()),
+    path: v.string(),
+    parentPath: v.union(v.string(), v.null()),
+    entries: v.array(folderBrowseEntryValidator),
+    dirCount: v.number(),
+    fileCount: v.number(),
+    hiddenCount: v.number(),
+    truncated: v.boolean(),
+    complete: v.boolean(),
+    selectable: v.boolean(),
+    listedAt: v.number(),
+  })
+    .index('by_browseId', ['browseId'])
     .index('by_machineId', ['machineId']),
 
   /**

@@ -24,7 +24,7 @@ Task inbox startup is composed in `entry/task-inbox-runtime.ts` and registers ac
 | `deps.ts`                | Dependency bag for use cases (publishers, persistence, streamHub)                                |
 | `bridge/`                | Adapters from the daemon session to domain ports. Argument mapping only, no logic                |
 
-Command handlers are acked when they return. They run on the machine command chain (`MACHINE_COMMAND_KEY`) or a per-agent chain, see `infrastructure/convex/subscribers/machine-command-inbox.ts`. Long work, for example `daemon.gitClone`, must start a domain use case without awaiting it, and that use case owns its own dedup.
+Command handlers are acked when they return. They run on the machine command chain (`MACHINE_COMMAND_KEY`) or a per-agent chain, see `infrastructure/convex/subscribers/machine-command-inbox.ts`. Long work, for example `daemon.gitClone`, must start a domain use case without awaiting it, and that use case owns its own dedup. `daemon.pickFolder` is retired: it maps to a no-op handler that logs and acknowledges the event, so a stale inbox row cannot open a dialog or call the backend. Folder browsing now uses the `folderBrowse.daemonPending` pending-row subscription instead of a command.
 
 ## Does not belong here
 

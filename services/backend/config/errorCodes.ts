@@ -168,8 +168,11 @@ export type BackendErrorCode =
   // ── Bulk create ───────────────────────────────────────────────────
   | 'BULK_CREATE_LIMIT_EXCEEDED'
 
-  // ── Folder picker ─────────────────────────────────────────────────
-  | 'FOLDER_PICKER_REQUEST_NOT_FOUND'
+  // ── Folder browse ─────────────────────────────────────────────────
+  | 'FOLDER_BROWSE_NOT_FOUND'
+  | 'FOLDER_BROWSE_EXPIRED'
+  | 'FOLDER_BROWSE_INVALID_PATH'
+  | 'FOLDER_BROWSE_INVALID_LISTING'
 
   // ── Messages & chatrooms ──────────────────────────────────────────
   | 'CHATROOM_ID_REQUIRED'
@@ -518,9 +521,15 @@ export const BACKEND_ERROR_CODES = {
   /** More than BULK_CREATE_MAX_REPOSITORIES working dirs in one call; nothing was created */
   BULK_CREATE_LIMIT_EXCEEDED: 'BULK_CREATE_LIMIT_EXCEEDED',
 
-  // ── Folder picker ─────────────────────────────────────────────────
-  /** Folder picker request not found */
-  FOLDER_PICKER_REQUEST_NOT_FOUND: 'FOLDER_PICKER_REQUEST_NOT_FOUND',
+  // ── Folder browse ─────────────────────────────────────────────────
+  /** Folder browse session not found or not owned by the caller */
+  FOLDER_BROWSE_NOT_FOUND: 'FOLDER_BROWSE_NOT_FOUND',
+  /** Folder browse session passed its idle expiry */
+  FOLDER_BROWSE_EXPIRED: 'FOLDER_BROWSE_EXPIRED',
+  /** Browse path or filter failed validation */
+  FOLDER_BROWSE_INVALID_PATH: 'FOLDER_BROWSE_INVALID_PATH',
+  /** Daemon listing report violated the listing contract */
+  FOLDER_BROWSE_INVALID_LISTING: 'FOLDER_BROWSE_INVALID_LISTING',
 
   // ── Messages & chatrooms ──────────────────────────────────────────
   /** Chatroom id is required for this scope change */
@@ -847,8 +856,11 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   // Bulk create
   BACKEND_ERROR_CODES.BULK_CREATE_LIMIT_EXCEEDED,
 
-  // Folder picker
-  BACKEND_ERROR_CODES.FOLDER_PICKER_REQUEST_NOT_FOUND,
+  // Folder browse
+  BACKEND_ERROR_CODES.FOLDER_BROWSE_NOT_FOUND,
+  BACKEND_ERROR_CODES.FOLDER_BROWSE_EXPIRED,
+  BACKEND_ERROR_CODES.FOLDER_BROWSE_INVALID_PATH,
+  BACKEND_ERROR_CODES.FOLDER_BROWSE_INVALID_LISTING,
 
   // Messages & chatrooms
   BACKEND_ERROR_CODES.CHATROOM_ID_REQUIRED,

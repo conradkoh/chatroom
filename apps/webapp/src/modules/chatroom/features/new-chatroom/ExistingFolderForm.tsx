@@ -106,6 +106,7 @@ export function ExistingFolderForm({
       }
     >
       <form id={formId} onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {/* Browsing no longer disables the input; the typed path stays editable. */}
         <SetupFolderPickerField
           variant="setup"
           heading="Workspace Folder"
@@ -114,7 +115,7 @@ export function ExistingFolderForm({
           value={selectedPath}
           onChange={setSelectedPath}
           placeholder={`Type or browse a folder on ${machineName}`}
-          inputDisabled={picker.isPending}
+          inputDisabled={false}
           browseDisabled={!isMachineConnected || isCreating}
           picker={picker}
         />

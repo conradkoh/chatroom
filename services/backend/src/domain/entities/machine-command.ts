@@ -67,6 +67,10 @@ export const machineCommandPayloadValidator = v.union(
     workingDir: v.string(),
   }),
   v.object({
+    /**
+     * @deprecated Retired: never enqueued. Kept so inbox rows written before this release still
+     * validate; remove with the folderPickerRequests table drop.
+     */
     type: v.literal('daemon.pickFolder'),
     requestId: v.id('chatroom_folderPickerRequests'),
   }),

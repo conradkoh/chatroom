@@ -1,43 +1,43 @@
 'use client';
 
-import { FolderOpen, Loader2 } from 'lucide-react';
-import { memo, type ReactNode, type Ref } from 'react';
+import { FolderOpen } from 'lucide-react';
+import { memo, useCallback, useId, useRef, type ReactNode, type Ref } from 'react';
+
+import { RemoteFolderBrowser } from './RemoteFolderBrowser';
+
+import type { RemoteFolderBrowserState } from '@/hooks/useRemoteFolderBrowser';
 
 /** Folder picker state for a path field. Built by useSetupWorkspaceFolderPicker. */
 export interface FolderPickerState {
-  isPending: boolean;
-  isTimedOut: boolean;
-  requestId: string | null;
+  /** The open browser session, or null while closed. */
+  browser: RemoteFolderBrowserState | null;
   machineDisplayName: string | null;
-  /** Last picker or browse error. Cleared by the next browse or reset. */
+  /** Open or select error line. Cleared by the next browse, select, cancel or reset. */
   error: string | null;
-  onBrowse: () => void;
-  onRetryAfterTimeout: () => void;
+  /** Opens a session at the typed value (empty or relative → machine home). */
+  onBrowse: (startPath: string) => void;
+  /** Cancels the open session. */
+  onCloseBrowser: () => void;
 }
-
-/** Shown with the retry prompt when the picker timed out. */
-const PICKER_TIMEOUT_HINT =
-  'Folder picker timed out. Ensure the daemon is running on the selected machine.';
 
 type SetupFolderPickerFieldVariant = 'setup' | 'clone';
 
 interface SetupFolderPickerFieldProps {
   /**
-   * The two layouts the field replaces. 'setup' is the wizard and checklist heading, with the status
-   * below the Browse row. 'clone' is the clone form's smaller heading, with the status above the
-   * retry prompt. The two keep their own order and copy.
+   * Chooses the heading style only. 'setup' is the wizard and checklist heading; 'clone' is the
+   * clone form's smaller heading. The browser and the error line sit in the same place in both.
    */
   variant: SetupFolderPickerFieldVariant;
   /** Visible heading. */
   heading: string;
   /** The input's accessible name. */
   inputAriaLabel: string;
-  /** Shown while the picker waits for the daemon. */
+  /** Caption shown while the browser loads its first listing. */
   waitingText: string;
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
-  /** Disables only the text input. */
+  /** Disables only the text input. Browsing never changes it. */
   inputDisabled: boolean;
   /** Disables only the Browse button. A typed path stays editable. */
   browseDisabled: boolean;
@@ -75,82 +75,17 @@ function FieldHeading({
   );
 }
 
-function BrowseIcon({ isPending }: { isPending: boolean }) {
-  return isPending ? <Loader2 size={14} className="animate-spin" /> : <FolderOpen size={14} />;
+/** Sets a ref from either a callback or an object ref, so the field can also keep its own. */
+function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
+  if (!ref) return;
+  if (typeof ref === 'function') ref(value);
+  else (ref as { current: T | null }).current = value;
 }
 
-function BrowseButton({
-  onBrowse,
-  disabled,
-  isPending,
-  fullWidthOnMobile,
-}: {
-  onBrowse: () => void;
-  disabled: boolean;
-  isPending: boolean;
-  fullWidthOnMobile: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onBrowse}
-      disabled={disabled || isPending}
-      className={`flex h-10 shrink-0 items-center gap-2 px-3 border border-chatroom-border text-xs font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover disabled:opacity-50 sm:h-9 ${
-        fullWidthOnMobile ? 'w-full justify-center sm:w-auto' : ''
-      }`}
-    >
-      <BrowseIcon isPending={isPending} />
-      Browse
-    </button>
-  );
-}
-
-/** Picker feedback: the error, the waiting line, and the retry prompt, in the variant's order. */
-function PickerStatus({
-  variant,
-  picker,
-  waitingText,
-}: {
-  variant: SetupFolderPickerFieldVariant;
-  picker: FolderPickerState;
-  waitingText: string;
-}) {
-  const errorLine = picker.error ?? (picker.isTimedOut ? PICKER_TIMEOUT_HINT : null);
-  const error = errorLine ? (
-    <p className="text-xs text-chatroom-status-error">{errorLine}</p>
-  ) : null;
-  const waiting = picker.isPending ? (
-    <p className="text-xs text-chatroom-text-muted">{waitingText}</p>
-  ) : null;
-  const retry = picker.isTimedOut ? (
-    <button
-      type="button"
-      onClick={picker.onRetryAfterTimeout}
-      className="text-xs text-chatroom-accent hover:text-chatroom-text-primary text-left"
-    >
-      Folder picker timed out — click to try again
-    </button>
-  ) : null;
-
-  if (variant === 'clone') {
-    return (
-      <>
-        {error}
-        {waiting}
-        {retry}
-      </>
-    );
-  }
-  return (
-    <>
-      {waiting}
-      {retry}
-      {error}
-    </>
-  );
-}
-
-/** The one folder-path field: a heading, a text input, a Browse button, and the picker status. */
+/**
+ * The one folder-path field: a heading, a text input, a Browse button that toggles the inline
+ * remote browser, and the field's error line. The browser opens under the input row.
+ */
 export const SetupFolderPickerField = memo(function SetupFolderPickerField({
   variant,
   heading,
@@ -168,6 +103,29 @@ export const SetupFolderPickerField = memo(function SetupFolderPickerField({
   inputRef,
   stackOnMobile,
 }: SetupFolderPickerFieldProps) {
+  const panelId = useId();
+  const localInputRef = useRef<HTMLInputElement | null>(null);
+  const browseRef = useRef<HTMLButtonElement | null>(null);
+  const mergedInputRef = useCallback(
+    (node: HTMLInputElement | null) => {
+      localInputRef.current = node;
+      assignRef(inputRef, node);
+    },
+    [inputRef]
+  );
+
+  const isOpen = picker.browser !== null;
+  const onBrowseClick = useCallback(() => {
+    if (isOpen) picker.onCloseBrowser();
+    else picker.onBrowse(value);
+  }, [isOpen, picker, value]);
+
+  // Focus returns to the value that was chosen, or to the button that opened the browser.
+  const onBrowserExit = useCallback((reason: 'select' | 'cancel') => {
+    if (reason === 'select') localInputRef.current?.focus();
+    else browseRef.current?.focus();
+  }, []);
+
   return (
     <div>
       <FieldHeading variant={variant}>{heading}</FieldHeading>
@@ -180,7 +138,7 @@ export const SetupFolderPickerField = memo(function SetupFolderPickerField({
           }
         >
           <input
-            ref={inputRef}
+            ref={mergedInputRef}
             type="text"
             aria-label={inputAriaLabel}
             aria-invalid={invalid || undefined}
@@ -196,16 +154,32 @@ export const SetupFolderPickerField = memo(function SetupFolderPickerField({
                 : 'border-chatroom-border focus:border-chatroom-accent'
             }`}
           />
-          <BrowseButton
-            onBrowse={picker.onBrowse}
+          <button
+            ref={browseRef}
+            type="button"
+            onClick={onBrowseClick}
             disabled={browseDisabled}
-            isPending={picker.isPending}
-            fullWidthOnMobile={stackOnMobile ?? false}
-          />
+            aria-expanded={isOpen}
+            aria-controls={isOpen ? panelId : undefined}
+            className={`flex h-10 shrink-0 items-center gap-2 px-3 border border-chatroom-border text-xs font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover disabled:opacity-50 sm:h-9 ${
+              isOpen ? 'bg-chatroom-bg-hover' : ''
+            } ${stackOnMobile ? 'w-full justify-center sm:w-auto' : ''}`}
+          >
+            <FolderOpen size={14} aria-hidden />
+            Browse
+          </button>
           {actions}
         </div>
         {hint}
-        <PickerStatus variant={variant} picker={picker} waitingText={waitingText} />
+        {picker.browser && (
+          <RemoteFolderBrowser
+            id={panelId}
+            browser={picker.browser}
+            loadingCaption={waitingText}
+            onExit={onBrowserExit}
+          />
+        )}
+        {picker.error && <p className="text-xs text-chatroom-status-error">{picker.error}</p>}
       </div>
     </div>
   );
