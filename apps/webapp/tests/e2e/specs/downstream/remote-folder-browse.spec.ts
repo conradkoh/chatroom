@@ -94,9 +94,11 @@ test.describe('Remote folder browse', { tag: [TAG_DOWNSTREAM] }, () => {
     await panel.getByRole('button', { name: 'Select' }).click();
     await expect(page.getByLabel('Folder path')).toHaveValue(PROJECT);
     await expect(panel).toHaveCount(0);
-    expect(
-      await client.query(api.folderBrowse.get, { sessionId, browseId: opened.browseId })
-    ).toBeNull();
+    await expect
+      .poll(() => client.query(api.folderBrowse.get, { sessionId, browseId: opened.browseId }), {
+        timeout: POLL_TIMEOUT_MS,
+      })
+      .toBeNull();
 
     // No native picker was requested: drain the inbox and assert no pickFolder command was queued.
     const claimedTypes: string[] = [];

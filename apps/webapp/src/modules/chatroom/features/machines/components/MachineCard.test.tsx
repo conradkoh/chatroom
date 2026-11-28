@@ -21,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   deleteMachine: vi.fn(),
   addRoot: vi.fn(),
   removeRoot: vi.fn(),
-  requestPicker: vi.fn(),
   ledgerRequest: vi.fn(),
   ledgerDiscard: vi.fn(),
   backupInventoryRequest: vi.fn(),
@@ -42,7 +41,6 @@ vi.mock('convex-helpers/react/sessions', () => ({
     }
     if (name === 'machineProjectRoots:list') return { roots: mocks.roots };
     if (name === 'folderBrowse:get' || name === 'folderBrowse:getListing') return undefined;
-    if (name === 'folderPickerRequests:get') return undefined;
     if (name === 'repositoryLedger:get' || name === 'repositoryLedger:listEntries') {
       return undefined;
     }
@@ -59,7 +57,6 @@ vi.mock('convex-helpers/react/sessions', () => ({
     if (name === 'folderBrowse:open') return vi.fn();
     if (name === 'folderBrowse:navigate') return vi.fn();
     if (name === 'folderBrowse:close') return vi.fn();
-    if (name === 'folderPickerRequests:request') return mocks.requestPicker;
     if (name === 'repositoryLedger:request') return mocks.ledgerRequest;
     if (name === 'repositoryLedger:discard') return mocks.ledgerDiscard;
     if (name.startsWith('machineBackups:')) {
@@ -187,7 +184,6 @@ describe('MachineList / MachineCard', () => {
     });
     mocks.addRoot.mockReset();
     mocks.removeRoot.mockReset();
-    mocks.requestPicker.mockReset();
     mocks.ledgerRequest.mockReset();
     mocks.ledgerDiscard.mockReset();
     mocks.backupInventoryRequest.mockReset();
