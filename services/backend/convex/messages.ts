@@ -207,8 +207,10 @@ async function _sendMessageHandler(
     }
   }
 
-  // Validate senderRole to prevent impersonation
-  // Only allow 'user' or roles that are in the team configuration
+  // Validate senderRole against the team configuration only. `senderRole` is
+  // caller-claimed (like `senderAgent`) and is not bound to the session: one CLI
+  // session drives every role's agent. A role outside the team is rejected
+  // here; 'user' is always allowed.
   const normalizedSenderRole = args.senderRole.toLowerCase();
   if (normalizedSenderRole !== 'user') {
     // Check if senderRole is in teamRoles
@@ -227,6 +229,13 @@ async function _sendMessageHandler(
   // For user messages without explicit target, route to entry point
   if (!targetRole && args.senderRole.toLowerCase() === 'user' && args.type === 'message') {
     targetRole = getTeamEntryPoint(chatroom ?? {}) ?? undefined;
+  }
+
+  // Same enforced-graph contract as messages.handoff, before any write. 'user'
+  // has no contract, so user messages and advisory teams are unaffected.
+  if (args.type === 'handoff' && targetRole !== undefined) {
+    const rejection = enforcedHandoffRejection(chatroom, args.senderRole, targetRole);
+    if (rejection) throw new ConvexError(rejection);
   }
 
   // ─── User messages: determine status BEFORE writing ─────────────────────────
@@ -451,6 +460,29 @@ function handoffFailure(
   };
 }
 
+/**
+ * Enforced-graph check shared by every write path that creates a role-to-role
+ * handoff (`messages.handoff`, `messages.sendMessage` with type 'handoff').
+ * Routing contract keyed on the caller-claimed sender role, not authorization:
+ * the server has no per-role identity (see trio-team-coordination decision 12).
+ * Returns null when the team is advisory, the sender has no contract (incl.
+ * 'user'), or the target is in the contract.
+ */
+function enforcedHandoffRejection(
+  chatroom: Pick<Doc<'chatroom_rooms'>, 'teamId' | 'teamName'>,
+  senderRole: string,
+  targetRole: string
+): { code: 'INVALID_TARGET_ROLE'; message: string; suggestedTargets: string[] } | null {
+  const normalizedSenderRole = senderRole.toLowerCase();
+  const enforcedTargets = getEnforcedHandoffTargets(chatroom.teamId, normalizedSenderRole);
+  if (!enforcedTargets || enforcedTargets.includes(targetRole.toLowerCase())) return null;
+  return {
+    code: 'INVALID_TARGET_ROLE',
+    message: `Cannot hand off from "${senderRole}" to "${targetRole}": the ${chatroom.teamName ?? chatroom.teamId} team routes coordination through its handoff contract. Allowed targets for "${normalizedSenderRole}": ${enforcedTargets.join(', ')}.`,
+    suggestedTargets: [...enforcedTargets],
+  };
+}
+
 /** @internal Shared handoff implementation for messages.handoff and legacy enqueueHandoff. */
 export async function runHandoffHandler(
   ctx: MutationCtx,
@@ -529,17 +561,15 @@ export async function runHandoffHandler(
   }
 
   // Teams with an enforced handoff graph (trio) authorize only the targets their
-  // role contract lists, including the `user` target. Enforced before any write
-  // so a rejected handoff leaves tasks, messages, attachments, and usage untouched.
-  const enforcedTargets = getEnforcedHandoffTargets(chatroom.teamId, normalizedSenderRole);
-  if (enforcedTargets && !enforcedTargets.includes(normalizedTargetRole)) {
+  // role contract lists, including the `user` target. Keyed on the caller-claimed
+  // senderRole — a routing contract, not access control (trio-team-coordination
+  // decision 12). Enforced before any write so a rejected handoff leaves tasks,
+  // messages, attachments, and usage untouched.
+  const rejection = enforcedHandoffRejection(chatroom, args.senderRole, args.targetRole);
+  if (rejection) {
     return {
       success: false,
-      error: {
-        code: 'INVALID_TARGET_ROLE',
-        message: `Cannot hand off from "${args.senderRole}" to "${args.targetRole}": the ${chatroom.teamName ?? chatroom.teamId} team routes coordination through its handoff contract. Allowed targets for "${normalizedSenderRole}": ${enforcedTargets.join(', ')}.`,
-        suggestedTargets: [...enforcedTargets],
-      },
+      error: rejection,
       messageId: null,
       completedTaskIds: [],
       newTaskId: null,

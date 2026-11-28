@@ -30,7 +30,9 @@ flow.
    specialist work and the final delivery to `user`. A handoff outside the
    sender's contract is rejected with `INVALID_TARGET_ROLE` and the contract
    targets as `suggestedTargets`, before any task, message, attachment, or usage
-   write.
+   write. Both write paths that create a role-to-role handoff apply it:
+   `messages.handoff` and `messages.sendMessage` with `type: 'handoff'` (see
+   decision 12).
 2. **Per-edge session policy.** Trio declares `handoffSessionRules` on the
    preset. A handoff starts from the created task's inherited envelope and, when
    a rule matches the edge, overrides only
@@ -56,6 +58,21 @@ flow.
 9. **The coordinator groups requirements into sequential packages.** One package is what one builder pass can deliver and verify; a contract-changing package lands alone first; a package one brief cannot carry goes back to the coordinator with a proposed split before building.
 10. **Plans are optional and not specifier-authored.** Default none; required only for two or more dependent packages or on user request; the architect (default) or product-manager publishes on a `Plan: required` request, one author per task; the coordinator cites `<planId>#Pn` under `## Plan phases`; the specifier only reads.
 11. **Single-pass brief variant.** The trio brief has one full-scope verification definition; duo keeps `focused | round-final`.
+12. **The enforced graph is a routing contract, not an access boundary.**
+    Chatroom access is owner-only (`checkChatroomAccess`), and a CLI session
+    carries only `userId`: one session drives every role's agent. The backend
+    therefore has no per-role identity, and `senderRole` is caller-claimed
+    exactly as `senderAgent` is. The graph keys on the claimed role to keep
+    prompts and well-behaved agents from bypassing coordination; it does not
+    stop the owner, or a process running under the owner's session, from
+    claiming another team role. Every write path that creates a role-to-role
+    handoff applies the graph before any write — `messages.handoff` and
+    `messages.sendMessage` with `type: 'handoff'` — and the targets advertised to
+    a role equal the targets accepted from a caller claiming that role. Binding
+    roles to identity would need a per-agent credential (a schema change);
+    revisit this decision if chatrooms ever admit non-owner members. Guarded by
+    the `trio handoff graph and session policy` tests in
+    `services/backend/convex/messages.spec.ts`.
 
 ## Known gap
 

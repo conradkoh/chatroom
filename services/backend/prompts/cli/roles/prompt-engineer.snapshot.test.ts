@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'vitest';
 
+import { getBaseRoleGuidanceFromContext } from './fromContext';
+import { getRoleSpecificGuidance } from './index';
 import { getPromptEngineerGuidance } from './prompt-engineer';
+import type { SelectorContext } from '../../types/sections';
 
 describe('prompt-engineer guidance snapshots', () => {
   test.each([
@@ -52,5 +55,36 @@ describe('prompt-engineer guidance snapshots', () => {
     expect(guidance).toContain('when the change crosses a role boundary');
 
     expect(rendered).not.toMatch(/memory\/|docs\/|apps\/|services\/|packages\//);
+  });
+
+  test('role dispatch renders the operating model for prompt-engineer', () => {
+    const guidance = getRoleSpecificGuidance(
+      'prompt-engineer',
+      ['prompt-engineer'],
+      false,
+      'http://127.0.0.1:3210',
+      'planner'
+    );
+
+    expect(guidance).not.toBe('');
+    expect(guidance).toContain('## Prompt Engineer Operating Model');
+    expect(guidance).toContain('--next-role="planner"');
+  });
+
+  test('from context, hands off to the concrete recipient', () => {
+    const ctx: SelectorContext = {
+      role: 'prompt-engineer',
+      team: 'solo',
+      teamConfig: { id: 'solo', name: 'Solo Team', roles: ['solo'], entryPoint: 'solo' },
+      teamRoles: ['solo'],
+      isEntryPoint: false,
+      convexUrl: 'http://127.0.0.1:3210',
+      agentType: 'unset',
+    };
+
+    const guidance = getBaseRoleGuidanceFromContext(ctx);
+
+    expect(guidance).toContain('## Prompt Engineer Operating Model');
+    expect(guidance).toContain('--next-role="solo"');
   });
 });

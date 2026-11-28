@@ -4,6 +4,9 @@ import { groundingReadCommand } from './command';
 
 const FENCE = '```';
 
+/** Heading that opens the grounding reference block appended to a handoff template. */
+export const GROUNDING_REFERENCE_HEADING = '### Grounding reference';
+
 export interface GroundingReferencePair {
   teamId: string;
   fromRole: string;
@@ -39,7 +42,7 @@ export function getGroundingReferenceBlock(q: {
     groundingId: '<groundingId>',
   });
   return [
-    '### Grounding reference',
+    GROUNDING_REFERENCE_HEADING,
     'Add this section to your message. Replace the placeholder with the id of the newest grounding message you published for this request, or write `None.`.',
     '',
     `${FENCE}markdown`,

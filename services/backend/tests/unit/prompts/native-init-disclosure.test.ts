@@ -57,8 +57,16 @@ const CONVEX_URL = 'http://127.0.0.1:3210';
  * heredoc command block (~1000 characters).
  * then from 25000 to admit the prompt-engineer routing rule, its per-team
  * delegation wording, and the product-manager gate addition (~510 characters).
+ *
+ * Measured on 2026-11-28 after the rule-number prose change (item 6): this
+ * prompt renders at 25,566 characters through the same `composeNativeSystemPrompt`
+ * call the length test below uses (duo/planner, `cursor-sdk`,
+ * `TEAM_CONFIGS.duo`). The fixed 25,729 budget leaves 163 characters spare.
  */
-const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 26000;
+const NATIVE_DUO_PLANNER_INIT_MEASURED_LENGTH = 25566;
+const NATIVE_DUO_PLANNER_INIT_MARGIN = 163;
+const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH =
+  NATIVE_DUO_PLANNER_INIT_MEASURED_LENGTH + NATIVE_DUO_PLANNER_INIT_MARGIN;
 
 function nativeInitPrompt(team: keyof typeof TEAM_CONFIGS, role: string): string {
   const config = TEAM_CONFIGS[team];

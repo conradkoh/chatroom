@@ -21,6 +21,11 @@ import { createTestSession, joinParticipant } from '../../../helpers/integration
 
 const TRIO_ROLES = ['coordinator', 'specifier', 'builder'] as const;
 
+type TrioMemberRole = (typeof TRIO_ROLES)[number];
+
+/** Every role the trio graph can address, including the ephemeral prompt-engineer. */
+type TrioRole = TrioMemberRole | 'prompt-engineer';
+
 async function createTrioChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,
@@ -36,7 +41,7 @@ async function createTrioChatroom(sessionId: SessionId): Promise<Id<'chatroom_ro
 async function receiveTask(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
-  role: string,
+  role: TrioRole,
   taskId: Id<'chatroom_tasks'>
 ): Promise<void> {
   await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role, taskId });
@@ -46,8 +51,8 @@ async function receiveTask(
 async function handoff(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
-  senderRole: string,
-  targetRole: string
+  senderRole: TrioRole,
+  targetRole: TrioRole | 'user'
 ) {
   return await t.mutation(api.messages.handoff, {
     sessionId,
@@ -67,7 +72,7 @@ async function getTask(taskId: Id<'chatroom_tasks'>) {
 async function getDeliveryOutput(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
-  role: string,
+  role: TrioRole,
   taskId: Id<'chatroom_tasks'>,
   messageId: Id<'chatroom_messages'>
 ): Promise<string> {

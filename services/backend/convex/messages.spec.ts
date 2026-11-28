@@ -2142,6 +2142,120 @@ describe('trio handoff graph and session policy', () => {
     expect(result.newTaskId).toBeNull();
   });
 
+  test('pins the routing contract: the enforced graph keys on the caller-claimed senderRole, not the session', async () => {
+    const { sessionId } = await createTestSession('trio-graph-routing-contract');
+    const chatroomId = await createTrioChatroom(sessionId);
+    await seedTrioTask(chatroomId, {
+      assignedTo: 'builder',
+      createdBy: 'specifier',
+      content: 'builder work',
+      queuePosition: 0,
+      sessionPolicy: 'new',
+    });
+
+    const rejected = await handoff(sessionId, chatroomId, 'builder', 'coordinator');
+    expect(
+      rejected.success,
+      'routing contract changed: senderRole "builder" must be rejected for targetRole "coordinator"'
+    ).toBe(false);
+    expect(rejected.error?.code).toBe('INVALID_TARGET_ROLE');
+    expect(rejected.error?.suggestedTargets).toEqual(['specifier']);
+    expect(rejected.error?.message).toContain('"builder"');
+    expect(rejected.error?.message).toContain('"coordinator"');
+    expect(rejected.newTaskId).toBeNull();
+
+    const accepted = await handoff(sessionId, chatroomId, 'specifier', 'coordinator');
+    expect(
+      accepted.success,
+      'routing contract changed: the same session claiming "specifier" must reach "coordinator"'
+    ).toBe(true);
+
+    const targetTask = await t.run(async (ctx) => ctx.db.get(accepted.newTaskId!));
+    expect(targetTask?.assignedTo).toBe('coordinator');
+    expect(targetTask?.createdBy).toBe('specifier');
+  });
+
+  test('sendMessage type handoff rejects the enforced-graph violation without persisting', async () => {
+    const { sessionId } = await createTestSession('trio-graph-send-builder-coordinator');
+    const chatroomId = await createTrioChatroom(sessionId);
+
+    // These row counts prove no write persisted. They cannot prove the check ran
+    // before the write: a write followed by a throw would roll back to the same counts.
+    const messagesBefore = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+    const tasksBefore = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+
+    await expect(
+      t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        senderRole: 'builder',
+        targetRole: 'coordinator',
+        content: 'builder to coordinator via send',
+        type: 'handoff',
+      }),
+      'sendMessage accepted a handoff outside the builder contract: "builder" → "coordinator"'
+    ).rejects.toMatchObject({
+      data: { code: 'INVALID_TARGET_ROLE', suggestedTargets: ['specifier'] },
+    });
+
+    const messagesAfter = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+    const tasksAfter = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+    expect(messagesAfter).toHaveLength(messagesBefore.length);
+    expect(tasksAfter).toHaveLength(tasksBefore.length);
+  });
+
+  test('sendMessage type handoff along a contract edge still creates the target task', async () => {
+    const { sessionId } = await createTestSession('trio-graph-send-builder-specifier');
+    const chatroomId = await createTrioChatroom(sessionId);
+
+    const messageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      targetRole: 'specifier',
+      content: 'builder to specifier via send',
+      type: 'handoff',
+    });
+
+    const message = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_messages', messageId as Id<'chatroom_messages'>)
+    );
+    expect(message?.type).toBe('handoff');
+    expect(message?.targetRole).toBe('specifier');
+
+    const task = await t.run(async (ctx) =>
+      (
+        await ctx.db
+          .query('chatroom_tasks')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+          .collect()
+      ).find((candidate) => candidate.sourceMessageId === messageId)
+    );
+    expect(task?.assignedTo).toBe('specifier');
+    expect(task?.status).toBe('pending');
+    expect(task?.createdBy).toBe('builder');
+  });
+
   test('coordinator→builder is rejected because the coordinator contract omits builder', async () => {
     const { sessionId } = await createTestSession('trio-graph-coordinator-builder');
     const chatroomId = await createTrioChatroom(sessionId);
