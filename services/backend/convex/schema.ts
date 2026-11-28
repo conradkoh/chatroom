@@ -1525,8 +1525,9 @@ export default defineSchema({
     .index('by_machineId', ['machineId']),
 
   /**
-   * Folder picker requests initiated from the webapp setup wizard.
-   * The daemon opens a native folder dialog and reports the result back.
+   * @deprecated Retired native folder picker. No writers and no readers: the webapp browses through
+   * `chatroom_folderBrowseSessions` instead. The table, its rows, and its machine-deletion purge
+   * registration stay until a follow-up purge is approved. Do not add new work here.
    */
   chatroom_folderPickerRequests: defineTable({
     userId: v.id('users'),

@@ -168,9 +168,6 @@ export type BackendErrorCode =
   // ── Bulk create ───────────────────────────────────────────────────
   | 'BULK_CREATE_LIMIT_EXCEEDED'
 
-  // ── Folder picker ─────────────────────────────────────────────────
-  | 'FOLDER_PICKER_REQUEST_NOT_FOUND'
-
   // ── Folder browse ─────────────────────────────────────────────────
   | 'FOLDER_BROWSE_NOT_FOUND'
   | 'FOLDER_BROWSE_EXPIRED'
@@ -524,10 +521,6 @@ export const BACKEND_ERROR_CODES = {
   /** More than BULK_CREATE_MAX_REPOSITORIES working dirs in one call; nothing was created */
   BULK_CREATE_LIMIT_EXCEEDED: 'BULK_CREATE_LIMIT_EXCEEDED',
 
-  // ── Folder picker ─────────────────────────────────────────────────
-  /** Folder picker request not found */
-  FOLDER_PICKER_REQUEST_NOT_FOUND: 'FOLDER_PICKER_REQUEST_NOT_FOUND',
-
   // ── Folder browse ─────────────────────────────────────────────────
   /** Folder browse session not found or not owned by the caller */
   FOLDER_BROWSE_NOT_FOUND: 'FOLDER_BROWSE_NOT_FOUND',
@@ -862,9 +855,6 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
 
   // Bulk create
   BACKEND_ERROR_CODES.BULK_CREATE_LIMIT_EXCEEDED,
-
-  // Folder picker
-  BACKEND_ERROR_CODES.FOLDER_PICKER_REQUEST_NOT_FOUND,
 
   // Folder browse
   BACKEND_ERROR_CODES.FOLDER_BROWSE_NOT_FOUND,

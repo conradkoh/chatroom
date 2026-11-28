@@ -80,8 +80,8 @@ function invalidListing(): never {
 
 /**
  * The machine row, when the caller owns it. Throws when it is missing or owned by someone else.
- * Deliberately a local copy of `folderPickerRequests.ts`: that module is retired in a later package
- * and must not gain new importers before then.
+ * Deliberately a local copy: each request module keeps its own ownership check instead of sharing a
+ * helper, so a module can change without widening another module's reach.
  */
 // fallow-ignore-next-line code-duplication
 async function getOwnedMachine(
