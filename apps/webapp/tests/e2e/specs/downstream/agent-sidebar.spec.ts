@@ -16,6 +16,7 @@ const CANONICAL_TEAMS = [
       'planner',
       'product-manager',
       'architect',
+      'prompt-engineer',
       'researcher',
       'triage',
       'reviewer',
@@ -28,6 +29,7 @@ const CANONICAL_TEAMS = [
     ephemeralRoles: [
       'product-manager',
       'architect',
+      'prompt-engineer',
       'researcher',
       'triage',
       'reviewer',
@@ -39,9 +41,24 @@ const CANONICAL_TEAMS = [
   {
     teamId: 'solo',
     teamStructureId: 'solo@1',
-    roles: ['solo', 'product-manager', 'architect', 'triage', 'uiux-engineer', 'verifier'],
+    roles: [
+      'solo',
+      'product-manager',
+      'architect',
+      'prompt-engineer',
+      'triage',
+      'uiux-engineer',
+      'verifier',
+    ],
     permanentRoles: ['solo'],
-    ephemeralRoles: ['product-manager', 'architect', 'triage', 'uiux-engineer', 'verifier'],
+    ephemeralRoles: [
+      'product-manager',
+      'architect',
+      'prompt-engineer',
+      'triage',
+      'uiux-engineer',
+      'verifier',
+    ],
   },
   {
     teamId: 'trio',
@@ -50,6 +67,7 @@ const CANONICAL_TEAMS = [
       'coordinator',
       'product-manager',
       'architect',
+      'prompt-engineer',
       'researcher',
       'triage',
       'reviewer',
@@ -63,6 +81,7 @@ const CANONICAL_TEAMS = [
     ephemeralRoles: [
       'product-manager',
       'architect',
+      'prompt-engineer',
       'researcher',
       'triage',
       'reviewer',

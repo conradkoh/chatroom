@@ -15,6 +15,7 @@ const canonicalTeamFacts = [
       'planner',
       'product-manager',
       'architect',
+      'prompt-engineer',
       'researcher',
       'triage',
       'reviewer',
@@ -28,7 +29,15 @@ const canonicalTeamFacts = [
   {
     teamId: 'solo',
     teamStructureId: 'solo@1',
-    roles: ['solo', 'product-manager', 'architect', 'triage', 'uiux-engineer', 'verifier'],
+    roles: [
+      'solo',
+      'product-manager',
+      'architect',
+      'prompt-engineer',
+      'triage',
+      'uiux-engineer',
+      'verifier',
+    ],
     permanentRoles: ['solo'],
   },
 ] as const;

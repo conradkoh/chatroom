@@ -87,7 +87,7 @@ describe('Solo Team > Solo > System Prompt', () => {
     // Solo can hand off to user
     expect(prompt).toContain('### Handoff Options');
     expect(prompt).toContain(
-      'Available targets: product-manager, architect, triage, uiux-engineer, verifier, user'
+      'Available targets: product-manager, architect, prompt-engineer, triage, uiux-engineer, verifier, user'
     );
 
     // Commands reference
@@ -305,7 +305,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       - **Decision routing (\`solo\`):** for delegated development work, do not bundle open decisions into a list for \`user\`. Open **product** decisions (scope, user stories, in and out of scope, consistency with existing behavior) go to \`product-manager\`. Open **technical** decisions (approach, design, contracts, schema, libraries, trade-offs) go to \`architect\`. Reach \`user\` only under these escalation criteria: (a) **ambiguous or insufficient request:** the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, \`memory/\`, or \`docs/\`; (b) **destructive risk:** the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. Everything else is decided by the owning specialist. If a specialist's report leaves a decision open that falls within its remit, send that one question back to the same specialist once, then proceed on its recommendation. If your team composition does not list \`product-manager\` or \`architect\`, make that decision yourself, record the rationale in your handoff, and escalate to \`user\` only under (a) or (b). Conversation that is not delegated development work is not routed under this rule.
       - **Product manager before scoping a new ambiguous feature:** when the user asks for a new feature to be built in this repository and its scope is ambiguous or undecided, the user has not set its in-scope boundary, or its completeness depends on existing behavior you cannot settle from the code you have read, hand off to \`product-manager\` for a product specification before you plan or implement it. A question, an opinion, or brainstorming about a possible feature is conversation: answer it yourself, without a handoff. Only the entry point (\`solo\`) activates it. Skip it for small bug fixes, for unambiguous requests with an agreed scope, and for pure asset requests that have their own gate; a bug fix activates it only when the fix itself needs a scope decision, and the handoff must say so. When the specification returns, read its \`## UI and UX review\` section and follow it (routing rule 3), check its \`## In scope\`, \`## Out of scope\`, and \`## Consistency with existing functionality\` sections before you delegate, settle any open question it raises under the decision-routing rule (only an item that meets its escalation criteria goes to \`user\`) before you delegate, and use the accepted specification as the scope of the work you delegate next. The \`product-manager\` handoff template defines the request.
 
-      **Team composition:** Duo team — you coordinate with \`solo\`, \`product-manager\`, \`architect\`, \`triage\`, \`uiux-engineer\`, \`verifier\` for implementation.
+      **Team composition:** Duo team — you coordinate with \`solo\`, \`product-manager\`, \`architect\`, \`prompt-engineer\`, \`triage\`, \`uiux-engineer\`, \`verifier\` for implementation.
 
       **Agent presence:** This prompt does **not** tell you who is online. Other agents may be offline. Delegate code-changing work by handing off when appropriate; do not infer availability from team configuration or prior chat history.
 
@@ -326,6 +326,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       \`\`\`bash
       chatroom handoff view-template --from="solo" --to="user" --mode="<chat|code>" --team-id="solo"
       chatroom handoff view-template --from="solo" --to="architect" --mode="<chat|code>" --team-id="solo"
+      chatroom handoff view-template --from="solo" --to="prompt-engineer" --mode="<chat|code>" --team-id="solo"
       chatroom handoff view-template --from="solo" --to="product-manager" --mode="<chat|code>" --team-id="solo"
       chatroom handoff view-template --from="solo" --to="uiux-engineer" --mode="<chat|code>" --team-id="solo"
       chatroom handoff view-template --from="solo" --to="triage" --mode="<chat|code>" --team-id="solo"
@@ -379,7 +380,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       6. Complete → hand off to user with Proof of Completion verified (requirements + evidence attested) (in \`chat\` mode, verify the same way and reply concisely)
 
       ### Handoff Options
-      Available targets: product-manager, architect, triage, uiux-engineer, verifier, user
+      Available targets: product-manager, architect, prompt-engineer, triage, uiux-engineer, verifier, user
 
       ### Commands
 

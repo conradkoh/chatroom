@@ -91,6 +91,7 @@ const teamFacts = [
     ephemeralRoles: [
       'product-manager',
       'architect',
+      'prompt-engineer',
       'researcher',
       'triage',
       'reviewer',
@@ -102,7 +103,14 @@ const teamFacts = [
   {
     teamId: 'solo',
     permanentRoles: ['solo'],
-    ephemeralRoles: ['product-manager', 'architect', 'triage', 'uiux-engineer', 'verifier'],
+    ephemeralRoles: [
+      'product-manager',
+      'architect',
+      'prompt-engineer',
+      'triage',
+      'uiux-engineer',
+      'verifier',
+    ],
   },
 ] as const;
 
@@ -288,6 +296,6 @@ describe('WorkspaceInlineAgentListPanel canonical directory rendering', () => {
     mockBoundaries(getTeamStructure({ teamId: 'duo' }));
     render(<WorkspaceInlineAgentListPanel chatroomId={workspaceContext.chatroomId} />);
 
-    expect(screen.getByText('Ephemeral (8)')).toBeInTheDocument();
+    expect(screen.getByText('Ephemeral (9)')).toBeInTheDocument();
   });
 });

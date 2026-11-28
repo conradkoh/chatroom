@@ -11,6 +11,7 @@ import { trioBuilderHandoffContract } from './builder';
 import { trioCoordinatorHandoffContract } from './coordinator';
 import { trioGameAssetDesignerHandoffContract } from './game-asset-designer';
 import { trioProductManagerHandoffContract } from './product-manager';
+import { trioPromptEngineerHandoffContract } from './prompt-engineer';
 import { trioResearcherHandoffContract } from './researcher';
 import { trioReviewerHandoffContract } from './reviewer';
 import { trioSpecifierHandoffContract } from './specifier';
@@ -25,12 +26,13 @@ import type {
 
 export type { HandoffTemplateQuery as TrioHandoffTemplateQuery } from '../../../cli/handoff-templates/contracts';
 
-/** Role-owned trio catalog, including ephemeral architect, product manager, researcher, triage, reviewer, UI/UX, game asset designer, and verifier roles. */
+/** Role-owned trio catalog, including ephemeral architect, prompt engineer, product manager, researcher, triage, reviewer, UI/UX, game asset designer, and verifier roles. */
 export const TRIO_ROLE_HANDOFF_CATALOG = {
   coordinator: trioCoordinatorHandoffContract,
   specifier: trioSpecifierHandoffContract,
   builder: trioBuilderHandoffContract,
   architect: trioArchitectHandoffContract,
+  'prompt-engineer': trioPromptEngineerHandoffContract,
   'product-manager': trioProductManagerHandoffContract,
   researcher: trioResearcherHandoffContract,
   reviewer: trioReviewerHandoffContract,

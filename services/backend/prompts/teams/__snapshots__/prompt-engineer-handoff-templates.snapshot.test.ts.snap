@@ -1,0 +1,238 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`prompt-engineer handoff template snapshots > 'duo' 'planner' → 'prompt-engineer' renders the complete contract 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`prompt-engineer\` agent receives only the text inside your \`handoff --next-role="prompt-engineer"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`planner\` → \`prompt-engineer\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+The automatically injected \`<user-message>\` is the authoritative request. Pass the agent behavior the prompt must produce, stop producing, or hand off differently; the roles and teams affected; observed agent output that motivates the change (quote only the lines that carry the signal and redact secrets as \`<REDACTED>\`); the prompt files or symbols already suspected; and constraints (prior decisions, the specialist decisions already accepted). Ask the prompt engineer for a prompt-change brief only: do not edit files, run builds, tests, or snapshot updates, or publish plans.
+
+### When to use the prompt engineer
+
+Use it when agent-facing prompt text (role identity, role guidance, team context, handoff templates, or routing and delegation prose) needs a design decision:
+- a new role's prompt text;
+- a rewording that changes what an agent does or hands off;
+- an edit to prompt text that several roles or teams render.
+
+Skip it for a mechanical edit of already-decided text: a typo, a renamed identifier, or a snapshot update for agreed text. When the change also alters a handoff contract, API, or schema, \`architect\` designs that first.
+
+After designing, the prompt engineer must return the prompt-change brief to \`planner\` with the normal handoff command.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="planner" --next-role="prompt-engineer" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`
+
+### Grounding reference
+Add this section to your message. Replace the placeholder with the id of the newest grounding message you published for this request, or write \`None.\`.
+
+\`\`\`markdown
+## Grounding
+Grounding ID: <groundingId>, or \`None.\`
+Read it: \`chatroom grounding read --chatroom-id="<chatroom-id>" --role="prompt-engineer" --grounding-id="<groundingId>"\`
+It records factual observations from an earlier pass.
+\`\`\`"
+`;
+
+exports[`prompt-engineer handoff template snapshots > 'duo' 'prompt-engineer' → 'planner' renders the complete contract 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`planner\` agent receives only the text inside your \`handoff --next-role="planner"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`prompt-engineer\` → \`planner\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+Instructions (not part of the message): Return one complete prompt-change brief for the authoritative request. The prompt engineer is advisory: do not edit files, run builds, tests, or snapshot updates, or publish plans. Decide the wording yourself; do not hand \`planner\` alternative drafts. Cite concrete paths and symbols. If nothing should change, or the requested change would make a prompt contradict itself or another rule, say so in \`## Summary\`, write exactly \`No change proposed.\` under \`## Proposed text\`, and explain why. Use the exact sections below, in this order.
+
+## Summary
+<state the behavior change in two to four sentences and whether text is proposed>
+
+## Prompt surfaces affected
+<one line per changed path: the path, the unit that owns it (for example a team folder or a shared module), and its kind (role identity, role guidance, team context, handoff template, routing or delegation prose)>
+
+## Proposed text
+<for each path: the current excerpt, then the exact proposed text, ready to paste; one instruction per behavior, using the terms the surrounding prompt already uses>
+
+## Cross-team effect
+<each team and role whose rendered prompt changes, and why; an edit to one team's own prompt must change no other team; write exactly \`None observed.\` when only the named unit changes>
+
+## Snapshots and guards affected
+<each snapshot or test that changes or must stay unchanged, and the import or isolation rule the change must respect>
+
+## Acceptance criteria
+<testable statements, one per bullet, each naming the rendered prompt and the text it must or must not contain>
+
+## Open questions
+<only a product-scope question for \`product-manager\`, a contract or schema question for \`architect\`, or an item that meets the escalation criteria for \`user\`; write exactly \`None observed.\` if none remain>
+
+## Work completed
+<paths, decision records under \`memory/\` and \`docs/\`, and snapshots inspected, with what each showed>
+
+Instructions after the body (not part of the message): run the normal handoff command to \`planner\` with the complete body above, then stop.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="prompt-engineer" --next-role="planner" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;
+
+exports[`prompt-engineer handoff template snapshots > 'solo' 'prompt-engineer' → 'solo' renders the complete contract 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`solo\` agent receives only the text inside your \`handoff --next-role="solo"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`prompt-engineer\` → \`solo\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+Instructions (not part of the message): Return one complete prompt-change brief for the authoritative request. The prompt engineer is advisory: do not edit files, run builds, tests, or snapshot updates, or publish plans. Decide the wording yourself; do not hand \`solo\` alternative drafts. Cite concrete paths and symbols. If nothing should change, or the requested change would make a prompt contradict itself or another rule, say so in \`## Summary\`, write exactly \`No change proposed.\` under \`## Proposed text\`, and explain why. Use the exact sections below, in this order.
+
+## Summary
+<state the behavior change in two to four sentences and whether text is proposed>
+
+## Prompt surfaces affected
+<one line per changed path: the path, the unit that owns it (for example a team folder or a shared module), and its kind (role identity, role guidance, team context, handoff template, routing or delegation prose)>
+
+## Proposed text
+<for each path: the current excerpt, then the exact proposed text, ready to paste; one instruction per behavior, using the terms the surrounding prompt already uses>
+
+## Cross-team effect
+<each team and role whose rendered prompt changes, and why; an edit to one team's own prompt must change no other team; write exactly \`None observed.\` when only the named unit changes>
+
+## Snapshots and guards affected
+<each snapshot or test that changes or must stay unchanged, and the import or isolation rule the change must respect>
+
+## Acceptance criteria
+<testable statements, one per bullet, each naming the rendered prompt and the text it must or must not contain>
+
+## Open questions
+<only a product-scope question for \`product-manager\`, a contract or schema question for \`architect\`, or an item that meets the escalation criteria for \`user\`; write exactly \`None observed.\` if none remain>
+
+## Work completed
+<paths, decision records under \`memory/\` and \`docs/\`, and snapshots inspected, with what each showed>
+
+Instructions after the body (not part of the message): run the normal handoff command to \`solo\` with the complete body above, then stop.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="prompt-engineer" --next-role="solo" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;
+
+exports[`prompt-engineer handoff template snapshots > 'solo' 'solo' → 'prompt-engineer' renders the complete contract 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`prompt-engineer\` agent receives only the text inside your \`handoff --next-role="prompt-engineer"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`solo\` → \`prompt-engineer\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+The automatically injected \`<user-message>\` is the authoritative request. Pass the agent behavior the prompt must produce, stop producing, or hand off differently; the roles and teams affected; observed agent output that motivates the change (quote only the lines that carry the signal and redact secrets as \`<REDACTED>\`); the prompt files or symbols already suspected; and constraints (prior decisions, the specialist decisions already accepted). Ask the prompt engineer for a prompt-change brief only: do not edit files, run builds, tests, or snapshot updates, or publish plans.
+
+### When to use the prompt engineer
+
+Use it when agent-facing prompt text (role identity, role guidance, team context, handoff templates, or routing and delegation prose) needs a design decision:
+- a new role's prompt text;
+- a rewording that changes what an agent does or hands off;
+- an edit to prompt text that several roles or teams render.
+
+Skip it for a mechanical edit of already-decided text: a typo, a renamed identifier, or a snapshot update for agreed text. When the change also alters a handoff contract, API, or schema, \`architect\` designs that first.
+
+After designing, the prompt engineer must return the prompt-change brief to \`solo\` with the normal handoff command.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="solo" --next-role="prompt-engineer" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`
+
+### Grounding reference
+Add this section to your message. Replace the placeholder with the id of the newest grounding message you published for this request, or write \`None.\`.
+
+\`\`\`markdown
+## Grounding
+Grounding ID: <groundingId>, or \`None.\`
+Read it: \`chatroom grounding read --chatroom-id="<chatroom-id>" --role="prompt-engineer" --grounding-id="<groundingId>"\`
+It records factual observations from an earlier pass.
+\`\`\`"
+`;
+
+exports[`prompt-engineer handoff template snapshots > 'trio' 'coordinator' → 'prompt-engineer' renders the complete contract 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`prompt-engineer\` agent receives only the text inside your \`handoff --next-role="prompt-engineer"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`coordinator\` → \`prompt-engineer\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+The automatically injected \`<user-message>\` is the authoritative request. Pass the agent behavior the prompt must produce, stop producing, or hand off differently; the roles and teams affected; observed agent output that motivates the change (quote only the lines that carry the signal and redact secrets as \`<REDACTED>\`); the prompt files or symbols already suspected; and constraints (prior decisions, the specialist decisions already accepted). Ask the prompt engineer for a prompt-change brief only: do not edit files, run builds, tests, or snapshot updates, or publish plans.
+
+### When to use the prompt engineer
+
+Use it when agent-facing prompt text (role identity, role guidance, team context, handoff templates, or routing and delegation prose) needs a design decision:
+- a new role's prompt text;
+- a rewording that changes what an agent does or hands off;
+- an edit to prompt text that several roles or teams render.
+
+Skip it for a mechanical edit of already-decided text: a typo, a renamed identifier, or a snapshot update for agreed text. When the change also alters a handoff contract, API, or schema, \`architect\` designs that first.
+
+After designing, the prompt engineer must return the prompt-change brief to \`coordinator\` with the normal handoff command.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="coordinator" --next-role="prompt-engineer" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`
+
+### Grounding reference
+Add this section to your message. Replace the placeholder with the id of the newest grounding message you published for this request, or write \`None.\`.
+
+\`\`\`markdown
+## Grounding
+Grounding ID: <groundingId>, or \`None.\`
+Read it: \`chatroom grounding read --chatroom-id="<chatroom-id>" --role="prompt-engineer" --grounding-id="<groundingId>"\`
+It records factual observations from an earlier pass.
+\`\`\`"
+`;
+
+exports[`prompt-engineer handoff template snapshots > 'trio' 'prompt-engineer' → 'coordinator' renders the complete contract 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`coordinator\` agent receives only the text inside your \`handoff --next-role="coordinator"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`prompt-engineer\` → \`coordinator\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+Instructions (not part of the message): Return one complete prompt-change brief for the authoritative request. The prompt engineer is advisory: do not edit files, run builds, tests, or snapshot updates, or publish plans. Decide the wording yourself; do not hand \`coordinator\` alternative drafts. Cite concrete paths and symbols. If nothing should change, or the requested change would make a prompt contradict itself or another rule, say so in \`## Summary\`, write exactly \`No change proposed.\` under \`## Proposed text\`, and explain why. Use the exact sections below, in this order.
+
+## Summary
+<state the behavior change in two to four sentences and whether text is proposed>
+
+## Prompt surfaces affected
+<one line per changed path: the path, the unit that owns it (for example a team folder or a shared module), and its kind (role identity, role guidance, team context, handoff template, routing or delegation prose)>
+
+## Proposed text
+<for each path: the current excerpt, then the exact proposed text, ready to paste; one instruction per behavior, using the terms the surrounding prompt already uses>
+
+## Cross-team effect
+<each team and role whose rendered prompt changes, and why; an edit to one team's own prompt must change no other team; write exactly \`None observed.\` when only the named unit changes>
+
+## Snapshots and guards affected
+<each snapshot or test that changes or must stay unchanged, and the import or isolation rule the change must respect>
+
+## Acceptance criteria
+<testable statements, one per bullet, each naming the rendered prompt and the text it must or must not contain>
+
+## Open questions
+<only a product-scope question for \`product-manager\`, a contract or schema question for \`architect\`, or an item that meets the escalation criteria for \`user\`; write exactly \`None observed.\` if none remain>
+
+## Work completed
+<paths, decision records under \`memory/\` and \`docs/\`, and snapshots inspected, with what each showed>
+
+Instructions after the body (not part of the message): run the normal handoff command to \`coordinator\` with the complete body above, then stop.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="prompt-engineer" --next-role="coordinator" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;

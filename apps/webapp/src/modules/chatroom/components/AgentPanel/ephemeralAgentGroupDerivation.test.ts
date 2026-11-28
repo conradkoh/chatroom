@@ -16,6 +16,7 @@ import type { AgentStatus } from '../../hooks/useAgentStatuses';
 const DUO_ROLES = [
   'product-manager',
   'architect',
+  'prompt-engineer',
   'researcher',
   'triage',
   'reviewer',
@@ -67,6 +68,7 @@ function status(
 
 const NON_ASSIGNED_MEMBERS = [
   'product-manager',
+  'prompt-engineer',
   'researcher',
   'reviewer',
   'uiux-engineer',
@@ -85,7 +87,7 @@ describe('deriveEphemeralAgentGroups', () => {
 
     expect(groups.outsideRoles).toEqual(['architect', 'triage']);
     expect(groups.memberRoles).toEqual([...NON_ASSIGNED_MEMBERS]);
-    expect(groups.counts).toEqual({ online: 1, offline: 6, errored: 1, total: 8 });
+    expect(groups.counts).toEqual({ online: 1, offline: 7, errored: 1, total: 9 });
   });
 
   it.each(['starting', 'waiting', 'offline', 'error', 'working'] as const)(
@@ -109,7 +111,7 @@ describe('deriveEphemeralAgentGroups', () => {
 
     expect(groups.outsideRoles).toEqual([]);
     expect(groups.memberRoles).toEqual([...DUO_ROLES]);
-    expect(groups.counts).toEqual({ online: 1, offline: 6, errored: 1, total: 8 });
+    expect(groups.counts).toEqual({ online: 1, offline: 7, errored: 1, total: 9 });
   });
 
   it('follows ephemeral role order, not status array order', () => {
@@ -136,7 +138,7 @@ describe('deriveEphemeralAgentGroups', () => {
 
     const groups = deriveEphemeralAgentGroups(DUO_ROLES, statuses, false);
 
-    expect(groups.counts).toEqual({ online: 4, offline: 3, errored: 1, total: 8 });
+    expect(groups.counts).toEqual({ online: 4, offline: 4, errored: 1, total: 9 });
     expect(groups.outsideRoles).toEqual(['architect', 'triage']);
     expect(groups.memberRoles).toEqual([...NON_ASSIGNED_MEMBERS]);
   });
@@ -180,7 +182,7 @@ describe('deriveEphemeralAgentGroups', () => {
   it('counts agents with no status row as offline', () => {
     const { counts } = deriveEphemeralAgentGroups(DUO_ROLES, [], false);
 
-    expect(counts).toEqual({ online: 0, offline: 8, errored: 0, total: 8 });
+    expect(counts).toEqual({ online: 0, offline: 9, errored: 0, total: 9 });
   });
 
   it('moves every role outside when all have an assigned task', () => {
@@ -190,7 +192,7 @@ describe('deriveEphemeralAgentGroups', () => {
 
     expect(groups.outsideRoles).toEqual([...DUO_ROLES]);
     expect(groups.memberRoles).toEqual([]);
-    expect(groups.counts).toEqual({ online: 8, offline: 0, errored: 0, total: 8 });
+    expect(groups.counts).toEqual({ online: 9, offline: 0, errored: 0, total: 9 });
   });
 });
 

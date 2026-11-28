@@ -9,6 +9,7 @@
 
 import { soloArchitectHandoffContract } from './architect';
 import { soloProductManagerHandoffContract } from './product-manager';
+import { soloPromptEngineerHandoffContract } from './prompt-engineer';
 import { soloHandoffContract } from './solo';
 import { soloTriageHandoffContract } from './triage';
 import { soloUiuxEngineerHandoffContract } from './uiux-engineer';
@@ -21,10 +22,11 @@ import { validateBuiltinTeamRoleHandoffContracts } from '../../../cli/handoff-te
 
 export type { HandoffTemplateQuery as SoloHandoffTemplateQuery } from '../../../cli/handoff-templates/contracts';
 
-/** Role-owned solo catalog, including ephemeral architect, product manager, triage, UI/UX, and verifier roles. */
+/** Role-owned solo catalog, including ephemeral architect, prompt engineer, product manager, triage, UI/UX, and verifier roles. */
 export const SOLO_ROLE_HANDOFF_CATALOG = {
   solo: soloHandoffContract,
   architect: soloArchitectHandoffContract,
+  'prompt-engineer': soloPromptEngineerHandoffContract,
   'product-manager': soloProductManagerHandoffContract,
   'uiux-engineer': soloUiuxEngineerHandoffContract,
   triage: soloTriageHandoffContract,

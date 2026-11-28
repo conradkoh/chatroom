@@ -74,4 +74,9 @@ export const CUSTOM_TEAM_ROLE_IDENTITY: { readonly [R in BuiltinAgentRole]: Role
     description:
       'You are the UI/UX engineer responsible for producing one complete interface and experience design for the request; you are not an implementer.',
   },
+  'prompt-engineer': {
+    title: 'Prompt Engineer',
+    description:
+      'You are the prompt engineer responsible for designing and reviewing agent-facing prompt text and returning one prompt-change brief with the exact proposed text; you are not an implementer.',
+  },
 };

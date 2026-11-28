@@ -82,7 +82,7 @@ export const TEAM_PRESETS = {
     structureId: TEAM_STRUCTURE_IDS.duo,
     name: 'Duo',
     description:
-      'A planner and builder working as a pair, planner as coordinator, with optional ephemeral architect, product-manager, researcher, triage, reviewer, uiux-engineer, game-asset-designer, and verifier roles',
+      'A planner and builder working as a pair, planner as coordinator, with optional ephemeral architect, prompt-engineer, product-manager, researcher, triage, reviewer, uiux-engineer, game-asset-designer, and verifier roles',
     roles: getBuiltinRolesForTeam('duo'),
     entryPoint: 'planner',
     handoffGraph: 'advisory',
@@ -92,7 +92,7 @@ export const TEAM_PRESETS = {
     structureId: TEAM_STRUCTURE_IDS.solo,
     name: 'Solo',
     description:
-      'A single agent working independently, with optional ephemeral architect, product-manager, triage, uiux-engineer, and verifier roles',
+      'A single agent working independently, with optional ephemeral architect, prompt-engineer, product-manager, triage, uiux-engineer, and verifier roles',
     roles: getBuiltinRolesForTeam('solo'),
     entryPoint: 'solo',
     handoffGraph: 'advisory',
@@ -102,7 +102,7 @@ export const TEAM_PRESETS = {
     structureId: TEAM_STRUCTURE_IDS.trio,
     name: 'Trio',
     description:
-      'A coordinator, specifier, and builder: the coordinator owns the user conversation and routes all work, the specifier turns each work package into one code-level builder brief, with optional ephemeral architect, product-manager, researcher, triage, reviewer, uiux-engineer, game-asset-designer, and verifier roles',
+      'A coordinator, specifier, and builder: the coordinator owns the user conversation and routes all work, the specifier turns each work package into one code-level builder brief, with optional ephemeral architect, prompt-engineer, product-manager, researcher, triage, reviewer, uiux-engineer, game-asset-designer, and verifier roles',
     roles: getBuiltinRolesForTeam('trio'),
     entryPoint: 'coordinator',
     handoffGraph: 'enforced',
