@@ -41,7 +41,7 @@ export function getPromptEngineerToEntryPointHandoffTemplate(query: HandoffTempl
 <one line per role the change touches: the role, the responsibility it owns, and the outcome it hands to another role>
 
 ## Cross-role interactions
-<the high-level sequence: which role produces work for which other role, in what order, and what each interaction must carry>
+<the high-level sequence: which role produces work for which other role, in what order, and what each interaction must carry; write exactly \`None observed.\` when the change crosses no role boundary>
 
 ## Handoff context audit
 <for each receiving role: the context it actually gets through the handoff, how it learns the decisions made before it, and where an assumption about missing context can start; write exactly \`None observed.\` when the change crosses no role boundary>

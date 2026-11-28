@@ -29,17 +29,18 @@ describe('prompt-engineer guidance snapshots', () => {
   });
 
   test('encodes the multi-role and single-prompt success factors without repo-specific paths', () => {
-    const guidance = getPromptEngineerGuidance({
+    const rendered = getPromptEngineerGuidance({
       nativeIntegration: false,
       recipientRole: 'planner',
     });
+    const guidance = rendered.toLowerCase();
 
     for (const phrase of [
-      'Inventory the roles the change touches',
-      'Map the high-level cross-role interactions',
-      'Audit the handoff context',
+      'inventory the roles the change touches',
+      'map the high-level cross-role interactions',
+      'audit the handoff context',
       'structured information handoffs',
-      'Name the audit test that encodes the cross-role script',
+      'name the audit test that encodes the cross-role script',
       'keep the prompt concise',
       'positive, specific instruction',
       'strict must-avoid case',
@@ -47,6 +48,9 @@ describe('prompt-engineer guidance snapshots', () => {
       expect(guidance).toContain(phrase);
     }
 
-    expect(guidance).not.toMatch(/memory\/|docs\/|apps\/|services\/|packages\//);
+    // The audit-test factor applies only when the change crosses a role boundary.
+    expect(guidance).toContain('when the change crosses a role boundary');
+
+    expect(rendered).not.toMatch(/memory\/|docs\/|apps\/|services\/|packages\//);
   });
 });

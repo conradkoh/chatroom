@@ -89,4 +89,15 @@ describe('prompt-engineer handoff template snapshots', () => {
     expect(template).toContain('next-role="coordinator"');
     expect(template).not.toContain('plan publish');
   });
+
+  test('codes the cross-role no-op for a change with no role boundary', () => {
+    const template = renderPair({ teamId: 'duo', fromRole: 'prompt-engineer', toRole: 'planner' });
+    const start = template.indexOf('## Cross-role interactions');
+    const end = template.indexOf('## Prompt surfaces affected');
+    const section = template.slice(start, end);
+
+    expect(section).toContain(
+      'write exactly `None observed.` when the change crosses no role boundary'
+    );
+  });
 });
