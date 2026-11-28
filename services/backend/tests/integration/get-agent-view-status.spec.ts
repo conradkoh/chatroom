@@ -37,6 +37,7 @@ describe('getAgentViewStatus', () => {
       'stopped',
       'stopped',
       'stopped',
+      'stopped',
     ]);
   });
 
@@ -87,6 +88,7 @@ describe('getAgentViewStatus — fresh team', () => {
       'planner',
       'product-manager',
       'architect',
+      'prompt-engineer',
       'researcher',
       'triage',
       'reviewer',
@@ -95,7 +97,7 @@ describe('getAgentViewStatus — fresh team', () => {
       'verifier',
       'builder',
     ]);
-    expect(result!.agents).toHaveLength(10);
+    expect(result!.agents).toHaveLength(11);
     expect(result!.agents.every((a) => a.state === 'stopped')).toBe(true);
   });
 });
@@ -210,11 +212,12 @@ describe('getAgentViewStatus — stale roles', () => {
       teamStructureId: 'solo@1',
     });
     const result = await query(room);
-    expect(result!.agents).toHaveLength(6);
+    expect(result!.agents).toHaveLength(7);
     expect(result!.agents.map((a) => a.role)).toEqual([
       'solo',
       'product-manager',
       'architect',
+      'prompt-engineer',
       'triage',
       'uiux-engineer',
       'verifier',

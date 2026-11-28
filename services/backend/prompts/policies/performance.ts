@@ -84,13 +84,15 @@ These are general performance principles. Adapt to your codebase's specific requ
 
 ### Platform-Specific Considerations
 
-**Next.js:**
+Treat each stack below as an example. If your project uses it, apply the checks; otherwise map them to the equivalent in your project.
+
+**If your project uses Next.js:**
 - Server Components for static content
 - Client Components for interactive elements
 - Image optimization with next/image
 - Route segment config for caching
 
-**Convex:**
+**If your project uses Convex:**
 - Query indexing for filtered/sorted data
 - Pagination for large result sets
 - Optimistic updates for better UX

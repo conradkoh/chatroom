@@ -5,7 +5,7 @@ import type { HandoffTemplateQuery } from '../cli/handoff-templates/contracts';
 export function getEntryPointToReviewerHandoffTemplate(query: HandoffTemplateQuery): string {
   const entryPoint = query.fromRole;
 
-  return `Pass the review target and the review focus. State the exact commit range, branch, pull request, or file list to inspect, the focus areas (for example security, correctness, or test quality), and any known context or constraints. Name the spec the change must satisfy (the user's request, an issue, or a file under \`docs/\`), or write \`no spec available\` when there is none. Ask the reviewer for a report only: do not edit files, run builds or tests, or implement fixes.
+  return `Pass the review target and the review focus. State the exact commit range, branch, pull request, or file list to inspect, the focus areas (for example security, correctness, or test quality), and any known context or constraints. Name the spec the change must satisfy (the user's request, an issue, or a specification document in the repository), or write \`no spec available\` when there is none. Ask the reviewer for a report only: do not edit files, run builds or tests, or implement fixes.
 
 ### When to review
 
@@ -36,7 +36,7 @@ export function getReviewerToEntryPointHandoffTemplate(query: HandoffTemplateQue
 
 What a good review covers:
 - Read the actual files and the surrounding code the diff depends on, not summaries.
-- Judge the target on three axes: \`standards\` (the repository's documented standards, such as \`CONTRIBUTING.md\`, \`AGENTS.md\`, or \`CLAUDE.md\` when present, and the conventions of the surrounding code; cite the standard by file and rule), \`spec\` (the request, issue, or spec the planner named, recorded in \`## Review scope\`; quote the requirement), and \`defect\` (a demonstrable bug or security flaw, cited by reproduction or code path). Tag every issue with its axis.
+- Judge the target on three axes: \`standards\` (the repository's documented standards, for example its contributing guide and agent guidance files when present, and the conventions of the surrounding code; cite the standard by file and rule), \`spec\` (the request, issue, or spec the planner named, recorded in \`## Review scope\`; quote the requirement), and \`defect\` (a demonstrable bug or security flaw, cited by reproduction or code path). Tag every issue with its axis.
 - Cite the repository-relative \`file:line\` or line range for every issue, give the evidence (the quoted line or the code path), and suggest a concrete, small fix.
 - Calibrate severity: \`blocker\` for exposure or modification of another user's data, a broken build, or a violated must-have spec requirement; \`major\` for a real defect or a non-blocking spec miss, including a missing or wrong auth check that exposes no other user's data (the endpoint audit's Reporting rule takes precedence for auth gaps); \`minor\` for a real but low-impact issue; \`nit\` for style only. Group the issues by severity with blockers first.
 - Report only what you observed; mark anything unverified as such and append \`(judgement)\` to a heuristic call that is neither a documented-standard breach nor a \`defect\`.
@@ -44,7 +44,7 @@ What a good review covers:
 - Stay within the stated focus, and do not duplicate issues.
 - Name what you did not check under \`## Not reviewed\`.
 
-Audit authentication and authorization for every backend endpoint in review scope, regardless of the stated focus. An endpoint is any exported Convex query, mutation, or action, HTTP route, or API handler that the target adds or changes, plus any such endpoint the changed code calls or exposes. For each endpoint, check:
+Audit authentication and authorization for every backend endpoint in review scope, regardless of the stated focus. An endpoint is any exported backend query, mutation, or action, HTTP route, or API handler that the target adds or changes, plus any such endpoint the changed code calls or exposes. For each endpoint, check:
 - **Authentication:** the endpoint establishes the caller's identity before it reads or writes data, using the shared auth helper the sibling endpoints use. It does not trust a caller-supplied user id, role, or team id as proof of identity.
 - **Authorization:** the endpoint checks that the authenticated caller may act on the specific resource the request names (for example chatroom membership, ownership, or role) before it returns data or changes state. A login check alone is not sufficient.
 - **Coverage:** no code path returns or changes data before its check runs. An internal helper that skips checks may be called only from endpoints that already performed them.

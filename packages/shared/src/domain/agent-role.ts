@@ -49,6 +49,14 @@ const roleMetadata = {
       { teamId: 'trio', order: 20 },
     ],
   },
+  'prompt-engineer': {
+    tags: [AgentRoleLifecycleTag.Ephemeral],
+    teams: [
+      { teamId: 'duo', order: 22 },
+      { teamId: 'solo', order: 22 },
+      { teamId: 'trio', order: 22 },
+    ],
+  },
   triage: {
     tags: [AgentRoleLifecycleTag.Ephemeral],
     teams: [

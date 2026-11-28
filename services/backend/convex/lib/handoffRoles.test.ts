@@ -87,6 +87,7 @@ describe('buildAvailableHandoffRoles', () => {
       'user',
       'specifier',
       'architect',
+      'prompt-engineer',
       'product-manager',
       'uiux-engineer',
       'triage',
@@ -104,6 +105,17 @@ describe('buildAvailableHandoffRoles', () => {
         teamId: 'trio',
         teamRoles: ['coordinator', 'specifier', 'builder'],
         currentRole: 'architect',
+        fallbackParticipantRoles: [],
+      })
+    ).toEqual(['coordinator']);
+  });
+
+  test('advertises the trio coordinator target for the prompt engineer', () => {
+    expect(
+      buildAvailableHandoffRoles({
+        teamId: 'trio',
+        teamRoles: ['coordinator', 'specifier', 'builder'],
+        currentRole: 'prompt-engineer',
         fallbackParticipantRoles: [],
       })
     ).toEqual(['coordinator']);

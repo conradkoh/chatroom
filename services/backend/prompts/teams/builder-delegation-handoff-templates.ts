@@ -31,12 +31,12 @@ function getVerificationKindFlagLine(kind: VerificationKind): string {
   return `- \`${kind.label}\` — ${choice} Command: \`${kind.command}\`${note}`;
 }
 
-const WORKSPACE_PROSE_LINE =
-  '`<workspace>` is a directory: `services/backend`, `apps/webapp`, `packages/cli`, or `packages/shared`. `--filter` takes the package name: `@workspace/backend`, `@workspace/webapp`, `chatroom-cli`, or `@workspace/shared`.';
+const PLACEHOLDER_PROSE_LINE =
+  "`<workspace>` and `<package>` are placeholders: replace them with the project's own directory and package name. Take every other command, flag, and file list from the target repository's package scripts or its agent guidance files, and do not hand off the brief while it still contains a `<…>` placeholder.";
 
 /** Shared tail of the full-scope definition; differs only in the scope label. */
 const FULL_SCOPE_BODY =
-  'each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed, typecheck and lint of those workspaces (`pnpm lint` for the whole repository), and every e2e spec this brief affects.';
+  'each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed, typecheck and lint of those workspaces (lint across the whole repository), and every e2e spec this brief affects.';
 
 function getScopeLines(singlePass: boolean): string[] {
   if (singlePass) {
@@ -57,7 +57,7 @@ function getVerificationFlagsSection(singlePass: boolean): string {
     'Mark each kind `required` or `not applicable: <reason>`. The builder runs every `required` kind with the command shown, always runs typecheck and lint, and records each `not applicable` kind in its hand-back.',
     ...getScopeLines(singlePass),
     ...VERIFICATION_KINDS.map(getVerificationKindFlagLine),
-    WORKSPACE_PROSE_LINE,
+    PLACEHOLDER_PROSE_LINE,
     '',
     '',
   ].join('\n');
@@ -139,7 +139,7 @@ Guidance for you (not part of the message): ${roundGuidance}
 List **every** file in this ${unit}. Mark each file **(Required)** or **(Optional)** — all Required files must land before PR. For each file, state the exact change and paste the code the builder should match (no guessing).
 ${getFileReferenceGuidanceComment()}
 
-### \`apps/webapp/src/path/to/file.ts\`
+### \`src/path/to/file.ts\`
 **Change:** <precisely what to add, modify, or remove in this file>
 
 \`\`\`typescript
@@ -147,7 +147,7 @@ ${getFileReferenceGuidanceComment()}
 // Enough that the builder can implement this file without inventing structure
 \`\`\`
 
-### \`apps/webapp/src/path/to/other-file.ts\`
+### \`src/path/to/other-file.ts\`
 **Change:** <...>
 
 \`\`\`typescript

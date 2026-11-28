@@ -150,11 +150,12 @@ describe('getHandoffTemplate — role-owned catalog compatibility', () => {
 });
 
 describe('listHandoffTemplatePairs', () => {
-  test('lists the 19 duo pairs in contract order', () => {
+  test('lists the 21 duo pairs in contract order', () => {
     expect(listHandoffTemplatePairs('duo')).toEqual([
       { teamId: 'duo', fromRole: 'planner', toRole: 'user' },
       { teamId: 'duo', fromRole: 'planner', toRole: 'builder' },
       { teamId: 'duo', fromRole: 'planner', toRole: 'architect' },
+      { teamId: 'duo', fromRole: 'planner', toRole: 'prompt-engineer' },
       { teamId: 'duo', fromRole: 'planner', toRole: 'product-manager' },
       { teamId: 'duo', fromRole: 'planner', toRole: 'uiux-engineer' },
       { teamId: 'duo', fromRole: 'planner', toRole: 'triage' },
@@ -164,6 +165,7 @@ describe('listHandoffTemplatePairs', () => {
       { teamId: 'duo', fromRole: 'planner', toRole: 'verifier' },
       { teamId: 'duo', fromRole: 'builder', toRole: 'planner' },
       { teamId: 'duo', fromRole: 'architect', toRole: 'planner' },
+      { teamId: 'duo', fromRole: 'prompt-engineer', toRole: 'planner' },
       { teamId: 'duo', fromRole: 'product-manager', toRole: 'planner' },
       { teamId: 'duo', fromRole: 'researcher', toRole: 'planner' },
       { teamId: 'duo', fromRole: 'reviewer', toRole: 'planner' },
@@ -174,15 +176,17 @@ describe('listHandoffTemplatePairs', () => {
     ]);
   });
 
-  test('lists the 11 solo pairs in contract order', () => {
+  test('lists the 13 solo pairs in contract order', () => {
     expect(listHandoffTemplatePairs('solo')).toEqual([
       { teamId: 'solo', fromRole: 'solo', toRole: 'user' },
       { teamId: 'solo', fromRole: 'solo', toRole: 'architect' },
+      { teamId: 'solo', fromRole: 'solo', toRole: 'prompt-engineer' },
       { teamId: 'solo', fromRole: 'solo', toRole: 'product-manager' },
       { teamId: 'solo', fromRole: 'solo', toRole: 'uiux-engineer' },
       { teamId: 'solo', fromRole: 'solo', toRole: 'triage' },
       { teamId: 'solo', fromRole: 'solo', toRole: 'verifier' },
       { teamId: 'solo', fromRole: 'architect', toRole: 'solo' },
+      { teamId: 'solo', fromRole: 'prompt-engineer', toRole: 'solo' },
       { teamId: 'solo', fromRole: 'product-manager', toRole: 'solo' },
       { teamId: 'solo', fromRole: 'uiux-engineer', toRole: 'solo' },
       { teamId: 'solo', fromRole: 'triage', toRole: 'solo' },
@@ -212,8 +216,8 @@ describe('renderHandoffTemplate — callout and pair-title invariants', () => {
     ...listHandoffTemplatePairs('solo'),
   ] as const;
 
-  test('covers every permanent pair (19 duo + 11 solo)', () => {
-    expect(ALL_PAIRS).toHaveLength(30);
+  test('covers every permanent pair (21 duo + 13 solo)', () => {
+    expect(ALL_PAIRS).toHaveLength(34);
   });
 
   for (const pair of ALL_PAIRS) {
@@ -501,6 +505,14 @@ describe('trio handoff graph', () => {
         ),
       'UNKNOWN_PAIR'
     );
+    expectPairError(
+      () =>
+        resolveHandoffTemplateSelection(
+          { from: 'prompt-engineer', to: 'builder', mode: 'code', teamId: 'trio' },
+          'view-template'
+        ),
+      'UNKNOWN_PAIR'
+    );
   });
 
   test('rejects a role that is not a trio member', () => {
@@ -531,6 +543,7 @@ describe('getEnforcedHandoffTargets', () => {
   test('returns contract targets in returnsTo order for enforced teams', () => {
     expect(getEnforcedHandoffTargets('trio', 'specifier')).toEqual(['coordinator', 'builder']);
     expect(getEnforcedHandoffTargets('trio@1', 'Builder')).toEqual(['specifier']);
+    expect(getEnforcedHandoffTargets('trio', 'prompt-engineer')).toEqual(['coordinator']);
   });
 
   test('returns null for advisory teams, non-members, and unknown teams', () => {

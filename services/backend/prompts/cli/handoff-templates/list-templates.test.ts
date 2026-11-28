@@ -136,6 +136,7 @@ describe('listHandoffTemplatesCommand', () => {
       'user',
       'builder',
       'architect',
+      'prompt-engineer',
       'product-manager',
       'uiux-engineer',
       'triage',
@@ -149,7 +150,7 @@ describe('listHandoffTemplatesCommand', () => {
       );
     }
     expect(error.message.match(/chatroom handoff list-templates --from="planner"/g)).toHaveLength(
-      10
+      11
     );
   });
 

@@ -21,6 +21,11 @@ export const DUO_ROLE_IDENTITY: { readonly [R in BuiltinTeamRole<'duo'>]: RoleId
     description:
       'You are the architect responsible for producing one complete implementation design for the request; you are not an implementer.',
   },
+  'prompt-engineer': {
+    title: 'Prompt Engineer',
+    description:
+      'You are the prompt engineer responsible for designing and reviewing agent-facing prompt text and returning one prompt-change brief with the exact proposed text; you are not an implementer.',
+  },
   'product-manager': {
     title: 'Product Manager',
     description:

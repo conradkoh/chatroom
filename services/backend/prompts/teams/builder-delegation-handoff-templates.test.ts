@@ -99,4 +99,16 @@ describe('getBuilderDelegationBriefTemplate', () => {
       }
     }
   );
+
+  test.each([false, true])(
+    'verification commands name their source and forbid unresolved placeholders (singlePass=%s)',
+    (singlePass) => {
+      const body = getBuilderDelegationBriefTemplate({ ...DUO_PLANNER, singlePass });
+
+      expect(body).toContain("target repository's package scripts or its agent guidance files");
+      expect(body).toContain(
+        'do not hand off the brief while it still contains a `<…>` placeholder'
+      );
+    }
+  );
 });

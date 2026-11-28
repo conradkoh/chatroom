@@ -8,7 +8,7 @@ export interface VerificationKind {
   readonly timingLabel: string;
   /** Lightweight kinds always run: a brief never marks them `not applicable`, and a hand-back never records them as `not run`. */
   readonly lightweight: boolean;
-  /** Command the brief author copies into the flag line. */
+  /** Placeholder command the brief author replaces with the command from the target repository's package scripts or agent guidance files. */
   readonly command: string;
   /** Optional extra sentence appended to the flag line. */
   readonly note?: string;
@@ -21,36 +21,34 @@ export const VERIFICATION_KINDS: readonly VerificationKind[] = [
     label: 'typecheck',
     timingLabel: 'Typecheck',
     lightweight: true,
-    command: 'pnpm turbo run typecheck --filter=<package>',
+    command: '<typecheck command>',
   },
   {
     id: 'lint',
     label: 'lint',
     timingLabel: 'Lint',
     lightweight: true,
-    command: 'pnpm exec eslint <files in scope>',
+    command: '<lint command>',
   },
   {
     id: 'unit',
     label: 'unit tests',
     timingLabel: 'Unit tests',
     lightweight: false,
-    command: 'pnpm --dir <workspace> exec vitest run <test files in scope>',
+    command: '<unit test command> <test files in scope>',
   },
   {
     id: 'integration',
     label: 'integration tests',
     timingLabel: 'Integration tests',
     lightweight: false,
-    command: 'pnpm --dir <workspace> exec vitest run <integration specs in scope>',
-    note: 'The chatroom-cli suite is `pnpm --filter chatroom-cli test:integration`.',
+    command: '<integration test command> <integration specs in scope>',
   },
   {
     id: 'e2e',
     label: 'e2e',
     timingLabel: 'E2E',
     lightweight: false,
-    command:
-      'pnpm --dir apps/webapp exec playwright test --config=tests/e2e/playwright.config.ts <specs in scope> --project=chromium',
+    command: '<e2e test command> <specs in scope>',
   },
 ];

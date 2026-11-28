@@ -1,8 +1,8 @@
 /**
  * Entry-point coordination gates shared by team presets.
  *
- * Covers the product-manager, research, architecture, review, asset, bug,
- * verification, and file-viewing gates the entry point clears before
+ * Covers the product-manager, research, architecture, prompt-engineer, review,
+ * asset, bug, verification, and file-viewing gates the entry point clears before
  * delegating work. The implementation role is parameterized so personae that
  * delegate to a different builder role can reuse the same prose.
  */
@@ -27,6 +27,7 @@ interface RoutingWording {
   goesTo: string;
   assetRoute: string;
   citeDesign: string;
+  promptBriefStep: string;
 }
 
 function getDelegatingRoutingWording(implementationRole: string): RoutingWording {
@@ -35,6 +36,7 @@ function getDelegatingRoutingWording(implementationRole: string): RoutingWording
     goesTo: `\`${implementationRole}\``,
     assetRoute: 'go to `game-asset-designer`, not to `product-manager` and not to `uiux-engineer`',
     citeDesign: ", and cite the design's message id when you delegate",
+    promptBriefStep: `before any \`${implementationRole}\` delegation; pass its proposed text verbatim when you delegate`,
   };
 }
 
@@ -45,6 +47,7 @@ const SELF_IMPLEMENTING_ROUTING_WORDING: RoutingWording = {
   assetRoute:
     'are never sent to `product-manager` or `uiux-engineer` (this team has no `game-asset-designer`; you handle the asset work yourself)',
   citeDesign: '',
+  promptBriefStep: 'before you edit it; apply its proposed text verbatim',
 };
 
 /**
@@ -59,7 +62,7 @@ export function getEntryPointRoutingRules(options: {
   implementationRole?: string;
 }): string {
   const { entryPointRole, implementationRole } = options;
-  const { uiWorkBy, goesTo, assetRoute, citeDesign } = implementationRole
+  const { uiWorkBy, goesTo, assetRoute, citeDesign, promptBriefStep } = implementationRole
     ? getDelegatingRoutingWording(implementationRole)
     : SELF_IMPLEMENTING_ROUTING_WORDING;
 
@@ -69,7 +72,8 @@ export function getEntryPointRoutingRules(options: {
   3. **New feature with a UI surface and agreed scope:** a UI surface is a new screen, panel, flow, interaction, or visible state. It goes to \`uiux-engineer\` for a design before any ${uiWorkBy}. Do not start UI implementation of a new UI feature without that design${citeDesign}.
   4. **Non-game icons, illustrations, and asset files:** ${assetRoute}.
   5. **Backend contract, API, or schema change:** goes to \`architect\` first.
-  6. **Existing UI with no new surface and no design decision:** goes straight to ${goesTo}, with no \`uiux-engineer\`.`;
+  6. **Agent-facing prompt text that needs a design decision:** a new role's prompt text, a rewording that changes what an agent does or hands off, or an edit to prompt text that several roles or teams render (role identity, role guidance, team context, handoff templates, or routing and delegation prose) goes to \`prompt-engineer\` for a prompt-change brief ${promptBriefStep}. A mechanical edit of already-decided text (a typo, a renamed identifier, or a snapshot update for agreed text) goes straight to ${goesTo}. Rule 5 applies first when the change also alters a handoff contract, API, or schema.
+  7. **Existing UI with no new surface and no design decision:** goes straight to ${goesTo}, with no \`uiux-engineer\`.`;
 }
 
 /**
@@ -82,7 +86,7 @@ export function getEntryPointRoutingRules(options: {
 export function getDecisionRoutingRule(options: { entryPointRole: string }): string {
   const { entryPointRole } = options;
 
-  return `- **Decision routing (\`${entryPointRole}\`):** for delegated development work, do not bundle open decisions into a list for \`user\`. Open **product** decisions (scope, user stories, in and out of scope, consistency with existing behavior) go to \`product-manager\`. Open **technical** decisions (approach, design, contracts, schema, libraries, trade-offs) go to \`architect\`. Reach \`user\` only under these escalation criteria: (a) **ambiguous or insufficient request:** the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, \`memory/\`, or \`docs/\`; (b) **destructive risk:** the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. Everything else is decided by the owning specialist. If a specialist's report leaves a decision open that falls within its remit, send that one question back to the same specialist once, then proceed on its recommendation. If your team composition does not list \`product-manager\` or \`architect\`, make that decision yourself, record the rationale in your handoff, and escalate to \`user\` only under (a) or (b). Conversation that is not delegated development work is not routed under this rule.`;
+  return `- **Decision routing (\`${entryPointRole}\`):** for delegated development work, do not bundle open decisions into a list for \`user\`. Open **product** decisions (scope, user stories, in and out of scope, consistency with existing behavior) go to \`product-manager\`. Open **technical** decisions (approach, design, contracts, schema, libraries, trade-offs) go to \`architect\`. Reach \`user\` only under these escalation criteria: (a) **ambiguous or insufficient request:** the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, the decision records, or the documentation; (b) **destructive risk:** the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. Everything else is decided by the owning specialist. If a specialist's report leaves a decision open that falls within its remit, send that one question back to the same specialist once, then proceed on its recommendation. If your team composition does not list \`product-manager\` or \`architect\`, make that decision yourself, record the rationale in your handoff, and escalate to \`user\` only under (a) or (b). Conversation that is not delegated development work is not routed under this rule.`;
 }
 
 export function getEntryPointCoordinationGates(options: {
@@ -95,7 +99,7 @@ export function getEntryPointCoordinationGates(options: {
 ${getDecisionRoutingRule({ entryPointRole })}
 ${getProductManagerGate({
   entryPointRole,
-  beforeStep: `any researcher, architect, or \`${implementationRole}\` delegation`,
+  beforeStep: `any researcher, architect, prompt-engineer, or \`${implementationRole}\` delegation`,
 })}
 - **Ground new work first:** when a request introduces something not yet grounded in this repository, get a researcher brief before delegating. The \`researcher\` handoff template defines when research is needed and how to request it.
 - **Architect before backend design changes:** when a backend change involves contracts, APIs, or schema/persistence, hand off to \`architect\` first (after any researcher brief the request needs). Delegate to \`${implementationRole}\` only after the architect's design returns to you. The \`architect\` handoff template defines the request.

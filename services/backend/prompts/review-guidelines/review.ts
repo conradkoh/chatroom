@@ -68,7 +68,7 @@ Run these commands to inspect the implementation:
 
 \`\`\`bash
 # Check for linting issues
-pnpm lint:fix
+<project lint-fix command>
 
 # View uncommitted changes
 git status

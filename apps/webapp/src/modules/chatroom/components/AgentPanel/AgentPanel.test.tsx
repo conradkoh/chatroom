@@ -50,6 +50,7 @@ const pinnedTeamFacts = [
     ephemeralRoles: [
       'product-manager',
       'architect',
+      'prompt-engineer',
       'researcher',
       'triage',
       'reviewer',
@@ -61,7 +62,14 @@ const pinnedTeamFacts = [
   {
     teamId: 'solo',
     permanentRoles: ['solo'],
-    ephemeralRoles: ['product-manager', 'architect', 'triage', 'uiux-engineer', 'verifier'],
+    ephemeralRoles: [
+      'product-manager',
+      'architect',
+      'prompt-engineer',
+      'triage',
+      'uiux-engineer',
+      'verifier',
+    ],
   },
 ] as const;
 
@@ -265,8 +273,8 @@ describe('AgentPanel', () => {
   it('keeps declared rows visible while status data is loading', () => {
     render(<AgentPanel {...panelProps} teamStructure={duoStructure} statusReadModel={undefined} />);
 
-    expect(screen.getByText('Agents (10)')).toBeInTheDocument();
-    expect(screen.getByText('Ephemeral (8)')).toBeInTheDocument();
+    expect(screen.getByText('Agents (11)')).toBeInTheDocument();
+    expect(screen.getByText('Ephemeral (9)')).toBeInTheDocument();
     expect(screen.getByText('Loading statuses…')).toBeInTheDocument();
     expandEphemeralGroup();
     const triage = screen.getByLabelText(/triage: Loading/i);
@@ -283,7 +291,7 @@ describe('AgentPanel', () => {
       />
     );
 
-    expect(screen.getByText('Agents (10)')).toBeInTheDocument();
+    expect(screen.getByText('Agents (11)')).toBeInTheDocument();
     expect(screen.getAllByLabelText(/triage:/i)).toHaveLength(1);
     expect(screen.getByLabelText(/triage:/i)).toHaveTextContent('OFFLINE (ERROR)');
     expect(screen.queryByLabelText(/architect:/i)).toBeNull();
@@ -306,7 +314,7 @@ describe('AgentPanel', () => {
     expect(screen.getByText('1 errored')).toBeInTheDocument();
     expect(
       screen.getByRole('button', {
-        name: 'Ephemeral (8): 0 online, 7 offline, 1 errored. Show group.',
+        name: 'Ephemeral (9): 0 online, 8 offline, 1 errored. Show group.',
       })
     ).toHaveAttribute('aria-expanded', 'false');
 
@@ -396,9 +404,9 @@ describe('AgentPanel', () => {
   it('renders one collapsed group row with zero online, all offline, and no member rows', () => {
     render(<AgentPanel {...panelProps} teamStructure={duoStructure} statusReadModel={[]} />);
 
-    expect(screen.getByText('Ephemeral (8)')).toBeInTheDocument();
+    expect(screen.getByText('Ephemeral (9)')).toBeInTheDocument();
     expect(screen.getByText('0 online')).toBeInTheDocument();
-    expect(screen.getByText('8 offline')).toBeInTheDocument();
+    expect(screen.getByText('9 offline')).toBeInTheDocument();
     expect(screen.getByText('0 errored')).toBeInTheDocument();
 
     const toggle = ephemeralToggle();
@@ -433,7 +441,7 @@ describe('AgentPanel', () => {
     expect(screen.queryByLabelText(/^product-manager:/i)).toBeNull();
     expect(triageRow).toHaveTextContent('OFFLINE (ERROR)');
     expect(screen.getByText('1 online')).toBeInTheDocument();
-    expect(screen.getByText('6 offline')).toBeInTheDocument();
+    expect(screen.getByText('7 offline')).toBeInTheDocument();
     expect(screen.getByText('1 errored')).toBeInTheDocument();
   });
 
@@ -459,7 +467,7 @@ describe('AgentPanel', () => {
 
     expect(screen.queryByLabelText(/^architect:/i)).toBeNull();
     expect(screen.getByText('1 online')).toBeInTheDocument();
-    expect(screen.getByText('7 offline')).toBeInTheDocument();
+    expect(screen.getByText('8 offline')).toBeInTheDocument();
     expect(screen.getByText('0 errored')).toBeInTheDocument();
 
     expandEphemeralGroup();
@@ -483,7 +491,7 @@ describe('AgentPanel', () => {
     );
 
     expect(screen.getByText('4 online')).toBeInTheDocument();
-    expect(screen.getByText('3 offline')).toBeInTheDocument();
+    expect(screen.getByText('4 offline')).toBeInTheDocument();
     expect(screen.getByText('1 errored')).toBeInTheDocument();
   });
 
@@ -497,8 +505,8 @@ describe('AgentPanel', () => {
       />
     );
 
-    expect(screen.getByText('Ephemeral (8)')).toBeInTheDocument();
-    expect(screen.getByText('8 online')).toBeInTheDocument();
+    expect(screen.getByText('Ephemeral (9)')).toBeInTheDocument();
+    expect(screen.getByText('9 online')).toBeInTheDocument();
     expect(screen.getByText('0 offline')).toBeInTheDocument();
     expect(screen.getByText('0 errored')).toBeInTheDocument();
 

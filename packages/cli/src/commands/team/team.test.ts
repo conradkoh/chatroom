@@ -19,13 +19,13 @@ describe('team commands', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     await listTeamPresets();
     expect(log.mock.calls.join('\n')).toContain(
-      'duo — Duo (planner, product-manager, architect, researcher, triage, reviewer, uiux-engineer, game-asset-designer, verifier, builder) entry: planner'
+      'duo — Duo (planner, product-manager, architect, prompt-engineer, researcher, triage, reviewer, uiux-engineer, game-asset-designer, verifier, builder) entry: planner'
     );
     expect(log.mock.calls.join('\n')).toContain(
-      'solo — Solo (solo, product-manager, architect, triage, uiux-engineer, verifier) entry: solo'
+      'solo — Solo (solo, product-manager, architect, prompt-engineer, triage, uiux-engineer, verifier) entry: solo'
     );
     expect(log.mock.calls.join('\n')).toContain(
-      'trio — Trio (coordinator, product-manager, architect, researcher, triage, reviewer, uiux-engineer, game-asset-designer, verifier, specifier, builder) entry: coordinator'
+      'trio — Trio (coordinator, product-manager, architect, prompt-engineer, researcher, triage, reviewer, uiux-engineer, game-asset-designer, verifier, specifier, builder) entry: coordinator'
     );
     log.mockRestore();
   });

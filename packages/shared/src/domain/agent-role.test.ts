@@ -21,6 +21,7 @@ describe('agent-role lifecycle tags', () => {
     expect(getAgentRoleTags('builder')).toEqual([AgentRoleLifecycleTag.Permanent]);
     expect(getAgentRoleTags('solo')).toEqual([AgentRoleLifecycleTag.Permanent]);
     expect(getAgentRoleTags('architect')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
+    expect(getAgentRoleTags('prompt-engineer')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
     expect(getAgentRoleTags('triage')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
     expect(getAgentRoleTags('uiux-engineer')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
     expect(getAgentRoleTags('researcher')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
@@ -79,6 +80,7 @@ describe('agent-role lifecycle tags', () => {
     expect(getPermanentRoleNames(['game-asset-designer'])).toEqual([]);
     expect(getPermanentRoleNames(['verifier'])).toEqual([]);
     expect(getPermanentRoleNames(['architect'])).toEqual([]);
+    expect(getPermanentRoleNames(['prompt-engineer'])).toEqual([]);
     expect(getPermanentRoleNames(['triage'])).toEqual([]);
     expect(getPermanentRoleNames(['uiux-engineer'])).toEqual([]);
   });
@@ -103,6 +105,15 @@ describe('agent-role lifecycle tags', () => {
     expect(getBuiltinRolesForTeam('trio')[0]).toBe('coordinator');
   });
 
+  test('prompt-engineer is an ephemeral role ordered directly after architect in all three teams', () => {
+    for (const teamId of ['duo', 'solo', 'trio'] as const) {
+      const roles = getBuiltinRolesForTeam(teamId);
+      expect(roles).toContain('prompt-engineer');
+      expect(roles.indexOf('prompt-engineer')).toBe(roles.indexOf('architect') + 1);
+      expect(getAgentRoleTags('prompt-engineer')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
+    }
+  });
+
   test('game-asset-designer is an ephemeral duo-only role ordered between uiux-engineer and verifier', () => {
     const duoRoles = getBuiltinRolesForTeam('duo');
     expect(duoRoles).toContain('game-asset-designer');
@@ -116,6 +127,7 @@ describe('agent-role lifecycle tags', () => {
       'coordinator',
       'product-manager',
       'architect',
+      'prompt-engineer',
       'researcher',
       'triage',
       'reviewer',

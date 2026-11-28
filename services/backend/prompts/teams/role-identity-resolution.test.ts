@@ -58,6 +58,17 @@ describe('per-team role identity catalogues', () => {
     );
   });
 
+  test('prompt-engineer resolves to each preset catalogue and the legacy catalogue for unknown teams', () => {
+    for (const teamId of PRESET_IDS) {
+      expect(resolveRoleIdentity({ team: teamId, role: 'prompt-engineer' }).title).toBe(
+        'Prompt Engineer'
+      );
+    }
+    expect(resolveRoleIdentity({ team: 'unknown', role: 'prompt-engineer' })).toBe(
+      CUSTOM_TEAM_ROLE_IDENTITY['prompt-engineer']
+    );
+  });
+
   test('literal titles and descriptions keep their text', () => {
     expect(resolveRoleIdentity({ team: 'trio', role: 'architect' }).description).toBe(
       'You are the architect responsible for producing one complete implementation design for the request; you are not an implementer.'

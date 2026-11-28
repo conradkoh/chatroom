@@ -20,7 +20,6 @@ import { t } from '../../../../test.setup';
 import { createTestSession, joinParticipant } from '../../../helpers/integration';
 
 const TRIO_ROLES = ['coordinator', 'specifier', 'builder'] as const;
-type TrioRole = (typeof TRIO_ROLES)[number];
 
 async function createTrioChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   const chatroomId = await t.mutation(api.chatrooms.create, {
@@ -37,7 +36,7 @@ async function createTrioChatroom(sessionId: SessionId): Promise<Id<'chatroom_ro
 async function receiveTask(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
-  role: TrioRole,
+  role: string,
   taskId: Id<'chatroom_tasks'>
 ): Promise<void> {
   await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role, taskId });
@@ -47,7 +46,7 @@ async function receiveTask(
 async function handoff(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
-  senderRole: TrioRole,
+  senderRole: string,
   targetRole: string
 ) {
   return await t.mutation(api.messages.handoff, {
@@ -68,7 +67,7 @@ async function getTask(taskId: Id<'chatroom_tasks'>) {
 async function getDeliveryOutput(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
-  role: TrioRole,
+  role: string,
   taskId: Id<'chatroom_tasks'>,
   messageId: Id<'chatroom_messages'>
 ): Promise<string> {
@@ -233,5 +232,69 @@ describe('Trio Team > Coordinator-Centred Workflow', () => {
       attachmentsDiscarded: false,
     });
     expect(await countChatroomRows(chatroomId)).toEqual(before);
+  });
+
+  test('routes prompt-text design through the prompt engineer and back to the coordinator', async () => {
+    const { sessionId } = await createTestSession('trio-workflow-prompt-engineer');
+    const chatroomId = await createTrioChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'prompt-engineer');
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Design the prompt text for a new role',
+      type: 'message',
+    });
+    const coordinatorTask = await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'coordinator',
+    });
+    await receiveTask(sessionId, chatroomId, 'coordinator', coordinatorTask.taskId);
+
+    // Step 1: the coordinator delegates the prompt-text design.
+    const toPromptEngineer = await handoff(sessionId, chatroomId, 'coordinator', 'prompt-engineer');
+    expect(toPromptEngineer.success).toBe(true);
+    const promptEngineerTask = await getTask(toPromptEngineer.newTaskId!);
+    expect(promptEngineerTask.assignedTo).toBe('prompt-engineer');
+
+    // Step 2: the prompt engineer advertises only the coordinator.
+    await receiveTask(sessionId, chatroomId, 'prompt-engineer', promptEngineerTask._id);
+    const promptEngineerOutput = await getDeliveryOutput(
+      sessionId,
+      chatroomId,
+      'prompt-engineer',
+      promptEngineerTask._id,
+      toPromptEngineer.messageId!
+    );
+    expect(advertisedTargets(promptEngineerOutput)).toEqual(['coordinator']);
+    expect(section(promptEngineerOutput, 'next-steps')).toContain('--next-role="coordinator"');
+
+    // Step 3: addressing the builder is rejected before any write.
+    const before = await countChatroomRows(chatroomId);
+    const rejected = await handoff(sessionId, chatroomId, 'prompt-engineer', 'builder');
+    expect(rejected).toEqual({
+      success: false,
+      error: {
+        code: 'INVALID_TARGET_ROLE',
+        message: expect.any(String),
+        suggestedTargets: ['coordinator'],
+      },
+      messageId: null,
+      completedTaskIds: [],
+      newTaskId: null,
+      promotedTaskId: null,
+      supportsNativeIntegration: false,
+      attachmentsDiscarded: false,
+    });
+    expect(await countChatroomRows(chatroomId)).toEqual(before);
+
+    // Step 4: returning to the coordinator continues its session.
+    const toCoordinator = await handoff(sessionId, chatroomId, 'prompt-engineer', 'coordinator');
+    expect(toCoordinator.success).toBe(true);
+    const coordinatorReportTask = await getTask(toCoordinator.newTaskId!);
+    expect(coordinatorReportTask.assignedTo).toBe('coordinator');
+    expect(coordinatorReportTask.taskEnvelope?.sessionPolicy).toBe('continue');
   });
 });
